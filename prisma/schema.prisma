@@ -1,0 +1,36 @@
+// Schéma Prisma pour Remoteva
+// Base de données SQLite stockée dans /data/remoteva.db
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// Utilisateurs administrateurs (salariés EVA)
+model AdminUser {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("admin_users")
+}
+
+// Liens d'accès clients
+model AccessLink {
+  id          String   @id @default(cuid())
+  slug        String   @unique // ex: "agrotic2026", "filmscdc"
+  serviceType String   @map("service_type") // "newsletter" | "download"
+  clientName  String   @map("client_name")
+  serviceName String   @map("service_name")
+  expiresAt   DateTime @map("expires_at")
+  isActive    Boolean  @default(true) @map("is_active")
+  config      String   @default("{}") // JSON stocké en string
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("access_links")
+}
