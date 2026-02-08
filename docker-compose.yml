@@ -1,0 +1,19 @@
+services:
+  evaremote:
+    image: node:20-alpine
+    container_name: evaremote
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ENV=production
+      - JWT_SECRET=eva-remote-secret-2026-change-me
+    volumes:
+      - evaremote-data:/app/data
+      - evaremote-app:/app
+    working_dir: /app
+    command: sh -c "if [ ! -f server.js ]; then echo 'App not deployed yet'; sleep infinity; else node server.js; fi"
+
+volumes:
+  evaremote-data:
+  evaremote-app:
