@@ -54,44 +54,6 @@ export async function POST(request: NextRequest) {
     const currentConfig = link.config as NewsletterConfig;
     const conferences = currentConfig.conferences || [];
 
-    // === Action: sauvegarder le résumé d'une conférence (brouillon) ===
-    if (action === "save_conference") {
-      const { conference_id, summary } = body;
-
-      if (!conference_id) {
-        return NextResponse.json(
-          { error: "conference_id requis" },
-          { status: 400 }
-        );
-      }
-
-      const confIndex = conferences.findIndex((c) => c.id === conference_id);
-      if (confIndex === -1) {
-        return NextResponse.json(
-          { error: "Conférence non trouvée" },
-          { status: 404 }
-        );
-      }
-
-      conferences[confIndex] = {
-        ...conferences[confIndex],
-        summary_corrected: summary,
-        status: "BROUILLON" as ConferenceStatus,
-      };
-
-      const newConfig: NewsletterConfig = {
-        ...currentConfig,
-        conferences,
-      };
-
-      await updateLinkConfig(slug, newConfig);
-
-      return NextResponse.json({
-        success: true,
-        conference: conferences[confIndex],
-      });
-    }
-
     // === Action: valider une conférence ===
     if (action === "validate_conference") {
       const { conference_id, summary } = body;
@@ -136,6 +98,44 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // === Action: sauvegarder le mapping speakers d'une conférence ===
+    if (action === "save_speaker_mapping") {
+      const { conference_id, speaker_mapping_override } = body;
+
+      if (!conference_id) {
+        return NextResponse.json(
+          { error: "conference_id requis" },
+          { status: 400 }
+        );
+      }
+
+      const confIndex = conferences.findIndex((c) => c.id === conference_id);
+      if (confIndex === -1) {
+        return NextResponse.json(
+          { error: "Conférence non trouvée" },
+          { status: 404 }
+        );
+      }
+
+      conferences[confIndex] = {
+        ...conferences[confIndex],
+        speaker_mapping_override: speaker_mapping_override || {},
+      };
+
+      const newConfig: NewsletterConfig = {
+        ...currentConfig,
+        conferences,
+      };
+
+      await updateLinkConfig(slug, newConfig);
+
+      return NextResponse.json({
+        success: true,
+        conference_id,
+        speaker_mapping_override: conferences[confIndex].speaker_mapping_override,
+      });
+    }
+
     // === Action: lister les templates newsletter (via n8n) ===
     if (action === "list_templates") {
       try {
@@ -169,7 +169,7 @@ export async function POST(request: NextRequest) {
 
     // === Action: générer et envoyer la newsletter ===
     if (action === "generate") {
-      const { email, template_name } = body;
+      const { email, template_name, custom_text } = body;
 
       if (!email || !email.includes("@")) {
         return NextResponse.json(
@@ -252,6 +252,14 @@ export async function POST(request: NextRequest) {
         .replace(/\{\{EVENT_NAME\}\}/g, escapeHtml(eventName))
         .replace(/\{\{CONFERENCES\}\}/g, articlesHtml);
 
+      // Texte personnalisé (édito) si fourni
+      if (custom_text && custom_text.trim()) {
+        const customHtml = `<div style="margin-bottom:40px;padding:20px;background-color:#f8f9fa;border-left:4px solid #667eea;font-size:16px;line-height:1.6;">${escapeHtml(custom_text)}</div>`;
+        finalHtml = finalHtml.replace(/\{\{CUSTOM_TEXT\}\}/g, customHtml);
+      } else {
+        finalHtml = finalHtml.replace(/\{\{CUSTOM_TEXT\}\}/g, "");
+      }
+
       // Sauvegarder le template choisi
       const newConfig: NewsletterConfig = {
         ...currentConfig,
@@ -269,6 +277,7 @@ export async function POST(request: NextRequest) {
             to: email,
             subject: `Newsletter - ${eventName}`,
             html: finalHtml,
+            custom_text: custom_text || "",
           }),
         });
 

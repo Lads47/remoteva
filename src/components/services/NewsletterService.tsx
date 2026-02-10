@@ -42,22 +42,51 @@ export default function NewsletterService({ link }: Props) {
   );
   const [loadingTemplates, setLoadingTemplates] = useState(false);
 
+  // Texte personnalisé (édito) pour la newsletter
+  const [customText, setCustomText] = useState("");
+
+  // Speaker mapping par conférence
+  const [speakerMappings, setSpeakerMappings] = useState<
+    Record<number, Record<string, string>>
+  >({});
+  const [savingMapping, setSavingMapping] = useState<number | null>(null);
+  const [mappingSaved, setMappingSaved] = useState<number | null>(null);
+
   // Refs pour file inputs
   const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
 
-  // Initialiser les textes édités depuis les données
+  // Initialiser les textes édités et les speaker mappings depuis les données
   useEffect(() => {
     const texts: Record<number, string> = {};
+    const mappings: Record<number, Record<string, string>> = {};
+
     (config.conferences || []).forEach((conf) => {
       // Priorité : summary_corrected > summary_ia
       const text = conf.summary_corrected || conf.summary_ia || "";
       if (text) {
         texts[conf.id] = text;
       }
+
+      // Initialiser le mapping speakers : override > mapping global
+      if (conf.speakers_detected && conf.speakers_detected.length > 0) {
+        const m: Record<string, string> = {};
+        conf.speakers_detected.forEach((spk) => {
+          if (conf.speaker_mapping_override?.[spk]) {
+            m[spk] = conf.speaker_mapping_override[spk];
+          } else if (config.speaker_mapping?.[spk]) {
+            m[spk] = config.speaker_mapping[spk];
+          }
+        });
+        if (Object.keys(m).length > 0) {
+          mappings[conf.id] = m;
+        }
+      }
     });
+
     setEditedTexts(texts);
+    setSpeakerMappings(mappings);
     setConferences(config.conferences || []);
-  }, [config.conferences]);
+  }, [config.conferences, config.speaker_mapping]);
 
   // Auto-refresh si traitement en cours (polling léger via fetch)
   useEffect(() => {
@@ -103,25 +132,19 @@ export default function NewsletterService({ link }: Props) {
       .filter((w) => w.length > 0).length;
   };
 
-  // === Sauvegarder une conférence (brouillon ou validation) ===
-  const saveConference = async (
-    conferenceId: number,
-    status: "BROUILLON" | "VALIDÉ"
-  ) => {
+  // === Valider une conférence ===
+  const saveConference = async (conferenceId: number) => {
     const text = editedTexts[conferenceId] || "";
     setSavingId(conferenceId);
 
     try {
-      // 1. Sauvegarder le texte via l'API newsletter
-      const action =
-        status === "VALIDÉ" ? "validate_conference" : "save_conference";
-
+      // 1. Valider le texte via l'API newsletter
       const response = await fetch("/api/services/newsletter", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           slug,
-          action,
+          action: "validate_conference",
           conference_id: conferenceId,
           summary: text,
         }),
@@ -162,34 +185,62 @@ export default function NewsletterService({ link }: Props) {
             ? {
                 ...c,
                 summary_corrected: text,
-                status: status,
+                status: "VALIDÉ",
               }
             : c
         )
       );
 
       // Notification
-      const msg =
-        status === "VALIDÉ"
-          ? "Version finale validée !"
-          : "Brouillon enregistré !";
-
-      // Afficher les stats si validation
-      if (status === "VALIDÉ" && result.all_validated) {
+      if (result.all_validated) {
         alert(
-          `${msg}\n\nToutes les conférences sont validées (${result.validated_count}/${result.total_count}). Vous pouvez générer la newsletter !`
-        );
-      } else if (status === "VALIDÉ") {
-        alert(
-          `${msg}\n\n${result.validated_count}/${result.total_count} conférence(s) validée(s).`
+          `Version finale validée !\n\nToutes les conférences sont validées (${result.validated_count}/${result.total_count}). Vous pouvez générer la newsletter !`
         );
       } else {
-        alert(msg);
+        alert(
+          `Version finale validée !\n\n${result.validated_count}/${result.total_count} conférence(s) validée(s).`
+        );
       }
     } catch (error) {
       alert("Erreur : " + (error as Error).message);
     } finally {
       setSavingId(null);
+    }
+  };
+
+  // === Sauvegarder le mapping speakers d'une conférence ===
+  const saveSpeakerMapping = async (conferenceId: number) => {
+    setSavingMapping(conferenceId);
+    try {
+      const response = await fetch("/api/services/newsletter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          slug,
+          action: "save_speaker_mapping",
+          conference_id: conferenceId,
+          speaker_mapping_override: speakerMappings[conferenceId] || {},
+        }),
+      });
+
+      if (!response.ok) throw new Error("Erreur sauvegarde mapping");
+
+      // Feedback visuel
+      setMappingSaved(conferenceId);
+      setTimeout(() => setMappingSaved(null), 2000);
+
+      // Mettre à jour l'état local
+      setConferences((prev) =>
+        prev.map((c) =>
+          c.id === conferenceId
+            ? { ...c, speaker_mapping_override: speakerMappings[conferenceId] }
+            : c
+        )
+      );
+    } catch (error) {
+      alert("Erreur : " + (error as Error).message);
+    } finally {
+      setSavingMapping(null);
     }
   };
 
@@ -240,6 +291,7 @@ export default function NewsletterService({ link }: Props) {
           action: "generate",
           email: newsletterEmail,
           template_name: selectedTemplate,
+          custom_text: selectedTemplate.includes("custom") ? customText : undefined,
         }),
       });
 
@@ -277,6 +329,7 @@ export default function NewsletterService({ link }: Props) {
     setShowNewsletterModal(true);
     setNewsletterStatus(null);
     setNewsletterEmail("");
+    setCustomText("");
     loadTemplates();
   };
 
@@ -402,9 +455,7 @@ export default function NewsletterService({ link }: Props) {
             className={`bg-white border rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow ${
               conf.status === "VALIDÉ"
                 ? "border-green-200"
-                : conf.status === "BROUILLON"
-                  ? "border-yellow-200"
-                  : "border-gray-200"
+                : "border-gray-200"
             }`}
           >
             {/* En-tête conférence */}
@@ -420,13 +471,11 @@ export default function NewsletterService({ link }: Props) {
                   className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase ${
                     conf.status === "VALIDÉ"
                       ? "bg-green-100 text-green-800"
-                      : conf.status === "BROUILLON"
-                        ? "bg-yellow-100 text-yellow-800"
-                        : conf.status === "TRAITEMENT EN COURS"
-                          ? "bg-blue-100 text-blue-800"
-                          : conf.status === "RÉSUMÉ PRÊT"
-                            ? "bg-purple-100 text-purple-800"
-                            : "bg-gray-100 text-gray-600"
+                      : conf.status === "TRAITEMENT EN COURS"
+                        ? "bg-blue-100 text-blue-800"
+                        : conf.status === "RÉSUMÉ PRÊT"
+                          ? "bg-purple-100 text-purple-800"
+                          : "bg-gray-100 text-gray-600"
                   }`}
                 >
                   {conf.status}
@@ -481,6 +530,83 @@ export default function NewsletterService({ link }: Props) {
                   </span>
                 </div>
 
+                {/* Section Speaker Mapping */}
+                {conf.speakers_detected && conf.speakers_detected.length > 0 &&
+                  config.lexicon_speakers && config.lexicon_speakers.length > 0 && (
+                  <div className="bg-[#f0f4f8] border border-[#d0d7de] rounded-xl p-5 mt-5 mb-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-blue-600 font-bold text-sm">
+                        Identification des Intervenants
+                      </span>
+                      {mappingSaved === conf.id && (
+                        <span className="text-green-600 text-xs font-medium animate-pulse">
+                          Sauvegard&eacute;
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 mb-4">
+                      Associez chaque voix d&eacute;tect&eacute;e au nom de l&apos;intervenant correspondant.
+                    </p>
+
+                    <div className="space-y-2">
+                      {conf.speakers_detected.map((speakerId) => (
+                        <div
+                          key={speakerId}
+                          className="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-lg hover:border-blue-500 transition-colors"
+                        >
+                          <span className="font-mono text-xs text-gray-500 bg-gray-100 px-2.5 py-1 rounded min-w-[110px] font-semibold">
+                            {speakerId}
+                          </span>
+                          <span className="text-gray-400 text-lg">&rarr;</span>
+                          <select
+                            value={speakerMappings[conf.id]?.[speakerId] || ""}
+                            onChange={(e) => {
+                              setSpeakerMappings((prev) => ({
+                                ...prev,
+                                [conf.id]: {
+                                  ...(prev[conf.id] || {}),
+                                  [speakerId]: e.target.value,
+                                },
+                              }));
+                            }}
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                          >
+                            <option value="">-- S&eacute;lectionner un intervenant --</option>
+                            {config.lexicon_speakers!.map((s) =>
+                              s.function ? (
+                                <option key={s.name} value={s.name}>
+                                  {s.name} &mdash; {s.function}
+                                </option>
+                              ) : (
+                                <option key={s.name} value={s.name}>
+                                  {s.name}
+                                </option>
+                              )
+                            )}
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="mt-4">
+                      <button
+                        onClick={() => saveSpeakerMapping(conf.id)}
+                        disabled={savingMapping === conf.id}
+                        className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow transition-all hover:-translate-y-0.5 hover:shadow-md disabled:opacity-50"
+                      >
+                        {savingMapping === conf.id ? (
+                          <span className="flex items-center gap-2">
+                            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            Sauvegarde...
+                          </span>
+                        ) : (
+                          "Sauvegarder le mapping"
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Photo existante */}
                 {conf.photo_path && (
                   <div className="mt-3 p-2 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700 flex items-center gap-2">
@@ -510,21 +636,7 @@ export default function NewsletterService({ link }: Props) {
 
                   <div className="flex gap-3 flex-wrap">
                     <button
-                      onClick={() => saveConference(conf.id, "BROUILLON")}
-                      disabled={savingId === conf.id}
-                      className="px-5 py-2.5 bg-yellow-400 hover:bg-yellow-500 text-black font-semibold rounded-lg shadow transition-all hover:-translate-y-0.5 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
-                    >
-                      {savingId === conf.id ? (
-                        <span className="flex items-center gap-2">
-                          <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-                          Sauvegarde...
-                        </span>
-                      ) : (
-                        "ENREGISTRER BROUILLON"
-                      )}
-                    </button>
-                    <button
-                      onClick={() => saveConference(conf.id, "VALIDÉ")}
+                      onClick={() => saveConference(conf.id)}
                       disabled={savingId === conf.id}
                       className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow transition-all hover:-translate-y-0.5 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
                     >
@@ -689,6 +801,22 @@ export default function NewsletterService({ link }: Props) {
                   />
                 )}
               </div>
+
+              {/* Texte personnalisé (visible si template "custom") */}
+              {selectedTemplate.includes("custom") && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Texte personnalis&eacute; (&eacute;dito, introduction...) :
+                  </label>
+                  <textarea
+                    value={customText}
+                    onChange={(e) => setCustomText(e.target.value)}
+                    rows={4}
+                    placeholder="Ajoutez votre texte ici... Il apparaîtra en haut de la newsletter, avant les articles."
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 text-gray-900"
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">

@@ -10,7 +10,7 @@ export type ConferenceStatus =
   | "EN ATTENTE"        // Pas encore traitée
   | "TRAITEMENT EN COURS" // Transcription/résumé en cours
   | "RÉSUMÉ PRÊT"       // Résumé IA disponible
-  | "BROUILLON"          // Client a commencé à modifier
+  | "BROUILLON"          // @deprecated — gardé pour rétrocompat DB, ne plus utiliser
   | "VALIDÉ";            // Client a validé
 
 // Speaker du lexique (poussé par ia-regie)
