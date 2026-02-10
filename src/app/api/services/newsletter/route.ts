@@ -4,13 +4,19 @@ import {
   isLinkValid,
   updateLinkConfig,
   NewsletterConfig,
+  Conference,
+  ConferenceStatus,
 } from "@/lib/services";
+import path from "path";
+import fs from "fs";
 
-// POST /api/services/newsletter - Met à jour et/ou génère la newsletter
+const N8N_BASE_URL = process.env.N8N_BASE_URL || "https://n8n.srv950180.hstgr.cloud/webhook";
+
+// POST /api/services/newsletter - Actions sur les conférences et newsletter
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { slug, action, title, content, imageUrl } = body;
+    const { slug, action } = body;
 
     if (!slug) {
       return NextResponse.json(
@@ -46,59 +52,270 @@ export async function POST(request: NextRequest) {
     }
 
     const currentConfig = link.config as NewsletterConfig;
+    const conferences = currentConfig.conferences || [];
 
-    // Action: sauvegarder le contenu
-    if (action === "save") {
-      const newConfig: NewsletterConfig = {
-        ...currentConfig,
-        title: title ?? currentConfig.title,
-        content: content ?? currentConfig.content,
-        imageUrl: imageUrl ?? currentConfig.imageUrl,
+    // === Action: sauvegarder le résumé d'une conférence (brouillon) ===
+    if (action === "save_conference") {
+      const { conference_id, summary } = body;
+
+      if (!conference_id) {
+        return NextResponse.json(
+          { error: "conference_id requis" },
+          { status: 400 }
+        );
+      }
+
+      const confIndex = conferences.findIndex((c) => c.id === conference_id);
+      if (confIndex === -1) {
+        return NextResponse.json(
+          { error: "Conférence non trouvée" },
+          { status: 404 }
+        );
+      }
+
+      conferences[confIndex] = {
+        ...conferences[confIndex],
+        summary_corrected: summary,
+        status: "BROUILLON" as ConferenceStatus,
       };
 
-      await updateLinkConfig(slug, newConfig);
-
-      return NextResponse.json({ success: true, config: newConfig });
-    }
-
-    // Action: valider le résumé
-    if (action === "validate") {
       const newConfig: NewsletterConfig = {
         ...currentConfig,
-        validated: true,
-      };
-
-      await updateLinkConfig(slug, newConfig);
-
-      return NextResponse.json({ success: true, config: newConfig });
-    }
-
-    // Action: générer le HTML de la newsletter
-    if (action === "generate") {
-      const html = generateNewsletterHtml({
-        title: currentConfig.title || "Newsletter",
-        content: currentConfig.content || "",
-        imageUrl: currentConfig.imageUrl,
-        clientName: link.clientName,
-        serviceName: link.serviceName,
-      });
-
-      const newConfig: NewsletterConfig = {
-        ...currentConfig,
-        generatedHtml: html,
+        conferences,
       };
 
       await updateLinkConfig(slug, newConfig);
 
       return NextResponse.json({
         success: true,
-        html,
-        config: newConfig,
+        conference: conferences[confIndex],
       });
     }
 
+    // === Action: valider une conférence ===
+    if (action === "validate_conference") {
+      const { conference_id, summary } = body;
+
+      if (!conference_id) {
+        return NextResponse.json(
+          { error: "conference_id requis" },
+          { status: 400 }
+        );
+      }
+
+      const confIndex = conferences.findIndex((c) => c.id === conference_id);
+      if (confIndex === -1) {
+        return NextResponse.json(
+          { error: "Conférence non trouvée" },
+          { status: 404 }
+        );
+      }
+
+      conferences[confIndex] = {
+        ...conferences[confIndex],
+        summary_corrected: summary || conferences[confIndex].summary_corrected,
+        status: "VALIDÉ" as ConferenceStatus,
+      };
+
+      const newConfig: NewsletterConfig = {
+        ...currentConfig,
+        conferences,
+      };
+
+      await updateLinkConfig(slug, newConfig);
+
+      // Compter les conférences validées
+      const validatedCount = conferences.filter((c) => c.status === "VALIDÉ").length;
+
+      return NextResponse.json({
+        success: true,
+        conference: conferences[confIndex],
+        validated_count: validatedCount,
+        total_count: conferences.length,
+        all_validated: validatedCount === conferences.length,
+      });
+    }
+
+    // === Action: lister les templates newsletter (via n8n) ===
+    if (action === "list_templates") {
+      try {
+        const response = await fetch(`${N8N_BASE_URL}/list-templates`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          return NextResponse.json({
+            success: true,
+            templates: data.templates || [],
+          });
+        }
+
+        return NextResponse.json({
+          success: false,
+          error: "Erreur lors de la récupération des templates",
+          templates: [],
+        });
+      } catch {
+        return NextResponse.json({
+          success: false,
+          error: "n8n non disponible",
+          templates: [],
+        });
+      }
+    }
+
+    // === Action: générer et envoyer la newsletter ===
+    if (action === "generate") {
+      const { email, template_name } = body;
+
+      if (!email || !email.includes("@")) {
+        return NextResponse.json(
+          { error: "Email valide requis" },
+          { status: 400 }
+        );
+      }
+
+      // Récupérer les conférences validées
+      const validatedConferences = conferences.filter(
+        (c) => c.status === "VALIDÉ"
+      );
+
+      if (validatedConferences.length === 0) {
+        return NextResponse.json(
+          { error: "Aucune conférence validée" },
+          { status: 400 }
+        );
+      }
+
+      // 1. Télécharger le template depuis n8n/Drive
+      const selectedTemplate = template_name || currentConfig.newsletter_template || "newsletter_base.html";
+      let templateHtml = "";
+
+      try {
+        const templateRes = await fetch(`${N8N_BASE_URL}/download-template`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ template_name: selectedTemplate }),
+        });
+
+        if (templateRes.ok) {
+          const templateData = await templateRes.json();
+          templateHtml = templateData.content || "";
+        }
+      } catch {
+        console.warn("Impossible de télécharger le template depuis n8n, utilisation du template local");
+      }
+
+      // Fallback : template local si n8n indisponible
+      if (!templateHtml) {
+        templateHtml = getLocalFallbackTemplate();
+      }
+
+      // 2. Générer les articles HTML pour chaque conférence validée
+      let articlesHtml = "";
+      for (const conf of validatedConferences) {
+        const summary = conf.summary_corrected || conf.summary_ia || "";
+
+        // Photo en base64 si disponible
+        let imageHtml = "";
+        if (conf.photo_path) {
+          const photoFullPath = path.join(process.cwd(), conf.photo_path);
+          if (fs.existsSync(photoFullPath)) {
+            try {
+              const photoBuffer = fs.readFileSync(photoFullPath);
+              const base64 = photoBuffer.toString("base64");
+              const ext = path.extname(photoFullPath).toLowerCase();
+              const mimeType = ext === ".png" ? "image/png" : "image/jpeg";
+              imageHtml = `<img class="article-image" src="data:${mimeType};base64,${base64}" alt="${escapeHtml(conf.title)}" style="width:100%;max-width:600px;height:auto;display:block;margin:20px auto;border:1px solid #eeeeee;" />`;
+            } catch (err) {
+              console.warn(`Erreur lecture photo ${conf.photo_path}:`, err);
+            }
+          }
+        }
+
+        articlesHtml += `
+    <article class="article" style="margin-bottom:50px;padding-bottom:30px;border-bottom:1px solid #cccccc;">
+        <h2 class="article-title" style="font-size:24px;font-weight:bold;margin-bottom:20px;padding-bottom:10px;border-bottom:1px solid #eeeeee;">${escapeHtml(conf.title)}</h2>
+        ${imageHtml}
+        <div class="article-content" style="font-size:16px;text-align:justify;margin-top:20px;line-height:1.6;">
+            <p>${escapeHtml(summary)}</p>
+        </div>
+    </article>`;
+      }
+
+      // 3. Assembler le HTML final
+      const eventName = currentConfig.event_name || link.serviceName || "Newsletter";
+      let finalHtml = templateHtml
+        .replace(/\{\{EVENT_NAME\}\}/g, escapeHtml(eventName))
+        .replace(/\{\{CONFERENCES\}\}/g, articlesHtml);
+
+      // Sauvegarder le template choisi
+      const newConfig: NewsletterConfig = {
+        ...currentConfig,
+        newsletter_template: selectedTemplate,
+        generatedHtml: finalHtml,
+      };
+      await updateLinkConfig(slug, newConfig);
+
+      // 4. Envoyer l'email via n8n
+      try {
+        const sendRes = await fetch(`${N8N_BASE_URL}/send-newsletter`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            to: email,
+            subject: `Newsletter - ${eventName}`,
+            html: finalHtml,
+          }),
+        });
+
+        if (sendRes.ok) {
+          return NextResponse.json({
+            success: true,
+            message: `Newsletter envoyée à ${email} avec ${validatedConferences.length} article(s)`,
+            conferences_count: validatedConferences.length,
+          });
+        }
+
+        return NextResponse.json({
+          success: false,
+          error: "Erreur lors de l'envoi de l'email via n8n",
+        });
+      } catch {
+        return NextResponse.json({
+          success: false,
+          error: "Service d'envoi d'email indisponible (n8n)",
+        });
+      }
+    }
+
+    // === Ancien format : compatibilité (save/validate/generate simple) ===
+    if (action === "save") {
+      const { title, content, imageUrl } = body;
+      const newConfig: NewsletterConfig = {
+        ...currentConfig,
+        title: title ?? currentConfig.title,
+        content: content ?? currentConfig.content,
+        imageUrl: imageUrl ?? currentConfig.imageUrl,
+      };
+      await updateLinkConfig(slug, newConfig);
+      return NextResponse.json({ success: true, config: newConfig });
+    }
+
+    if (action === "validate") {
+      const newConfig: NewsletterConfig = {
+        ...currentConfig,
+        validated: true,
+      };
+      await updateLinkConfig(slug, newConfig);
+      return NextResponse.json({ success: true, config: newConfig });
+    }
+
     return NextResponse.json(
-      { error: "Action invalide" },
+      { error: `Action invalide: ${action}` },
       { status: 400 }
     );
   } catch (error) {
@@ -108,93 +325,6 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-// Génère le HTML de la newsletter
-// Structure extensible pour brancher une API externe plus tard
-function generateNewsletterHtml(data: {
-  title: string;
-  content: string;
-  imageUrl?: string;
-  clientName: string;
-  serviceName: string;
-}): string {
-  const { title, content, imageUrl, clientName, serviceName } = data;
-
-  // Template HTML responsive pour email
-  return `<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${escapeHtml(title)}</title>
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-      line-height: 1.6;
-      color: #333;
-      max-width: 600px;
-      margin: 0 auto;
-      padding: 20px;
-      background-color: #f5f5f5;
-    }
-    .container {
-      background-color: #ffffff;
-      border-radius: 8px;
-      padding: 30px;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    }
-    .header {
-      text-align: center;
-      margin-bottom: 30px;
-      padding-bottom: 20px;
-      border-bottom: 2px solid #e0e0e0;
-    }
-    .header h1 {
-      color: #1a1a1a;
-      font-size: 24px;
-      margin: 0;
-    }
-    .header p {
-      color: #666;
-      font-size: 14px;
-      margin: 10px 0 0;
-    }
-    .content {
-      margin-bottom: 30px;
-    }
-    .content img {
-      max-width: 100%;
-      height: auto;
-      border-radius: 8px;
-      margin: 20px 0;
-    }
-    .footer {
-      text-align: center;
-      padding-top: 20px;
-      border-top: 1px solid #e0e0e0;
-      color: #888;
-      font-size: 12px;
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h1>${escapeHtml(title)}</h1>
-      <p>${escapeHtml(serviceName)} - ${escapeHtml(clientName)}</p>
-    </div>
-    <div class="content">
-      ${imageUrl ? `<img src="${escapeHtml(imageUrl)}" alt="Image de la newsletter">` : ""}
-      ${formatContent(content)}
-    </div>
-    <div class="footer">
-      <p>Généré par EVA - Electronic Virtual Assistant</p>
-      <p>&copy; ${new Date().getFullYear()}</p>
-    </div>
-  </div>
-</body>
-</html>`;
 }
 
 // Échappe les caractères HTML dangereux
@@ -209,10 +339,39 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (m) => map[m]);
 }
 
-// Formate le contenu en paragraphes HTML
-function formatContent(content: string): string {
-  return content
-    .split("\n\n")
-    .map((paragraph) => `<p>${escapeHtml(paragraph.trim())}</p>`)
-    .join("\n");
+// Template local de fallback (même structure que newsletter_base.html d'ia-regie)
+function getLocalFallbackTemplate(): string {
+  return `<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{EVENT_NAME}}</title>
+    <style>
+        body { font-family: Arial, Helvetica, sans-serif; line-height: 1.6; color: #000000; max-width: 800px; margin: 0 auto; padding: 20px; background-color: #ffffff; }
+        .header { text-align: center; margin-bottom: 40px; padding-bottom: 20px; border-bottom: 2px solid #000000; }
+        .header h1 { font-size: 32px; font-weight: bold; text-transform: uppercase; color: #000000; margin: 0; }
+        .article { margin-bottom: 50px; padding-bottom: 30px; border-bottom: 1px solid #cccccc; }
+        .article:last-child { border-bottom: none; }
+        .article-title { font-size: 24px; font-weight: bold; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #eeeeee; }
+        .article-image { width: 100%; max-width: 600px; height: auto; display: block; margin: 20px auto; border: 1px solid #eeeeee; }
+        .article-content { font-size: 16px; text-align: justify; margin-top: 20px; line-height: 1.6; }
+        .footer { text-align: center; padding: 30px 0; margin-top: 40px; border-top: 2px solid #000000; font-size: 12px; color: #666666; }
+        @media (max-width: 600px) {
+            .header h1 { font-size: 24px; }
+            .article-title { font-size: 20px; }
+            .article-content { font-size: 14px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>{{EVENT_NAME}}</h1>
+    </div>
+    {{CONFERENCES}}
+    <div class="footer">
+        <p>Newsletter générée par EVA - Electronic Virtual Assistant</p>
+    </div>
+</body>
+</html>`;
 }

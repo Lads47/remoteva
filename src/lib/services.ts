@@ -3,8 +3,50 @@ import prisma from "./db";
 // Types de services disponibles
 export type ServiceType = "newsletter" | "download";
 
-// Configuration pour le service Newsletter
+// === TYPES CONFÉRENCES (compatible ia-regie event_data.json) ===
+
+// Statut d'une conférence
+export type ConferenceStatus =
+  | "EN ATTENTE"        // Pas encore traitée
+  | "TRAITEMENT EN COURS" // Transcription/résumé en cours
+  | "RÉSUMÉ PRÊT"       // Résumé IA disponible
+  | "BROUILLON"          // Client a commencé à modifier
+  | "VALIDÉ";            // Client a validé
+
+// Speaker du lexique (poussé par ia-regie)
+export interface LexiconSpeaker {
+  name: string;
+  function?: string;      // Rôle/organisation
+  variants?: string[];    // Noms alternatifs
+}
+
+// Conférence individuelle
+export interface Conference {
+  id: number;
+  title: string;
+  status: ConferenceStatus;
+  summary_ia?: string;           // Résumé généré par l'IA
+  summary_corrected?: string;    // Résumé corrigé par le client
+  summary_style?: string;        // Style du résumé (journaliste, technique, etc.)
+  summary_word_count?: number;   // Nombre de mots ciblé
+  speakers_detected?: string[];  // SPEAKER_00, SPEAKER_01, etc.
+  speaker_mapping_override?: Record<string, string>; // Override par conférence
+  photo_path?: string;           // Chemin photo uploadée par le client
+}
+
+// Configuration pour le service Newsletter (enrichie avec conférences)
 export interface NewsletterConfig {
+  // Données événement (poussées par ia-regie via sync)
+  event_name?: string;
+  event_date?: string;
+  lexicon_speakers?: LexiconSpeaker[];
+  speaker_mapping?: Record<string, string>; // SPEAKER_00 → "Jean Dupont"
+  newsletter_template?: string;
+
+  // Liste des conférences
+  conferences?: Conference[];
+
+  // Ancien format (rétrocompatibilité)
   title?: string;
   content?: string;
   imageUrl?: string;
