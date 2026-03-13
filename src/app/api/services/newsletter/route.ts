@@ -209,8 +209,11 @@ export async function POST(request: NextRequest) {
         console.warn("Impossible de télécharger le template depuis n8n, utilisation du template local");
       }
 
-      // Fallback : template local si n8n indisponible
-      if (!templateHtml) {
+      // Fallback : template local si n8n indisponible ou contenu invalide
+      if (!templateHtml || !templateHtml.trim().startsWith("<")) {
+        if (templateHtml) {
+          console.warn("Template n8n invalide (pas du HTML), utilisation du fallback local");
+        }
         templateHtml = getLocalFallbackTemplate();
       }
 
