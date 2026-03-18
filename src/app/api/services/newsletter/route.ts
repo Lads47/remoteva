@@ -136,37 +136,6 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // === Action: lister les templates newsletter (via n8n) ===
-    if (action === "list_templates") {
-      try {
-        const response = await fetch(`${N8N_BASE_URL}/list-templates`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          return NextResponse.json({
-            success: true,
-            templates: data.templates || [],
-          });
-        }
-
-        return NextResponse.json({
-          success: false,
-          error: "Erreur lors de la récupération des templates",
-          templates: [],
-        });
-      } catch {
-        return NextResponse.json({
-          success: false,
-          error: "n8n non disponible",
-          templates: [],
-        });
-      }
-    }
-
     // === Action: générer et envoyer la newsletter ===
     if (action === "generate") {
       const { email, template_name, custom_text } = body;
@@ -190,32 +159,8 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // 1. Télécharger le template depuis n8n/Drive
-      const selectedTemplate = template_name || currentConfig.newsletter_template || "newsletter_base.html";
-      let templateHtml = "";
-
-      try {
-        const templateRes = await fetch(`${N8N_BASE_URL}/download-template`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ template_name: selectedTemplate }),
-        });
-
-        if (templateRes.ok) {
-          const templateData = await templateRes.json();
-          templateHtml = templateData.content || "";
-        }
-      } catch {
-        console.warn("Impossible de télécharger le template depuis n8n, utilisation du template local");
-      }
-
-      // Fallback : template local si n8n indisponible ou contenu invalide
-      if (!templateHtml || !templateHtml.trim().startsWith("<")) {
-        if (templateHtml) {
-          console.warn("Template n8n invalide (pas du HTML), utilisation du fallback local");
-        }
-        templateHtml = getLocalFallbackTemplate();
-      }
+      // 1. Utiliser le template local (V3.1 — plus de Drive/n8n)
+      const templateHtml = getLocalFallbackTemplate();
 
       // 2. Générer les articles HTML pour chaque conférence validée
       let articlesHtml = "";
