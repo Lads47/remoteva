@@ -552,12 +552,12 @@ export default function NewsletterService({ link }: Props) {
                       {conf.speakers_detected.map((speakerId) => (
                         <div
                           key={speakerId}
-                          className="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-lg hover:border-blue-500 transition-colors"
+                          className="flex flex-wrap items-center gap-2 p-3 bg-white border border-gray-200 rounded-lg hover:border-blue-500 transition-colors overflow-hidden"
                         >
-                          <span className="font-mono text-xs text-gray-500 bg-gray-100 px-2.5 py-1 rounded min-w-[110px] font-semibold">
+                          <span className="font-mono text-xs text-gray-500 bg-gray-100 px-2.5 py-1 rounded min-w-[90px] font-semibold shrink-0">
                             {speakerId}
                           </span>
-                          <span className="text-gray-400 text-lg">&rarr;</span>
+                          <span className="text-gray-400 text-lg shrink-0">&rarr;</span>
                           <select
                             value={speakerMappings[conf.id]?.[speakerId] || ""}
                             onChange={(e) => {
@@ -569,7 +569,7 @@ export default function NewsletterService({ link }: Props) {
                                 },
                               }));
                             }}
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                            className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 truncate"
                           >
                             <option value="">-- S&eacute;lectionner un intervenant --</option>
                             {config.lexicon_speakers!.map((s) =>
