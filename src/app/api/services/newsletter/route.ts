@@ -211,7 +211,7 @@ export async function POST(request: NextRequest) {
       // Sauvegarder le template choisi
       const newConfig: NewsletterConfig = {
         ...currentConfig,
-        newsletter_template: selectedTemplate,
+        newsletter_template: template_name,
         generatedHtml: finalHtml,
       };
       await updateLinkConfig(slug, newConfig);
