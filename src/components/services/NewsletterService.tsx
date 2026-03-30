@@ -766,7 +766,7 @@ export default function NewsletterService({ link }: Props) {
                   type="text"
                   value={config.event_name || link.serviceName || ""}
                   readOnly
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-900"
                 />
               </div>
 
