@@ -22,6 +22,7 @@ export default function NewsletterService({ link }: Props) {
   );
   const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState<number | null>(null);
+  const [collapsedConfs, setCollapsedConfs] = useState<Record<number, boolean>>({});
 
   // Textes modifiés localement (clé = conference.id)
   const [editedTexts, setEditedTexts] = useState<Record<number, string>>({});
@@ -458,8 +459,11 @@ export default function NewsletterService({ link }: Props) {
                 : "border-gray-200"
             }`}
           >
-            {/* En-tête conférence */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
+            {/* En-tête conférence - cliquable pour collapse/expand */}
+            <div
+              className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-2 cursor-pointer select-none"
+              onClick={() => setCollapsedConfs(prev => ({ ...prev, [conf.id]: !prev[conf.id] }))}
+            >
               <h4 className="text-lg font-bold text-[#2c3e50]">
                 #{conf.id} - {conf.title}
               </h4>
@@ -480,10 +484,11 @@ export default function NewsletterService({ link }: Props) {
                 >
                   {conf.status}
                 </span>
+                <span className="text-gray-400 text-sm">{collapsedConfs[conf.id] ? '▶' : '▼'}</span>
               </div>
             </div>
 
-            {hasSummary(conf) ? (
+            {!collapsedConfs[conf.id] && hasSummary(conf) ? (
               <>
                 {/* Info style */}
                 <div className="bg-blue-50 text-blue-800 p-3 rounded-lg mb-4 text-sm flex items-center justify-between">
@@ -653,7 +658,7 @@ export default function NewsletterService({ link }: Props) {
                   </div>
                 </div>
               </>
-            ) : conf.status === "TRAITEMENT EN COURS" ? (
+            ) : !collapsedConfs[conf.id] && conf.status === "TRAITEMENT EN COURS" ? (
               <div
                 className="text-center p-8 rounded-lg text-white"
                 style={{
@@ -671,7 +676,7 @@ export default function NewsletterService({ link }: Props) {
                   Cette page se rafraîchit automatiquement
                 </p>
               </div>
-            ) : (
+            ) : !collapsedConfs[conf.id] ? (
               <div className="p-8 text-center border border-gray-200 rounded-lg bg-gray-50">
                 <div className="text-3xl mb-2">⏳</div>
                 <p className="text-gray-500">
@@ -682,7 +687,7 @@ export default function NewsletterService({ link }: Props) {
                   Le résumé apparaîtra automatiquement une fois prêt
                 </p>
               </div>
-            )}
+            ) : null}
           </div>
         ))
       )}
