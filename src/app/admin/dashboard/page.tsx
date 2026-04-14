@@ -133,7 +133,7 @@ export default function DashboardPage() {
         <h2 className="text-lg font-semibold mb-4" style={{ color: "#1f2244" }}>
           Services disponibles
         </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="p-4 bg-white border border-gray-200 rounded-lg">
             <div className="flex items-center justify-between">
               <h3 className="font-medium" style={{ color: "#1f2244" }}>Newsletter Live</h3>
@@ -170,6 +170,22 @@ export default function DashboardPage() {
             </div>
             <p className="text-sm mt-2" style={{ color: "#727485" }}>
               Créer et gérer les lexiques d&apos;événements
+            </p>
+          </Link>
+
+          <Link
+            href="/admin/flow"
+            className="p-4 border-2 rounded-lg hover:shadow-md transition-all"
+            style={{ borderColor: "#e74c3c", backgroundColor: "#fdf2f2" }}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="font-medium" style={{ color: "#1f2244" }}>EVA Flow</h3>
+              <span className="text-xs px-2 py-1 rounded-full font-medium" style={{ background: "linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)", color: "white" }}>
+                Production
+              </span>
+            </div>
+            <p className="text-sm mt-2" style={{ color: "#727485" }}>
+              Gestion des projets de captation vidéo
             </p>
           </Link>
         </div>

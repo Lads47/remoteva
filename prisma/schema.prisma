@@ -20,6 +20,23 @@ model AdminUser {
   @@map("admin_users")
 }
 
+// Projets EVA Flow (captation vidéo)
+model FlowProject {
+  id        String   @id @default(cuid())
+  title     String                          // Titre du projet (ex: "Conf IA 2026")
+  date      DateTime                        // Date de captation
+  location  String                          // Lieu (ex: "Montpellier")
+  room      String                          // Salle (ex: "Amphi A")
+  speaker   String   @default("")           // Intervenant(s)
+  status    String   @default("planned")    // planned | recording | ingest | ready_to_edit | editing | exported | delivered
+  notes     String   @default("")           // Notes libres
+  config    String   @default("{}")         // JSON config (chemins, métadonnées futures)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("flow_projects")
+}
+
 // Liens d'accès clients
 model AccessLink {
   id          String   @id @default(cuid())
