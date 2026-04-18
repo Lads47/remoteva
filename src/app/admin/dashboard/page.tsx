@@ -190,6 +190,44 @@ export default function DashboardPage() {
           </Link>
         </div>
       </div>
+
+      {/* Configuration EVA Flow */}
+      <div>
+        <h2 className="text-lg font-semibold mb-4" style={{ color: "#1f2244" }}>
+          Configuration EVA Flow
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Link
+            href="/admin/directors"
+            className="p-4 bg-white border border-gray-200 rounded-lg hover:border-gray-300 hover:shadow-sm transition-all"
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="font-medium" style={{ color: "#1f2244" }}>Réalisateurs</h3>
+              <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: "#e8daef", color: "#6c3483" }}>
+                Intermittents
+              </span>
+            </div>
+            <p className="text-sm mt-2" style={{ color: "#727485" }}>
+              Gérer les réalisateurs et leurs accès au calendrier
+            </p>
+          </Link>
+
+          <Link
+            href="/admin/api-keys"
+            className="p-4 bg-white border border-gray-200 rounded-lg hover:border-gray-300 hover:shadow-sm transition-all"
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="font-medium" style={{ color: "#1f2244" }}>Clés API</h3>
+              <span className="text-xs px-2 py-1 rounded-full font-mono" style={{ backgroundColor: "#1f2244", color: "white" }}>
+                X-Api-Key
+              </span>
+            </div>
+            <p className="text-sm mt-2" style={{ color: "#727485" }}>
+              Authentifier les machines EVA Capture / EVA Cut
+            </p>
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }

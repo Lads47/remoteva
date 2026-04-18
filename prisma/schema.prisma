@@ -20,24 +20,108 @@ model AdminUser {
   @@map("admin_users")
 }
 
-// Projets EVA Flow (captation vidéo)
+// === EVA FLOW : Projets de captation vidéo ===
+
+// Projet = un événement (ex "Journée sur les nuages") qui regroupe plusieurs conférences
 model FlowProject {
-  id        String   @id @default(cuid())
-  title     String                          // Titre du projet (ex: "Conf IA 2026")
-  date      DateTime                        // Date de captation
-  location  String                          // Lieu (ex: "Montpellier")
-  room      String                          // Salle (ex: "Amphi A")
-  speaker   String   @default("")           // Intervenant(s)
-  status    String   @default("planned")    // planned | recording | ingest | ready_to_edit | editing | exported | delivered
-  notes     String   @default("")           // Notes libres
-  config    String   @default("{}")         // JSON config (chemins, métadonnées futures)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id                 String       @id @default(cuid())
+  eventId            String       @unique @map("event_id")          // "180426-001" (DDMMYY-NNN)
+  title              String                                          // "Journée sur les nuages"
+  date               DateTime                                        // Date de captation
+  location           String                                          // Ex: "Paris"
+  room               String                                          // Ex: "Salle 2"
+  speaker            String       @default("")                       // Speaker principal (compat / résumé)
+  director           String       @default("")                       // Nom dénormalisé du réalisateur validé
+  directorId         String?      @map("director_id")                // FK optionnelle vers Director
+  regie              String?                                         // WVP_A1 | WVP_A2 | WVP_A3 | WVP_A4
+  recordingLocalPath String?      @map("recording_local_path")       // Dossier racine côté EVA Capture
+  status             String       @default("planned")                // Auto-dérivé depuis les conférences
+  notes              String       @default("")                       // Notes libres
+  config             String       @default("{}")                     // JSON libre
+  createdAt          DateTime     @default(now()) @map("created_at")
+  updatedAt          DateTime     @updatedAt      @map("updated_at")
+  conferences        Conference[]
+  assignedDirector   Director?    @relation(fields: [directorId], references: [id])
 
   @@map("flow_projects")
+  @@index([date])
+  @@index([eventId])
+  @@index([regie])
+  @@index([directorId])
+  @@index([status])
 }
 
-// Liens d'accès clients
+// Conférence = sous-événement d'un projet (chaque conf est captée et livrée séparément)
+model Conference {
+  id              String      @id @default(cuid())
+  flowProjectId   String      @map("flow_project_id")
+  order           Int         @default(1)                            // Ordre dans la journée
+  title           String                                              // "Ouverture", "Climat et nuages"...
+  speaker         String      @default("")
+  status          String      @default("planned")                    // planned | recording | ingest | ready_to_edit | editing | exported | delivered | not_captured
+  scheduledStart  DateTime?   @map("scheduled_start")                // Horaire prévu (ex 9h)
+  scheduledEnd    DateTime?   @map("scheduled_end")                  // Horaire prévu (ex 10h)
+  startTime       DateTime?   @map("start_time")                     // Réel : début du REC
+  endTime         DateTime?   @map("end_time")                       // Réel : fin du REC
+  localFolder     String?     @map("local_folder")                   // Sous-dossier côté EVA Capture (ex: "conf01_ouverture/")
+  durationSeconds Int?        @map("duration_seconds")               // Durée enregistrée
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt      @map("updated_at")
+  flowProject     FlowProject @relation(fields: [flowProjectId], references: [id], onDelete: Cascade)
+
+  @@map("flow_conferences")
+  @@index([flowProjectId, order])
+  @@index([status])
+}
+
+// Réalisateur (intermittent qui fait la captation/régie)
+model Director {
+  id             String                  @id @default(cuid())
+  name           String                                              // "Paul Martin"
+  email          String                  @unique                     // Pour magic link + feuille de route
+  phone          String                  @default("")                // Format libre
+  magicToken     String                  @unique @map("magic_token") // Token long pour /presta?token=xxx
+  active         Boolean                 @default(true)              // Désactivable sans suppression
+  createdAt      DateTime                @default(now()) @map("created_at")
+  availabilities DirectorAvailability[]
+  projects       FlowProject[]
+
+  @@map("directors")
+  @@index([magicToken])
+  @@index([active])
+}
+
+// Disponibilité d'un réalisateur sur une journée (pas par événement, juste par date)
+model DirectorAvailability {
+  id         String   @id @default(cuid())
+  directorId String   @map("director_id")
+  date       DateTime                                                // Date sans heure (00:00 UTC)
+  createdAt  DateTime @default(now()) @map("created_at")
+  director   Director @relation(fields: [directorId], references: [id], onDelete: Cascade)
+
+  @@unique([directorId, date])
+  @@map("director_availabilities")
+  @@index([date])
+}
+
+// API Key pour authentifier les machines EVA Capture / EVA Cut
+model ApiKey {
+  id         String    @id @default(cuid())
+  name       String                                                  // "EVA Capture WVP A1"
+  keyHash    String    @unique @map("key_hash")                      // SHA-256(plaintext) hex
+  prefix     String                                                  // "evak_a1b2..." (8 chars affichés en UI)
+  lastUsedAt DateTime? @map("last_used_at")
+  expiresAt  DateTime? @map("expires_at")                            // Optionnel
+  revoked    Boolean   @default(false)
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@map("api_keys")
+  @@index([keyHash])
+  @@index([revoked])
+}
+
+// === Liens d'accès clients (Newsletter / Download) ===
+
 model AccessLink {
   id          String   @id @default(cuid())
   slug        String   @unique // ex: "agrotic2026", "filmscdc"

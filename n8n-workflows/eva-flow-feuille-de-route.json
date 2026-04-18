@@ -1,0 +1,89 @@
+{
+  "name": "EVA Flow - Feuille de route",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "eva-flow-feuille-de-route",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wf3-webhook-001",
+      "name": "Webhook - eva-flow-feuille-de-route",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-352, 3400],
+      "webhookId": "eva-flow-feuille-de-route"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body;\n\nconst to = body.to || '';\nconst directorName = body.directorName || 'R\\u00e9alisateur';\nconst eventId = body.eventId || '';\nconst eventTitle = body.eventTitle || '';\nconst eventDate = body.eventDate || '';\nconst location = body.location || '';\nconst room = body.room || '';\nconst regie = body.regie || '';\nconst recordingLocalPath = body.recordingLocalPath || '';\nconst conferences = Array.isArray(body.conferences) ? body.conferences : [];\nconst notes = body.notes || '';\n\n// Format date FR\nfunction formatDate(d) {\n  try {\n    const dt = new Date(d);\n    return dt.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });\n  } catch (e) { return d; }\n}\n\nfunction formatTime(d) {\n  if (!d) return '';\n  try {\n    const dt = new Date(d);\n    return dt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });\n  } catch (e) { return ''; }\n}\n\nconst dateStr = formatDate(eventDate);\nconst subject = `Feuille de route — ${eventTitle} — ${eventId}`;\n\n// Build conferences table rows\nlet confRows = '';\nif (conferences.length === 0) {\n  confRows = '<tr><td colspan=\"4\" style=\"padding:16px;text-align:center;color:#727485;font-style:italic;\">Aucune conf\\u00e9rence planifi\\u00e9e</td></tr>';\n} else {\n  conferences.forEach((c, idx) => {\n    const start = formatTime(c.scheduledStart);\n    const end = formatTime(c.scheduledEnd);\n    const horaire = (start && end) ? `${start} \\u2013 ${end}` : (start || end || '\\u2014');\n    const bg = idx % 2 === 0 ? '#ffffff' : '#fafbfc';\n    confRows += `\n      <tr style=\"background-color:${bg};\">\n        <td style=\"padding:12px;border-bottom:1px solid #e5e5e5;font-weight:bold;color:#1f2244;text-align:center;\">${c.order || (idx + 1)}</td>\n        <td style=\"padding:12px;border-bottom:1px solid #e5e5e5;color:#1f2244;\"><strong>${c.title || ''}</strong>${c.speaker ? `<br><span style=\\\"color:#727485;font-size:13px;\\\">${c.speaker}</span>` : ''}</td>\n        <td style=\"padding:12px;border-bottom:1px solid #e5e5e5;color:#727485;font-size:14px;text-align:center;\">${horaire}</td>\n      </tr>`;\n  });\n}\n\nconst notesBlock = notes.trim() ? `\n  <tr>\n    <td style=\"padding:0 30px 24px 30px;\">\n      <h3 style=\"color:#1f2244;margin:0 0 8px 0;font-size:15px;\">Notes</h3>\n      <p style=\"color:#333333;font-size:14px;line-height:1.6;margin:0;padding:12px 16px;background-color:#fff8e1;border-left:3px solid #f59e0b;border-radius:4px;\">${notes.replace(/\\n/g, '<br>')}</p>\n    </td>\n  </tr>` : '';\n\nconst pathBlock = recordingLocalPath ? `<tr><td style=\"padding:8px 0;color:#727485;font-size:13px;\">Dossier local</td><td style=\"padding:8px 0;color:#1f2244;font-size:13px;font-family:monospace;text-align:right;\">${recordingLocalPath}</td></tr>` : '';\n\nconst html = `<!DOCTYPE html>\n<html lang=\"fr\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>Feuille de route — ${eventTitle}</title>\n</head>\n<body style=\"margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;background-color:#f5f5f7;\">\n  <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"background-color:#f5f5f7;padding:40px 20px;\">\n    <tr>\n      <td align=\"center\">\n        <table width=\"640\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.05);\">\n          <tr>\n            <td style=\"background-color:#1f2244;padding:30px;text-align:center;\">\n              <h1 style=\"color:#ffffff;margin:0;font-size:26px;font-weight:bold;letter-spacing:2px;\">EVA FLOW</h1>\n              <p style=\"color:#7dcef5;margin:8px 0 0 0;font-size:13px;\">Feuille de route</p>\n            </td>\n          </tr>\n          <tr>\n            <td style=\"padding:30px;\">\n              <p style=\"color:#1f2244;font-size:16px;margin:0 0 8px 0;\">Bonjour <strong>${directorName}</strong>,</p>\n              <p style=\"color:#333333;font-size:15px;line-height:1.6;margin:0 0 24px 0;\">\n                Vous \\u00eates valid\\u00e9(e) sur l'\\u00e9v\\u00e9nement suivant. Voici votre feuille de route :\n              </p>\n              <div style=\"background-color:#7dcef5;color:#1f2244;padding:6px 12px;display:inline-block;border-radius:4px;font-family:monospace;font-weight:bold;font-size:14px;margin-bottom:16px;\">\n                ${eventId}\n              </div>\n              <h2 style=\"color:#1f2244;margin:0 0 24px 0;font-size:22px;\">${eventTitle}</h2>\n              <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"margin-bottom:24px;\">\n                <tr><td style=\"padding:8px 0;color:#727485;font-size:13px;\">Date</td><td style=\"padding:8px 0;color:#1f2244;font-size:14px;font-weight:bold;text-align:right;\">${dateStr}</td></tr>\n                <tr><td style=\"padding:8px 0;color:#727485;font-size:13px;\">Lieu</td><td style=\"padding:8px 0;color:#1f2244;font-size:14px;text-align:right;\">${location}</td></tr>\n                <tr><td style=\"padding:8px 0;color:#727485;font-size:13px;\">Salle</td><td style=\"padding:8px 0;color:#1f2244;font-size:14px;text-align:right;\">${room}</td></tr>\n                ${regie ? `<tr><td style=\"padding:8px 0;color:#727485;font-size:13px;\">R\\u00e9gie</td><td style=\"padding:8px 0;color:#1f2244;font-size:14px;font-weight:bold;text-align:right;\">${regie}</td></tr>` : ''}\n                ${pathBlock}\n              </table>\n            </td>\n          </tr>\n          <tr>\n            <td style=\"padding:0 30px 24px 30px;\">\n              <h3 style=\"color:#1f2244;margin:0 0 12px 0;font-size:16px;\">Conf\\u00e9rences \\u00e0 capter (${conferences.length})</h3>\n              <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"border:1px solid #e5e5e5;border-radius:6px;overflow:hidden;\">\n                <thead>\n                  <tr style=\"background-color:#1f2244;\">\n                    <th style=\"padding:10px;color:#ffffff;font-size:12px;text-align:center;font-weight:bold;width:40px;\">#</th>\n                    <th style=\"padding:10px;color:#ffffff;font-size:12px;text-align:left;font-weight:bold;\">Conf\\u00e9rence</th>\n                    <th style=\"padding:10px;color:#ffffff;font-size:12px;text-align:center;font-weight:bold;width:120px;\">Horaire</th>\n                  </tr>\n                </thead>\n                <tbody>\n                  ${confRows}\n                </tbody>\n              </table>\n            </td>\n          </tr>\n          ${notesBlock}\n          <tr>\n            <td style=\"padding:0 30px 30px 30px;\">\n              <p style=\"color:#727485;font-size:13px;line-height:1.6;margin:0;padding:16px;background-color:#f5f5f7;border-radius:6px;border-left:3px solid #7dcef5;\">\n                <strong>R\\u00e9gie hors ligne ?</strong> Notez l'identifiant <code style=\"background:#fff;padding:2px 6px;border-radius:3px;font-weight:bold;\">${eventId}</code> et le titre de l'\\u00e9v\\u00e9nement. Vous pourrez les ressaisir sur EVA Capture, et la synchronisation se fera au retour de la connexion.\n              </p>\n            </td>\n          </tr>\n          <tr>\n            <td style=\"background-color:#f5f5f7;padding:20px 30px;text-align:center;border-top:1px solid #e5e5e5;\">\n              <p style=\"color:#727485;font-size:12px;margin:0;\">\n                Les Ateliers du Stream &middot; EVA Flow<br>\n                <a href=\"https://evaremote.com\" style=\"color:#727485;text-decoration:none;\">evaremote.com</a>\n              </p>\n            </td>\n          </tr>\n        </table>\n      </td>\n    </tr>\n  </table>\n</body>\n</html>`;\n\nreturn [{\n  json: {\n    to: to,\n    subject: subject,\n    html: html\n  }\n}];"
+      },
+      "id": "wf3-prepare-001",
+      "name": "Prepare Data - feuille-de-route",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-128, 3400]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.html }}",
+        "options": {}
+      },
+      "id": "wf3-send-001",
+      "name": "Send Email - feuille-de-route",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [96, 3400],
+      "webhookId": "wf3-gmail-feuille-de-route",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "pBWX128yc5be6Wx1",
+          "name": "Gmail account 6"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const emailResult = $input.first().json;\n\nreturn [{\n  json: {\n    success: true,\n    message_id: emailResult.id || '',\n    thread_id: emailResult.threadId || ''\n  }\n}];"
+      },
+      "id": "wf3-build-001",
+      "name": "Build Response - feuille-de-route",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [320, 3400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "wf3-respond-001",
+      "name": "Response - feuille-de-route",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [528, 3400]
+    }
+  ],
+  "connections": {
+    "Webhook - eva-flow-feuille-de-route": {
+      "main": [[{ "node": "Prepare Data - feuille-de-route", "type": "main", "index": 0 }]]
+    },
+    "Prepare Data - feuille-de-route": {
+      "main": [[{ "node": "Send Email - feuille-de-route", "type": "main", "index": 0 }]]
+    },
+    "Send Email - feuille-de-route": {
+      "main": [[{ "node": "Build Response - feuille-de-route", "type": "main", "index": 0 }]]
+    },
+    "Build Response - feuille-de-route": {
+      "main": [[{ "node": "Response - feuille-de-route", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

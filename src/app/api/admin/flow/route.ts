@@ -6,23 +6,18 @@ import {
   updateFlowProject,
   deleteFlowProject,
   getFlowStats,
-  VALID_STATUSES,
-  FlowProjectStatus,
 } from "@/lib/flow";
+import { createProjectSchema, updateProjectSchema } from "@/lib/validation";
 
-// Middleware pour vérifier l'authentification admin
 async function requireAuth() {
   const session = await getSession();
   if (!session) {
-    return NextResponse.json(
-      { error: "Non autorisé" },
-      { status: 401 }
-    );
+    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
   }
   return null;
 }
 
-// GET /api/admin/flow - Liste tous les projets (ou stats si ?stats=true)
+// GET /api/admin/flow — liste tous les projets (ou stats si ?stats=true)
 export async function GET(request: NextRequest) {
   const authError = await requireAuth();
   if (authError) return authError;
@@ -30,7 +25,6 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
 
-    // Si on demande les stats uniquement
     if (searchParams.get("stats") === "true") {
       const stats = await getFlowStats();
       return NextResponse.json({ stats });
@@ -40,91 +34,74 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ projects });
   } catch (error) {
     console.error("Erreur récupération projets Flow:", error);
-    return NextResponse.json(
-      { error: "Erreur serveur" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }
 
-// POST /api/admin/flow - Crée un nouveau projet
+// POST /api/admin/flow — crée un nouveau projet (avec conférences optionnelles)
 export async function POST(request: NextRequest) {
   const authError = await requireAuth();
   if (authError) return authError;
 
   try {
     const body = await request.json();
-    const { title, date, location, room, speaker, notes } = body;
+    const parsed = createProjectSchema.safeParse(body);
 
-    // Validation des champs requis
-    if (!title || !date || !location || !room) {
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "Les champs titre, date, lieu et salle sont requis" },
+        { error: "Validation échouée", issues: parsed.error.issues },
         { status: 400 }
       );
     }
 
+    const { conferences, ...rest } = parsed.data;
     const project = await createFlowProject({
-      title,
-      date: new Date(date),
-      location,
-      room,
-      speaker: speaker || "",
-      notes: notes || "",
+      ...rest,
+      date: new Date(rest.date),
+      conferences: conferences?.map((c) => ({
+        ...c,
+        scheduledStart: c.scheduledStart ? new Date(c.scheduledStart) : null,
+        scheduledEnd: c.scheduledEnd ? new Date(c.scheduledEnd) : null,
+      })),
     });
 
     return NextResponse.json({ project }, { status: 201 });
   } catch (error) {
     console.error("Erreur création projet Flow:", error);
-    return NextResponse.json(
-      { error: "Erreur serveur" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }
 
-// PUT /api/admin/flow - Met à jour un projet
+// PUT /api/admin/flow — met à jour un projet
 export async function PUT(request: NextRequest) {
   const authError = await requireAuth();
   if (authError) return authError;
 
   try {
     const body = await request.json();
-    const { id, ...data } = body;
+    const parsed = updateProjectSchema.safeParse(body);
 
-    if (!id) {
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "ID requis" },
+        { error: "Validation échouée", issues: parsed.error.issues },
         { status: 400 }
       );
     }
 
-    // Validation du statut si présent
-    if (data.status && !VALID_STATUSES.includes(data.status as FlowProjectStatus)) {
-      return NextResponse.json(
-        { error: `Statut invalide. Valeurs acceptées: ${VALID_STATUSES.join(", ")}` },
-        { status: 400 }
-      );
-    }
-
-    // Conversion de la date si présente
-    if (data.date) {
-      data.date = new Date(data.date);
-    }
-
-    await updateFlowProject(id, data);
+    const { id, ...data } = parsed.data;
+    await updateFlowProject(id, {
+      ...data,
+      date: data.date ? new Date(data.date) : undefined,
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Erreur mise à jour projet Flow:", error);
-    return NextResponse.json(
-      { error: "Erreur serveur" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }
 
-// DELETE /api/admin/flow - Supprime un projet
+// DELETE /api/admin/flow?id=xxx — supprime un projet
 export async function DELETE(request: NextRequest) {
   const authError = await requireAuth();
   if (authError) return authError;
@@ -132,22 +109,13 @@ export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
-
     if (!id) {
-      return NextResponse.json(
-        { error: "ID requis" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "ID requis" }, { status: 400 });
     }
-
     await deleteFlowProject(id);
-
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Erreur suppression projet Flow:", error);
-    return NextResponse.json(
-      { error: "Erreur serveur" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }
