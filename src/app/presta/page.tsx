@@ -26,6 +26,7 @@ function PrestaContent() {
   const [director, setDirector] = useState<Director | null>(null);
   const [availableDates, setAvailableDates] = useState<Set<string>>(new Set());
   const [eventDates, setEventDates] = useState<Set<string>>(new Set());
+  const [events, setEvents] = useState<Array<{ id: string; eventId: string; title: string; date: string; directorId: string | null }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [savingDate, setSavingDate] = useState<string | null>(null);
@@ -64,8 +65,9 @@ function PrestaContent() {
       }
 
       const evData = await evRes.json();
-      if (Array.isArray(evData.eventDates)) {
-        setEventDates(new Set((evData.eventDates as string[]).map((d) => isoDateKey(new Date(d)))));
+      if (Array.isArray(evData.events)) {
+        setEvents(evData.events);
+        setEventDates(new Set((evData.events as Array<{ date: string }>).map((e) => isoDateKey(new Date(e.date)))));
       }
     } catch (err) {
       console.error(err);
@@ -194,10 +196,11 @@ function PrestaContent() {
     .filter((k) => k >= isoDateKey(today))
     .sort()
     .slice(0, 5);
-  const upcomingEvents = Array.from(eventDates)
-    .filter((k) => k >= isoDateKey(today))
-    .sort()
-    .slice(0, 5);
+  const todayKey = isoDateKey(today);
+  const upcomingEvents = events
+    .filter((e) => isoDateKey(new Date(e.date)) >= todayKey)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(0, 10);
 
   return (
     <div className="min-h-screen pb-12" style={{ backgroundColor: "#f5f5f7" }}>
@@ -406,15 +409,26 @@ function PrestaContent() {
               Aucun événement planifié pour le moment.
             </p>
           ) : (
-            <ul className="space-y-1 text-sm" style={{ color: NAVY }}>
-              {upcomingEvents.map((k) => {
-                const d = new Date(`${k}T00:00:00.000Z`);
-                const isAvail = availableDates.has(k);
+            <ul className="space-y-2 text-sm" style={{ color: NAVY }}>
+              {upcomingEvents.map((ev) => {
+                const d = new Date(ev.date);
+                const dateKeyStr = isoDateKey(d);
+                const isValidated = ev.directorId === director.id;
+                const isPositioned = !isValidated && availableDates.has(dateKeyStr);
                 return (
-                  <li key={k} className="capitalize flex items-center gap-2">
+                  <li key={ev.id} className="capitalize flex items-center gap-2 flex-wrap">
                     <span style={{ color: ORANGE }}>●</span>
                     <span>{d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</span>
-                    {isAvail && <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: BLUE, color: NAVY }}>Tu es dispo</span>}
+                    {isValidated && (
+                      <span className="text-xs px-2 py-0.5 rounded-full font-bold" style={{ backgroundColor: "#d4edda", color: "#155724" }}>
+                        ✓ Tu es validé
+                      </span>
+                    )}
+                    {isPositioned && (
+                      <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: BLUE, color: NAVY }}>
+                        Tu t&apos;es positionné
+                      </span>
+                    )}
                   </li>
                 );
               })}
