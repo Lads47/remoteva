@@ -24,6 +24,24 @@ export default function DirectorsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [feedback, setFeedback] = useState<{ type: "success" | "warning"; msg: string } | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  // Director en cours d'édition (pour récupérer son magicToken)
+  const editingDirector = editingId ? directors.find((d) => d.id === editingId) : null;
+  const magicLink = editingDirector
+    ? `${typeof window !== "undefined" ? window.location.origin : "https://evaremote.com"}/presta?token=${editingDirector.magicToken}`
+    : "";
+
+  async function copyMagicLink() {
+    if (!magicLink) return;
+    try {
+      await navigator.clipboard.writeText(magicLink);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch (err) {
+      console.error(err);
+    }
+  }
 
   useEffect(() => { fetchDirectors(); }, []);
 
@@ -225,6 +243,36 @@ export default function DirectorsPage() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
               />
             </div>
+
+            {editingId && magicLink && (
+              <div className="p-3 rounded-lg border border-gray-200" style={{ backgroundColor: "#f5f5f7" }}>
+                <label className="block text-sm font-medium mb-1" style={{ color: "#1f2244" }}>
+                  Lien magique d&apos;accès au calendrier
+                </label>
+                <p className="text-xs mb-2" style={{ color: "#727485" }}>
+                  C&apos;est l&apos;URL personnelle du réalisateur. Tu peux la lui renvoyer manuellement (email/SMS) en cas de besoin.
+                  Pour générer un nouveau lien et invalider l&apos;ancien, utilise le bouton « Régénérer lien » dans la liste.
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={magicLink}
+                    readOnly
+                    onClick={(e) => (e.target as HTMLInputElement).select()}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg font-mono text-xs bg-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={copyMagicLink}
+                    className="px-4 py-2 text-white rounded-lg transition-all hover:opacity-90 text-sm whitespace-nowrap"
+                    style={{ backgroundColor: linkCopied ? "#155724" : "#1f2244" }}
+                  >
+                    {linkCopied ? "✓ Copié" : "Copier"}
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="flex gap-3 pt-2">
               <button
                 type="submit"

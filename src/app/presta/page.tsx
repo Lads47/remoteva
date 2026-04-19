@@ -195,7 +195,7 @@ function PrestaContent() {
   const todayKey = isoDateKey(today);
   const upcomingEvents = events
     .filter((e) => isoDateKey(new Date(e.date)) >= todayKey)
-    .sort((a, b) => a.date.localeCompare(b.date))
+    .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, 10);
 
   return (
@@ -375,7 +375,7 @@ function PrestaContent() {
         {/* Récap événements à venir */}
         <div className="bg-white rounded-lg shadow-sm p-4">
           <h3 className="font-semibold text-sm mb-3" style={{ color: NAVY }}>
-            Prochains événements ({upcomingEvents.length})
+            Événements à venir ({upcomingEvents.length})
           </h3>
           {upcomingEvents.length === 0 ? (
             <p className="text-sm" style={{ color: "#727485" }}>
