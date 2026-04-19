@@ -414,19 +414,23 @@ export default function FlowPage() {
                           {p.regie}
                         </span>
                       )}
-                      {p.availableDirectorsCount !== undefined && p.availableDirectorsCount > 0 && (
+                      {p.directorId ? (
                         <span
-                          className={`text-xs px-2 py-0.5 rounded-full font-bold ${!p.directorId ? "animate-pulse" : ""}`}
-                          style={
-                            p.directorId
-                              ? { backgroundColor: "#d4edda", color: "#155724" }
-                              : { backgroundColor: "#fef3cd", color: "#856404", border: "1.5px solid #f59e0b" }
-                          }
-                          title={p.directorId ? "Réalisateur déjà validé" : "Cliquer pour valider un réalisateur"}
+                          className="text-xs px-2 py-0.5 rounded-full font-bold"
+                          style={{ backgroundColor: "#d4edda", color: "#155724" }}
+                          title={`Réalisateur validé : ${p.director}`}
+                        >
+                          ✓ Validé
+                        </span>
+                      ) : p.availableDirectorsCount !== undefined && p.availableDirectorsCount > 0 ? (
+                        <span
+                          className="text-xs px-2 py-0.5 rounded-full font-bold animate-pulse"
+                          style={{ backgroundColor: "#fef3cd", color: "#856404", border: "1.5px solid #f59e0b" }}
+                          title="Cliquer pour valider un réalisateur"
                         >
                           👥 {p.availableDirectorsCount} dispo{p.availableDirectorsCount > 1 ? "s" : ""}
                         </span>
-                      )}
+                      ) : null}
                     </div>
                     <div className="flex items-center gap-4 mt-2 text-sm flex-wrap" style={{ color: "#727485" }}>
                       <span>📅 {new Date(p.date).toLocaleDateString("fr-FR")}</span>
