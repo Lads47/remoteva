@@ -192,10 +192,6 @@ function PrestaContent() {
   if (!director) return null;
 
   const monthLabel = `${MONTHS_FR[viewMonth.month]} ${viewMonth.year}`;
-  const upcomingAvailable = Array.from(availableDates)
-    .filter((k) => k >= isoDateKey(today))
-    .sort()
-    .slice(0, 5);
   const todayKey = isoDateKey(today);
   const upcomingEvents = events
     .filter((e) => isoDateKey(new Date(e.date)) >= todayKey)
@@ -376,29 +372,6 @@ function PrestaContent() {
           </div>
         </div>
 
-        {/* Récap dispos à venir */}
-        <div className="bg-white rounded-lg shadow-sm p-4">
-          <h3 className="font-semibold text-sm mb-3" style={{ color: NAVY }}>
-            Mes prochaines disponibilités ({upcomingAvailable.length})
-          </h3>
-          {upcomingAvailable.length === 0 ? (
-            <p className="text-sm" style={{ color: "#727485" }}>
-              Aucune disponibilité enregistrée. Touche une date orange pour te déclarer dispo.
-            </p>
-          ) : (
-            <ul className="space-y-1 text-sm" style={{ color: NAVY }}>
-              {upcomingAvailable.map((k) => {
-                const d = new Date(`${k}T00:00:00.000Z`);
-                return (
-                  <li key={k} className="capitalize">
-                    📅 {d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
-
         {/* Récap événements à venir */}
         <div className="bg-white rounded-lg shadow-sm p-4">
           <h3 className="font-semibold text-sm mb-3" style={{ color: NAVY }}>
@@ -416,12 +389,12 @@ function PrestaContent() {
                 const isValidated = ev.directorId === director.id;
                 const isPositioned = !isValidated && availableDates.has(dateKeyStr);
                 return (
-                  <li key={ev.id} className="capitalize flex items-center gap-2 flex-wrap">
+                  <li key={ev.id} className="flex items-center gap-2 flex-wrap">
                     <span style={{ color: ORANGE }}>●</span>
-                    <span>{d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</span>
+                    <span className="capitalize">{d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</span>
                     {isValidated && (
                       <span className="text-xs px-2 py-0.5 rounded-full font-bold" style={{ backgroundColor: "#d4edda", color: "#155724" }}>
-                        ✓ Tu es validé
+                        ✓ Tu es Validé
                       </span>
                     )}
                     {isPositioned && (
