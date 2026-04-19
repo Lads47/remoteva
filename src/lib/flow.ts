@@ -194,6 +194,22 @@ export async function getAllFlowProjects(): Promise<FlowProjectInfo[]> {
   return list.map(toProjectInfo);
 }
 
+/**
+ * Renvoie toutes les dates d'événements (utilisé par /presta pour afficher les dates "événement").
+ * Dates normalisées à 00:00 UTC, dédupliquées (si plusieurs événements le même jour).
+ */
+export async function getAllEventDates(): Promise<Date[]> {
+  const list = await prisma.flowProject.findMany({ select: { date: true } });
+  // Normalise à 00:00 UTC + déduplique
+  const set = new Set<string>();
+  for (const p of list) {
+    const d = new Date(p.date);
+    const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+    set.add(key);
+  }
+  return Array.from(set).map((k) => new Date(`${k}T00:00:00.000Z`));
+}
+
 export async function getProjectsByDate(
   date: Date | string,
   regie?: Regie | null

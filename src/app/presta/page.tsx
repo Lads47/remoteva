@@ -13,18 +13,24 @@ interface Director {
 const MONTHS_FR = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
 const WEEKDAYS_FR = ["L", "M", "M", "J", "V", "S", "D"];
 
+const ORANGE = "#f59e0b";
+const ORANGE_BG = "#ffe9b3";  // orange clair pour le fond
+const BLUE = "#7dcef5";
+const NAVY = "#1f2244";
+const GRAY = "#cbd5e0";
+
 function PrestaContent() {
   const params = useSearchParams();
   const token = params.get("token") ?? "";
 
   const [director, setDirector] = useState<Director | null>(null);
   const [availableDates, setAvailableDates] = useState<Set<string>>(new Set());
+  const [eventDates, setEventDates] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [savingDate, setSavingDate] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
 
-  // Mois affiché (par défaut : mois courant)
   const today = useMemo(() => new Date(), []);
   const [viewMonth, setViewMonth] = useState({ year: today.getUTCFullYear(), month: today.getUTCMonth() });
 
@@ -39,19 +45,27 @@ function PrestaContent() {
 
   async function fetchData() {
     try {
-      const res = await fetch(`/api/presta/me?token=${encodeURIComponent(token)}`);
-      if (res.status === 401) {
+      // Fetch parallèle : me + events
+      const [meRes, evRes] = await Promise.all([
+        fetch(`/api/presta/me?token=${encodeURIComponent(token)}`),
+        fetch(`/api/presta/events?token=${encodeURIComponent(token)}`),
+      ]);
+
+      if (meRes.status === 401 || evRes.status === 401) {
         setError("Lien invalide ou expiré. Contacte les Ateliers du Stream pour recevoir un nouveau lien.");
         setLoading(false);
         return;
       }
-      const data = await res.json();
-      if (data.director) {
-        setDirector(data.director);
-        const set = new Set<string>(
-          (data.availableDates as string[]).map((d) => isoDateKey(new Date(d)))
-        );
-        setAvailableDates(set);
+
+      const meData = await meRes.json();
+      if (meData.director) {
+        setDirector(meData.director);
+        setAvailableDates(new Set((meData.availableDates as string[]).map((d) => isoDateKey(new Date(d)))));
+      }
+
+      const evData = await evRes.json();
+      if (Array.isArray(evData.eventDates)) {
+        setEventDates(new Set((evData.eventDates as string[]).map((d) => isoDateKey(new Date(d)))));
       }
     } catch (err) {
       console.error(err);
@@ -62,7 +76,6 @@ function PrestaContent() {
   }
 
   function isoDateKey(d: Date): string {
-    // Clé "YYYY-MM-DD" en UTC (compatible avec stockage)
     const y = d.getUTCFullYear();
     const m = String(d.getUTCMonth() + 1).padStart(2, "0");
     const day = String(d.getUTCDate()).padStart(2, "0");
@@ -71,16 +84,24 @@ function PrestaContent() {
 
   function showFeedback(msg: string) {
     setFeedback(msg);
-    setTimeout(() => setFeedback(null), 2500);
+    setTimeout(() => setFeedback(null), 3000);
   }
 
   async function toggleDate(year: number, month: number, day: number) {
     const dateUTC = new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
     const key = isoDateKey(dateUTC);
 
-    // Bloquer les dates passées
+    // Bloquer dates passées
     const todayKey = isoDateKey(new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())));
     if (key < todayKey) return;
+
+    // Bloquer si pas d'événement ET pas déjà dispo (le serveur refusera de toute façon, on évite l'aller-retour)
+    const hasEvent = eventDates.has(key);
+    const isAvailable = availableDates.has(key);
+    if (!hasEvent && !isAvailable) {
+      showFeedback("Aucun événement planifié à cette date");
+      return;
+    }
 
     setSavingDate(key);
     try {
@@ -91,14 +112,10 @@ function PrestaContent() {
       });
       const data = await res.json();
       if (!res.ok) {
-        showFeedback("Erreur, réessaie");
+        showFeedback(data.error || "Erreur, réessaie");
         return;
       }
-      // Re-build set from server response
-      const set = new Set<string>(
-        (data.availableDates as string[]).map((d) => isoDateKey(new Date(d)))
-      );
-      setAvailableDates(set);
+      setAvailableDates(new Set((data.availableDates as string[]).map((d) => isoDateKey(new Date(d)))));
       showFeedback(data.created ? "✓ Disponibilité ajoutée" : "Disponibilité retirée");
     } catch (err) {
       console.error(err);
@@ -115,16 +132,21 @@ function PrestaContent() {
     });
   }
 
-  // Génère le tableau de jours du mois affiché (avec padding pour aligner sur lundi)
   const calendarCells = useMemo(() => {
     const firstDay = new Date(Date.UTC(viewMonth.year, viewMonth.month, 1));
-    // getUTCDay: 0=dim, 1=lun, ..., 6=sam → on veut lundi=0
     const firstDayWeekday = (firstDay.getUTCDay() + 6) % 7;
-
     const lastDay = new Date(Date.UTC(viewMonth.year, viewMonth.month + 1, 0));
     const daysInMonth = lastDay.getUTCDate();
 
-    const cells: Array<{ day: number; key: string; isPast: boolean; isToday: boolean; isAvailable: boolean } | null> = [];
+    type Cell = {
+      day: number;
+      key: string;
+      isPast: boolean;
+      isToday: boolean;
+      isAvailable: boolean;
+      hasEvent: boolean;
+    };
+    const cells: Array<Cell | null> = [];
     for (let i = 0; i < firstDayWeekday; i++) cells.push(null);
 
     const todayKey = isoDateKey(new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())));
@@ -138,12 +160,12 @@ function PrestaContent() {
         isPast: key < todayKey,
         isToday: key === todayKey,
         isAvailable: availableDates.has(key),
+        hasEvent: eventDates.has(key),
       });
     }
-    // Pad fin pour atteindre multiple de 7
     while (cells.length % 7 !== 0) cells.push(null);
     return cells;
-  }, [viewMonth, availableDates, today]);
+  }, [viewMonth, availableDates, eventDates, today]);
 
   if (loading) {
     return (
@@ -158,7 +180,7 @@ function PrestaContent() {
       <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: "#f5f5f7" }}>
         <div className="max-w-md w-full bg-white rounded-lg shadow-sm p-6 text-center">
           <div className="text-4xl mb-3">🚫</div>
-          <h1 className="text-lg font-bold mb-2" style={{ color: "#1f2244" }}>Accès impossible</h1>
+          <h1 className="text-lg font-bold mb-2" style={{ color: NAVY }}>Accès impossible</h1>
           <p className="text-sm" style={{ color: "#727485" }}>{error}</p>
         </div>
       </div>
@@ -172,51 +194,51 @@ function PrestaContent() {
     .filter((k) => k >= isoDateKey(today))
     .sort()
     .slice(0, 5);
+  const upcomingEvents = Array.from(eventDates)
+    .filter((k) => k >= isoDateKey(today))
+    .sort()
+    .slice(0, 5);
 
   return (
     <div className="min-h-screen pb-12" style={{ backgroundColor: "#f5f5f7" }}>
-      {/* Header */}
-      <header className="px-4 py-6 text-white" style={{ backgroundColor: "#1f2244" }}>
+      <header className="px-4 py-6 text-white" style={{ backgroundColor: NAVY }}>
         <div className="max-w-md mx-auto">
-          <p className="text-xs" style={{ color: "#7dcef5", letterSpacing: "1px" }}>EVA FLOW</p>
+          <p className="text-xs" style={{ color: BLUE, letterSpacing: "1px" }}>EVA FLOW</p>
           <h1 className="text-xl font-bold mt-1">{director.name}</h1>
           <p className="text-sm mt-1 opacity-80">Calendrier de disponibilités</p>
         </div>
       </header>
 
       <main className="max-w-md mx-auto px-4 mt-4 space-y-4">
-        {/* Instructions */}
         <div className="bg-white rounded-lg p-4 shadow-sm">
-          <p className="text-sm" style={{ color: "#1f2244" }}>
-            <strong>Touche une date</strong> pour indiquer que tu es disponible ce jour-là.
-            Touche-la à nouveau pour retirer ta disponibilité.
+          <p className="text-sm" style={{ color: NAVY }}>
+            Les dates en <strong style={{ color: ORANGE }}>orange</strong> ont un événement planifié.
+            Touche-les pour indiquer que tu es disponible (la date passe en <strong style={{ color: BLUE }}>bleu</strong>).
+            Touche à nouveau pour retirer ta disponibilité.
           </p>
         </div>
 
-        {/* Calendrier */}
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          {/* Nav mois */}
           <div className="flex items-center justify-between p-4 border-b border-gray-100">
             <button
               onClick={() => changeMonth(-1)}
               className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100"
-              style={{ color: "#1f2244" }}
+              style={{ color: NAVY }}
               aria-label="Mois précédent"
             >
               ←
             </button>
-            <h2 className="font-semibold text-base capitalize" style={{ color: "#1f2244" }}>{monthLabel}</h2>
+            <h2 className="font-semibold text-base capitalize" style={{ color: NAVY }}>{monthLabel}</h2>
             <button
               onClick={() => changeMonth(1)}
               className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100"
-              style={{ color: "#1f2244" }}
+              style={{ color: NAVY }}
               aria-label="Mois suivant"
             >
               →
             </button>
           </div>
 
-          {/* Grille jours */}
           <div className="p-2">
             <div className="grid grid-cols-7 mb-1">
               {WEEKDAYS_FR.map((d, i) => (
@@ -231,15 +253,75 @@ function PrestaContent() {
 
                 const isSaving = savingDate === cell.key;
                 const baseClass = "h-12 rounded-lg flex items-center justify-center text-sm font-medium transition-all";
+                const todayBorder = cell.isToday ? "inset 0 0 0 2px " + NAVY : undefined;
 
+                // Date passée
                 if (cell.isPast) {
+                  // Passée AVEC événement : gris foncé
+                  if (cell.hasEvent) {
+                    return (
+                      <div
+                        key={idx}
+                        className={baseClass}
+                        style={{ backgroundColor: "#e5e7eb", color: "#9ca3af" }}
+                        aria-label={`${cell.day} (événement passé)`}
+                        title="Événement passé"
+                      >
+                        {cell.day}
+                      </div>
+                    );
+                  }
+                  // Passée sans événement : juste gris clair
                   return (
-                    <div key={idx} className={baseClass} style={{ color: "#cbd5e0" }} aria-label={`${cell.day} (passé)`}>
+                    <div key={idx} className={baseClass} style={{ color: GRAY }} aria-label={`${cell.day} (passé)`}>
                       {cell.day}
                     </div>
                   );
                 }
 
+                // Future : 4 cas selon hasEvent + isAvailable
+
+                // (1) Événement + dispo : bleu plein + bordure orange
+                if (cell.hasEvent && cell.isAvailable) {
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => toggleDate(viewMonth.year, viewMonth.month, cell.day)}
+                      disabled={isSaving}
+                      className={`${baseClass} active:scale-95`}
+                      style={{
+                        backgroundColor: BLUE,
+                        color: NAVY,
+                        boxShadow: cell.isToday ? `inset 0 0 0 2px ${NAVY}, 0 0 0 2px ${ORANGE}` : `0 0 0 2px ${ORANGE}`,
+                      }}
+                      aria-label={`${cell.day} (événement, disponible)`}
+                    >
+                      {isSaving ? "…" : cell.day}
+                    </button>
+                  );
+                }
+
+                // (2) Événement seul : carré orange (cliquable)
+                if (cell.hasEvent) {
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => toggleDate(viewMonth.year, viewMonth.month, cell.day)}
+                      disabled={isSaving}
+                      className={`${baseClass} active:scale-95`}
+                      style={{
+                        backgroundColor: ORANGE_BG,
+                        color: NAVY,
+                        boxShadow: todayBorder ?? `inset 0 0 0 1.5px ${ORANGE}`,
+                      }}
+                      aria-label={`${cell.day} (événement planifié)`}
+                    >
+                      {isSaving ? "…" : cell.day}
+                    </button>
+                  );
+                }
+
+                // (3) Dispo legacy sans événement : bleu seul (autorise retrait)
                 if (cell.isAvailable) {
                   return (
                     <button
@@ -248,9 +330,9 @@ function PrestaContent() {
                       disabled={isSaving}
                       className={`${baseClass} active:scale-95`}
                       style={{
-                        backgroundColor: "#7dcef5",
-                        color: "#1f2244",
-                        boxShadow: cell.isToday ? "inset 0 0 0 2px #1f2244" : undefined,
+                        backgroundColor: BLUE,
+                        color: NAVY,
+                        boxShadow: todayBorder,
                       }}
                       aria-label={`${cell.day} (disponible)`}
                     >
@@ -259,34 +341,33 @@ function PrestaContent() {
                   );
                 }
 
+                // (4) Aucun événement, pas dispo : non cliquable (juste affichage)
                 return (
-                  <button
+                  <div
                     key={idx}
-                    onClick={() => toggleDate(viewMonth.year, viewMonth.month, cell.day)}
-                    disabled={isSaving}
-                    className={`${baseClass} hover:bg-gray-100 active:scale-95`}
-                    style={{
-                      color: "#1f2244",
-                      backgroundColor: cell.isToday ? "#fafbfc" : undefined,
-                      boxShadow: cell.isToday ? "inset 0 0 0 2px #7dcef5" : undefined,
-                    }}
+                    className={baseClass}
+                    style={{ color: NAVY, backgroundColor: cell.isToday ? "#fafbfc" : undefined, boxShadow: todayBorder }}
                     aria-label={`${cell.day}`}
                   >
-                    {isSaving ? "…" : cell.day}
-                  </button>
+                    {cell.day}
+                  </div>
                 );
               })}
             </div>
           </div>
 
           {/* Légende */}
-          <div className="flex items-center justify-center gap-4 px-4 pb-4 text-xs" style={{ color: "#727485" }}>
+          <div className="flex items-center justify-center gap-3 px-4 pb-4 text-xs flex-wrap" style={{ color: "#727485" }}>
             <div className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded" style={{ backgroundColor: "#7dcef5" }} />
+              <div className="w-3 h-3 rounded" style={{ backgroundColor: ORANGE_BG, boxShadow: `inset 0 0 0 1.5px ${ORANGE}` }} />
+              <span>Événement</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded" style={{ backgroundColor: BLUE, boxShadow: `0 0 0 2px ${ORANGE}` }} />
               <span>Disponible</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded" style={{ boxShadow: "inset 0 0 0 2px #7dcef5" }} />
+              <div className="w-3 h-3 rounded" style={{ boxShadow: `inset 0 0 0 2px ${NAVY}` }} />
               <span>Aujourd&apos;hui</span>
             </div>
           </div>
@@ -294,15 +375,15 @@ function PrestaContent() {
 
         {/* Récap dispos à venir */}
         <div className="bg-white rounded-lg shadow-sm p-4">
-          <h3 className="font-semibold text-sm mb-3" style={{ color: "#1f2244" }}>
+          <h3 className="font-semibold text-sm mb-3" style={{ color: NAVY }}>
             Mes prochaines disponibilités ({upcomingAvailable.length})
           </h3>
           {upcomingAvailable.length === 0 ? (
             <p className="text-sm" style={{ color: "#727485" }}>
-              Aucune disponibilité enregistrée. Touche une date pour commencer.
+              Aucune disponibilité enregistrée. Touche une date orange pour te déclarer dispo.
             </p>
           ) : (
-            <ul className="space-y-1 text-sm" style={{ color: "#1f2244" }}>
+            <ul className="space-y-1 text-sm" style={{ color: NAVY }}>
               {upcomingAvailable.map((k) => {
                 const d = new Date(`${k}T00:00:00.000Z`);
                 return (
@@ -315,14 +396,39 @@ function PrestaContent() {
           )}
         </div>
 
+        {/* Récap événements à venir */}
+        <div className="bg-white rounded-lg shadow-sm p-4">
+          <h3 className="font-semibold text-sm mb-3" style={{ color: NAVY }}>
+            Prochains événements ({upcomingEvents.length})
+          </h3>
+          {upcomingEvents.length === 0 ? (
+            <p className="text-sm" style={{ color: "#727485" }}>
+              Aucun événement planifié pour le moment.
+            </p>
+          ) : (
+            <ul className="space-y-1 text-sm" style={{ color: NAVY }}>
+              {upcomingEvents.map((k) => {
+                const d = new Date(`${k}T00:00:00.000Z`);
+                const isAvail = availableDates.has(k);
+                return (
+                  <li key={k} className="capitalize flex items-center gap-2">
+                    <span style={{ color: ORANGE }}>●</span>
+                    <span>{d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</span>
+                    {isAvail && <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: BLUE, color: NAVY }}>Tu es dispo</span>}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+
         <p className="text-xs text-center pt-2" style={{ color: "#727485" }}>
           Les Ateliers du Stream — EVA Flow
         </p>
       </main>
 
-      {/* Toast feedback */}
       {feedback && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full text-white shadow-lg text-sm" style={{ backgroundColor: "#1f2244" }}>
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full text-white shadow-lg text-sm" style={{ backgroundColor: NAVY }}>
           {feedback}
         </div>
       )}
