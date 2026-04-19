@@ -16,6 +16,7 @@ interface FlowProject {
   regie: string | null;
   status: string;
   notes: string;
+  availableDirectorsCount?: number;
 }
 
 interface Director {
@@ -411,6 +412,19 @@ export default function FlowPage() {
                       {p.regie && (
                         <span className="text-xs px-2 py-0.5 rounded font-mono" style={{ backgroundColor: "#e8f4fd", color: "#1f2244" }}>
                           {p.regie}
+                        </span>
+                      )}
+                      {p.availableDirectorsCount !== undefined && p.availableDirectorsCount > 0 && (
+                        <span
+                          className={`text-xs px-2 py-0.5 rounded-full font-bold ${!p.directorId ? "animate-pulse" : ""}`}
+                          style={
+                            p.directorId
+                              ? { backgroundColor: "#d4edda", color: "#155724" }
+                              : { backgroundColor: "#fef3cd", color: "#856404", border: "1.5px solid #f59e0b" }
+                          }
+                          title={p.directorId ? "Réalisateur déjà validé" : "Cliquer pour valider un réalisateur"}
+                        >
+                          👥 {p.availableDirectorsCount} dispo{p.availableDirectorsCount > 1 ? "s" : ""}
                         </span>
                       )}
                     </div>

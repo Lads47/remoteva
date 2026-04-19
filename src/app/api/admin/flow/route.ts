@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import {
-  getAllFlowProjects,
+  getAllFlowProjectsWithAvailability,
   createFlowProject,
   updateFlowProject,
   deleteFlowProject,
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ stats });
     }
 
-    const projects = await getAllFlowProjects();
+    const projects = await getAllFlowProjectsWithAvailability();
     return NextResponse.json({ projects });
   } catch (error) {
     console.error("Erreur récupération projets Flow:", error);

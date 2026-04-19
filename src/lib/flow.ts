@@ -115,6 +115,10 @@ export interface FlowProjectWithConferences extends FlowProjectInfo {
   conferences: ConferenceInfo[];
 }
 
+export interface FlowProjectListItem extends FlowProjectInfo {
+  availableDirectorsCount: number; // Nombre de réals dispos pour la date du projet
+}
+
 function toProjectInfo(p: {
   id: string;
   eventId: string;
@@ -192,6 +196,31 @@ function toConferenceInfo(c: {
 export async function getAllFlowProjects(): Promise<FlowProjectInfo[]> {
   const list = await prisma.flowProject.findMany({ orderBy: { date: "desc" } });
   return list.map(toProjectInfo);
+}
+
+/**
+ * Liste tous les projets enrichis du nombre de réals dispos pour la date du projet.
+ * Utilisé par /admin/flow pour afficher un badge "X réals dispos".
+ */
+export async function getAllFlowProjectsWithAvailability(): Promise<FlowProjectListItem[]> {
+  const projects = await prisma.flowProject.findMany({ orderBy: { date: "desc" } });
+
+  // Récupère toutes les dispos en une fois et groupe par date (clé YYYY-MM-DD)
+  const availabilities = await prisma.directorAvailability.findMany({
+    select: { date: true, director: { select: { active: true } } },
+  });
+  const countByDate = new Map<string, number>();
+  for (const a of availabilities) {
+    if (!a.director?.active) continue; // ignore les réals désactivés
+    const k = `${a.date.getUTCFullYear()}-${String(a.date.getUTCMonth() + 1).padStart(2, "0")}-${String(a.date.getUTCDate()).padStart(2, "0")}`;
+    countByDate.set(k, (countByDate.get(k) ?? 0) + 1);
+  }
+
+  return projects.map((p) => {
+    const info = toProjectInfo(p);
+    const k = `${p.date.getUTCFullYear()}-${String(p.date.getUTCMonth() + 1).padStart(2, "0")}-${String(p.date.getUTCDate()).padStart(2, "0")}`;
+    return { ...info, availableDirectorsCount: countByDate.get(k) ?? 0 };
+  });
 }
 
 /**
