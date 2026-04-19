@@ -77,9 +77,9 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
   const [savingEdit, setSavingEdit] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "warning" | "error"; msg: string } | null>(null);
 
-  // Form édition projet
+  // Form édition événement
   const [editForm, setEditForm] = useState({
-    title: "", date: "", location: "", room: "", speaker: "", notes: "",
+    title: "", date: "", location: "", room: "", notes: "",
     regie: "" as string, recordingLocalPath: "" as string,
   });
 
@@ -108,7 +108,6 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
           date: projData.project.date.split("T")[0],
           location: projData.project.location,
           room: projData.project.room,
-          speaker: projData.project.speaker,
           notes: projData.project.notes,
           regie: projData.project.regie ?? "",
           recordingLocalPath: projData.project.recordingLocalPath ?? "",
@@ -138,7 +137,6 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
         date: editForm.date,
         location: editForm.location,
         room: editForm.room,
-        speaker: editForm.speaker,
         notes: editForm.notes,
         regie: editForm.regie || null,
         recordingLocalPath: editForm.recordingLocalPath || null,
@@ -151,7 +149,7 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
       if (res.ok) {
         await fetchAll();
         setEditing(false);
-        showFeedback("success", "Projet mis à jour");
+        showFeedback("success", "Événement mis à jour");
       } else {
         const err = await res.json();
         showFeedback("error", err.error || "Erreur");
@@ -261,7 +259,7 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
   }
 
   if (!project) {
-    return <div className="text-center py-12" style={{ color: "#727485" }}>Projet introuvable</div>;
+    return <div className="text-center py-12" style={{ color: "#727485" }}>Événement introuvable</div>;
   }
 
   const projectStatusColor = STATUS_COLORS[project.status] ?? { bg: "#f5f5f7", text: "#1f2244" };
@@ -270,7 +268,7 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
     <div className="space-y-8">
       <div>
         <Link href="/admin/flow" className="text-sm px-2 py-1 rounded hover:bg-gray-100" style={{ color: "#727485" }}>
-          ← Liste des projets
+          ← Liste des événements
         </Link>
       </div>
 
@@ -289,7 +287,7 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
         </div>
       )}
 
-      {/* Header projet */}
+      {/* Header événement */}
       <div className="bg-white border border-gray-200 rounded-lg p-6">
         <div className="flex items-start justify-between flex-wrap gap-4">
           <div className="flex-1">
@@ -336,10 +334,10 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
         </div>
       </div>
 
-      {/* Édition projet */}
+      {/* Édition événement */}
       {editing && (
         <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <h2 className="text-lg font-semibold mb-4" style={{ color: "#1f2244" }}>Édition du projet</h2>
+          <h2 className="text-lg font-semibold mb-4" style={{ color: "#1f2244" }}>Édition de l&apos;événement</h2>
           <form onSubmit={handleSaveProject} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">
@@ -385,14 +383,6 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
                 <input
                   type="text" value={editForm.room} required
                   onChange={(e) => setEditForm({ ...editForm, room: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="block text-sm font-medium mb-1" style={{ color: "#1f2244" }}>Speaker principal</label>
-                <input
-                  type="text" value={editForm.speaker}
-                  onChange={(e) => setEditForm({ ...editForm, speaker: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
               </div>
@@ -567,7 +557,7 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
         )}
 
         {project.conferences.length === 0 ? (
-          <p className="text-center py-6 text-sm" style={{ color: "#727485" }}>Aucune conférence dans ce projet.</p>
+          <p className="text-center py-6 text-sm" style={{ color: "#727485" }}>Aucune conférence dans cet événement.</p>
         ) : (
           <div className="space-y-2">
             {project.conferences.map((c) => {

@@ -185,7 +185,7 @@ export default function DashboardPage() {
               </span>
             </div>
             <p className="text-sm mt-2" style={{ color: "#727485" }}>
-              Gestion des projets de captation vidéo
+              Gestion des événements de captation vidéo
             </p>
           </Link>
         </div>

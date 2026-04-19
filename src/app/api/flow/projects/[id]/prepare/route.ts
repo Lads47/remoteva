@@ -19,7 +19,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
     const { id } = await ctx.params;
     const existing = await getProjectWithConferences(id);
     if (!existing) {
-      return jsonCors({ error: "Projet introuvable" }, { status: 404 });
+      return jsonCors({ error: "Événement introuvable" }, { status: 404 });
     }
 
     const body = await request.json();

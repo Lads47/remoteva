@@ -32,7 +32,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
   try {
     const { id } = await ctx.params;
     const project = await getProjectWithConferences(id);
-    if (!project) return NextResponse.json({ error: "Projet introuvable" }, { status: 404 });
+    if (!project) return NextResponse.json({ error: "Événement introuvable" }, { status: 404 });
 
     const body = await request.json();
     const parsed = createConferenceSchema.safeParse(body);

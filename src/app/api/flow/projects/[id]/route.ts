@@ -16,7 +16,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
     const { id } = await ctx.params;
     const project = await getProjectWithConferences(id);
     if (!project) {
-      return jsonCors({ error: "Projet introuvable" }, { status: 404 });
+      return jsonCors({ error: "Événement introuvable" }, { status: 404 });
     }
     return jsonCors({ project });
   } catch (error) {

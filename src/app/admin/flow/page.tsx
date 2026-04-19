@@ -59,7 +59,6 @@ const EMPTY_FORM = {
   date: "",
   location: "",
   room: "",
-  speaker: "",
   directorId: "" as string,
   notes: "",
   conferences: [{ ...EMPTY_CONF }],
@@ -113,7 +112,6 @@ export default function FlowPage() {
         date: form.date,
         location: form.location,
         room: form.room,
-        speaker: form.speaker,
         director: directorObj?.name ?? "",
         directorId: form.directorId || null,
         notes: form.notes,
@@ -142,7 +140,7 @@ export default function FlowPage() {
   }
 
   async function handleDelete(p: FlowProject) {
-    if (!confirm(`Supprimer le projet "${p.title}" (${p.eventId}) ?\n\nLes conférences associées seront aussi supprimées.`)) return;
+    if (!confirm(`Supprimer l'événement "${p.title}" (${p.eventId}) ?\n\nLes conférences associées seront aussi supprimées.`)) return;
     try {
       const res = await fetch(`/api/admin/flow?id=${p.id}`, { method: "DELETE" });
       if (res.ok) await fetchAll();
@@ -191,19 +189,19 @@ export default function FlowPage() {
             ← Dashboard
           </Link>
           <h1 className="text-2xl font-bold mt-2" style={{ color: "#1f2244" }}>EVA Flow</h1>
-          <p className="mt-1" style={{ color: "#727485" }}>Gestion des projets de captation vidéo</p>
+          <p className="mt-1" style={{ color: "#727485" }}>Gestion des événements de captation vidéo</p>
         </div>
         <button
           onClick={() => { setShowForm(true); setForm(EMPTY_FORM); setError(""); }}
           className="px-4 py-2 text-white rounded-lg transition-all hover:opacity-90"
           style={{ backgroundColor: "#1f2244" }}
         >
-          + Nouveau projet
+          + Nouvel événement
         </button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <StatCard title="Total projets" value={stats.total} bg="#f5f5f7" text="#1f2244" />
+        <StatCard title="Total événements" value={stats.total} bg="#f5f5f7" text="#1f2244" />
         <StatCard title="Planifiés" value={stats.planned} bg="#e8f4fd" text="#1f2244" />
         <StatCard title="En cours" value={stats.inProgress} bg="#fef3cd" text="#856404" />
         <StatCard title="Terminés" value={stats.done} bg="#d4edda" text="#155724" />
@@ -211,12 +209,12 @@ export default function FlowPage() {
 
       {showForm && (
         <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <h2 className="text-lg font-semibold mb-4" style={{ color: "#1f2244" }}>Nouveau projet</h2>
+          <h2 className="text-lg font-semibold mb-4" style={{ color: "#1f2244" }}>Nouvel événement</h2>
           {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">
-                <label className="block text-sm font-medium mb-1" style={{ color: "#1f2244" }}>Titre du projet *</label>
+                <label className="block text-sm font-medium mb-1" style={{ color: "#1f2244" }}>Titre de l&apos;événement *</label>
                 <input
                   type="text" value={form.title}
                   onChange={(e) => setForm({ ...form, title: e.target.value })}
@@ -260,15 +258,6 @@ export default function FlowPage() {
                   type="text" value={form.room}
                   onChange={(e) => setForm({ ...form, room: e.target.value })}
                   placeholder="Ex : Amphi A" required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="block text-sm font-medium mb-1" style={{ color: "#1f2244" }}>Speaker principal (résumé)</label>
-                <input
-                  type="text" value={form.speaker}
-                  onChange={(e) => setForm({ ...form, speaker: e.target.value })}
-                  placeholder="Optionnel — ex : Dr Dupont, Pr Smith"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
                 />
               </div>
@@ -343,7 +332,7 @@ export default function FlowPage() {
                 ))}
               </div>
               <p className="text-xs mt-2" style={{ color: "#727485" }}>
-                Tu peux laisser vide. Tu pourras ajouter des conférences plus tard depuis la fiche projet.
+                Tu peux laisser vide. Tu pourras ajouter des conférences plus tard depuis la fiche événement.
               </p>
             </div>
 
@@ -352,7 +341,7 @@ export default function FlowPage() {
                 type="submit" disabled={saving}
                 className="px-4 py-2 text-white rounded-lg transition-all hover:opacity-90 disabled:opacity-50"
                 style={{ backgroundColor: "#1f2244" }}
-              >{saving ? "Création…" : "Créer le projet"}</button>
+              >{saving ? "Création…" : "Créer l'événement"}</button>
               <button
                 type="button"
                 onClick={() => { setShowForm(false); setForm(EMPTY_FORM); setError(""); }}
@@ -388,13 +377,13 @@ export default function FlowPage() {
 
       <div>
         <h2 className="text-lg font-semibold mb-4" style={{ color: "#1f2244" }}>
-          Projets ({filteredProjects.length})
+          Événements ({filteredProjects.length})
         </h2>
 
         {filteredProjects.length === 0 ? (
           <div className="text-center py-12 bg-white border border-gray-200 rounded-lg">
             <p style={{ color: "#727485" }}>
-              {projects.length === 0 ? 'Aucun projet créé. Cliquez sur "+ Nouveau projet" pour commencer.' : "Aucun projet avec ce filtre."}
+              {projects.length === 0 ? 'Aucun événement créé. Cliquez sur "+ Nouvel événement" pour commencer.' : "Aucun événement avec ce filtre."}
             </p>
           </div>
         ) : (
