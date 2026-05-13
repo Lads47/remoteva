@@ -129,14 +129,85 @@ const IA_PREREQUIS: PrerequisField[] = [
 ];
 
 /**
- * Retourne le schéma de pré-requis pour une formation (par son code).
- * Reconnaît vMix et IA / INITIA. Sinon retourne un schéma générique minimal.
+ * Schémas hardcodés utilisés en fallback quand formation.configForm n'a pas de
+ * schéma personnalisé valide.
  */
-export function getPrerequisForFormation(code: string): PrerequisField[] {
+export function getDefaultPrerequisForCode(code: string): PrerequisField[] {
   const c = code.toLowerCase();
   if (c.includes("vmix")) return VMIX_PREREQUIS;
   if (c.includes("initia") || c.includes("ia")) return IA_PREREQUIS;
   return GENERIC_PREREQUIS;
+}
+
+/**
+ * Résout le schéma de pré-requis pour une formation :
+ * 1. Tente de parser formation.configForm comme `{ prerequis: PrerequisField[] }`
+ * 2. Sinon retombe sur le schéma hardcodé en fonction du code.
+ *
+ * @param formation Objet contenant au minimum `code` et `configForm` (JSON string).
+ */
+export function resolvePrerequisForFormation(formation: {
+  code: string;
+  configForm: string;
+}): PrerequisField[] {
+  const custom = parsePrerequisFromConfig(formation.configForm);
+  if (custom) return custom;
+  return getDefaultPrerequisForCode(formation.code);
+}
+
+/**
+ * Parse strictement le JSON `configForm` et valide la structure des champs.
+ * Retourne `null` si invalide ou vide (→ fallback hardcoded).
+ */
+function parsePrerequisFromConfig(configForm: string): PrerequisField[] | null {
+  if (!configForm || configForm.trim() === "" || configForm.trim() === "{}") return null;
+  try {
+    const parsed = JSON.parse(configForm) as unknown;
+    if (!parsed || typeof parsed !== "object") return null;
+    const obj = parsed as { prerequis?: unknown };
+    if (!Array.isArray(obj.prerequis)) return null;
+    const result: PrerequisField[] = [];
+    for (const f of obj.prerequis) {
+      const validated = validateField(f);
+      if (!validated) return null; // au moindre champ invalide, on tombe sur fallback
+      result.push(validated);
+    }
+    return result.length > 0 ? result : null;
+  } catch {
+    return null;
+  }
+}
+
+function validateField(f: unknown): PrerequisField | null {
+  if (!f || typeof f !== "object") return null;
+  const obj = f as Record<string, unknown>;
+  const name = typeof obj.name === "string" ? obj.name.trim() : "";
+  const label = typeof obj.label === "string" ? obj.label.trim() : "";
+  const type = typeof obj.type === "string" ? obj.type : "";
+  const required = obj.required === true;
+  if (!name || !label) return null;
+  switch (type) {
+    case "yes_no":
+      return { name, label, type: "yes_no", required };
+    case "single_choice": {
+      if (!Array.isArray(obj.options)) return null;
+      const options = obj.options.filter((o): o is string => typeof o === "string" && o.trim() !== "");
+      if (options.length === 0) return null;
+      return { name, label, type: "single_choice", options, required };
+    }
+    case "scale_1_5": {
+      const leftLabel = typeof obj.leftLabel === "string" ? obj.leftLabel : "";
+      const rightLabel = typeof obj.rightLabel === "string" ? obj.rightLabel : "";
+      return { name, label, type: "scale_1_5", leftLabel, rightLabel, required };
+    }
+    case "text":
+    case "textarea": {
+      const placeholder = typeof obj.placeholder === "string" ? obj.placeholder : undefined;
+      return { name, label, type, required, ...(placeholder ? { placeholder } : {}) };
+    }
+    default:
+      return null;
+  }
 }
 
 const GENERIC_PREREQUIS: PrerequisField[] = [

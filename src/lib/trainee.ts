@@ -66,6 +66,69 @@ export async function getTraineeById(id: string): Promise<TraineeInfo | null> {
   return t ? toInfo(t) : null;
 }
 
+export interface TraineeEventInfo {
+  id: string;
+  type: string;
+  message: string;
+  payload: string;
+  createdAt: Date;
+}
+
+export interface TraineeWithDetails extends TraineeInfo {
+  session: {
+    id: string;
+    code: string;
+    dateDebut: Date;
+    dateFin: Date;
+    lieu: string;
+    horaires: string;
+    status: string;
+  };
+  formation: {
+    id: string;
+    code: string;
+    nomLong: string;
+    configForm: string;
+  };
+  events: TraineeEventInfo[];
+}
+
+export async function getTraineeWithDetails(id: string): Promise<TraineeWithDetails | null> {
+  const t = await prisma.trainee.findUnique({
+    where: { id },
+    include: {
+      session: { include: { formation: true } },
+      events: { orderBy: { createdAt: "desc" } },
+    },
+  });
+  if (!t) return null;
+  return {
+    ...toInfo(t),
+    session: {
+      id: t.session.id,
+      code: t.session.code,
+      dateDebut: t.session.dateDebut,
+      dateFin: t.session.dateFin,
+      lieu: t.session.lieu,
+      horaires: t.session.horaires,
+      status: t.session.status,
+    },
+    formation: {
+      id: t.session.formation.id,
+      code: t.session.formation.code,
+      nomLong: t.session.formation.nomLong,
+      configForm: t.session.formation.configForm,
+    },
+    events: t.events.map((e) => ({
+      id: e.id,
+      type: e.type,
+      message: e.message,
+      payload: e.payload,
+      createdAt: e.createdAt,
+    })),
+  };
+}
+
 export async function getTraineesBySession(sessionId: string): Promise<TraineeInfo[]> {
   const list = await prisma.trainee.findMany({
     where: { sessionId },

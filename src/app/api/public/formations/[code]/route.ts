@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getFormationByCode } from "@/lib/formation";
 import { getSessionsByFormation } from "@/lib/session";
+import { resolvePrerequisForFormation } from "@/lib/formation-prerequis";
 
 // GET /api/public/formations/[code]
 // Renvoie la formation (vue publique) + ses sessions ouvertes (status === "open")
@@ -26,6 +27,11 @@ export async function GET(_request: NextRequest, ctx: { params: Promise<{ code: 
         placesRestantes: Math.max(0, s.capacite - s.traineeCount),
       }));
 
+    const prerequisSchema = resolvePrerequisForFormation({
+      code: formation.code,
+      configForm: formation.configForm,
+    });
+
     return NextResponse.json({
       formation: {
         code: formation.code,
@@ -33,9 +39,9 @@ export async function GET(_request: NextRequest, ctx: { params: Promise<{ code: 
         description: formation.description,
         prixHT: formation.prixHT,
         dureeJours: formation.dureeJours,
-        configForm: formation.configForm,
       },
       sessions,
+      prerequisSchema,
     });
   } catch (error) {
     console.error("[/api/public/formations/[code]] GET error:", error);

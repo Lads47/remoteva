@@ -193,15 +193,20 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                   <Th>Financement</Th>
                   <Th>Statut</Th>
                   <Th>Inscrit le</Th>
+                  <Th></Th>
                 </tr>
               </thead>
               <tbody>
                 {trainees.map((t) => (
                   <tr key={t.id} className="border-t" style={{ borderColor: "#e5e7eb" }}>
                     <td className="px-3 py-3">
-                      <div className="font-medium" style={{ color: "#1f2244" }}>
+                      <Link
+                        href={`/admin/formations/trainees/${t.id}`}
+                        className="font-medium hover:underline cursor-pointer"
+                        style={{ color: "#1f2244" }}
+                      >
                         {t.prenom} {t.nom}
-                      </div>
+                      </Link>
                       <div className="text-xs font-jetbrains" style={{ color: "#727485" }}>
                         {t.email}
                         {t.telephone && ` · ${t.telephone}`}
@@ -232,6 +237,15 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                     <td className="px-3 py-3 font-jetbrains text-xs" style={{ color: "#9ca3af" }}>
                       {fmtDateTime(t.createdAt)}
                     </td>
+                    <td className="px-3 py-3 text-right">
+                      <Link
+                        href={`/admin/formations/trainees/${t.id}`}
+                        className="text-xs px-3 py-1.5 rounded-full border cursor-pointer"
+                        style={{ borderColor: "#1f2244", color: "#1f2244" }}
+                      >
+                        Voir
+                      </Link>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -243,7 +257,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   );
 }
 
-function Th({ children }: { children: React.ReactNode }) {
+function Th({ children }: { children?: React.ReactNode }) {
   return (
     <th className="text-left px-3 py-2 text-xs font-semibold uppercase tracking-wide" style={{ color: "#727485" }}>
       {children}

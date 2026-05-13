@@ -3,6 +3,7 @@ import { publicInscriptionSchema } from "@/lib/validation";
 import { getSessionById } from "@/lib/session";
 import { createTrainee, recordTraineeEvent } from "@/lib/trainee";
 import { detectOpcoBySiret } from "@/lib/opco";
+import { sendInscriptionConfirmation, sendInscriptionAdminNotif } from "@/lib/mailer";
 
 // POST /api/public/inscriptions
 // Crée un Trainee en statut "inscrit", déclenche la détection OPCO si entreprise.
@@ -93,11 +94,57 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Envoi des emails (best-effort : on ne fait pas échouer l'inscription si l'envoi plante).
+    // En parallèle pour ne pas allonger la réponse.
+    const [confirmRes, adminRes] = await Promise.all([
+      sendInscriptionConfirmation({
+        to: data.email,
+        prenom: data.prenom,
+        nom: data.nom,
+        formationNomLong: session.formationNomLong,
+        sessionDateDebut: session.dateDebut,
+        sessionDateFin: session.dateFin,
+        sessionLieu: session.lieu,
+        modeFinancement: data.modeFinancement,
+      }),
+      sendInscriptionAdminNotif({
+        traineeId: trainee.id,
+        sessionId: session.id,
+        prenom: data.prenom,
+        nom: data.nom,
+        email: data.email,
+        telephone: data.telephone,
+        formationCode: session.formationCode,
+        formationNomLong: session.formationNomLong,
+        sessionCode: session.code,
+        sessionDateDebut: session.dateDebut,
+        inscriptionType: data.inscriptionType,
+        raisonSociale: data.raisonSociale,
+        modeFinancement: data.modeFinancement,
+        opcoDetecte,
+        psh: data.psh,
+      }),
+    ]);
+
+    await recordTraineeEvent(
+      trainee.id,
+      confirmRes.success ? "email_sent" : "email_failed",
+      confirmRes.success ? "Mail de confirmation envoyé au stagiaire" : `Échec mail stagiaire: ${confirmRes.error}`,
+      { type: "confirmation_stagiaire", to: data.email, messageId: confirmRes.messageId }
+    );
+    await recordTraineeEvent(
+      trainee.id,
+      adminRes.success ? "email_sent" : "email_failed",
+      adminRes.success ? "Notification admin envoyée" : `Échec notif admin: ${adminRes.error}`,
+      { type: "notif_admin", messageId: adminRes.messageId }
+    );
+
     return NextResponse.json(
       {
         success: true,
         traineeId: trainee.id,
         opcoDetecte: opcoDetecte || null,
+        confirmationEmailSent: confirmRes.success,
       },
       { status: 201 }
     );

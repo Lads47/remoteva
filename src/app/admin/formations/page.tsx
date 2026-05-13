@@ -507,22 +507,29 @@ export default function FormationsPage() {
               </div>
               <div className="flex items-center gap-2 ml-4">
                 <Link
+                  href={`/admin/formations/${f.id}/prerequis`}
+                  className="text-xs px-3 py-1.5 rounded-full border cursor-pointer"
+                  style={{ borderColor: "#1f2244", color: "#1f2244" }}
+                >
+                  Pré-requis
+                </Link>
+                <Link
                   href={`/admin/formations/sessions?formationId=${f.id}`}
-                  className="text-xs px-3 py-1.5 rounded-full border"
+                  className="text-xs px-3 py-1.5 rounded-full border cursor-pointer"
                   style={{ borderColor: "#1f2244", color: "#1f2244" }}
                 >
                   Sessions
                 </Link>
                 <button
                   onClick={() => handleEdit(f)}
-                  className="text-xs px-3 py-1.5 rounded-full text-white"
+                  className="text-xs px-3 py-1.5 rounded-full cursor-pointer"
                   style={{ backgroundColor: "#7dcef5", color: "#1f2244" }}
                 >
                   Modifier
                 </button>
                 <button
                   onClick={() => handleDelete(f.id)}
-                  className="text-xs px-3 py-1.5 rounded-full border border-red-200 text-red-600 hover:bg-red-50"
+                  className="text-xs px-3 py-1.5 rounded-full border border-red-200 text-red-600 hover:bg-red-50 cursor-pointer"
                 >
                   Supprimer
                 </button>

@@ -1,7 +1,7 @@
 "use client";
 
-import { use, useEffect, useMemo, useState } from "react";
-import { getPrerequisForFormation, type PrerequisField } from "@/lib/formation-prerequis";
+import { use, useEffect, useState } from "react";
+import type { PrerequisField } from "@/lib/formation-prerequis";
 
 interface PublicSession {
   id: string;
@@ -135,11 +135,7 @@ export default function PublicInscriptionPage({ params }: { params: Promise<{ co
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [success, setSuccess] = useState<{ opcoDetecte: string | null } | null>(null);
-
-  const prerequisSchema = useMemo<PrerequisField[]>(
-    () => (formation ? getPrerequisForFormation(formation.code) : []),
-    [formation]
-  );
+  const [prerequisSchema, setPrerequisSchema] = useState<PrerequisField[]>([]);
 
   useEffect(() => {
     fetch(`/api/public/formations/${encodeURIComponent(code)}`)
@@ -153,6 +149,7 @@ export default function PublicInscriptionPage({ params }: { params: Promise<{ co
       .then((data) => {
         setFormation(data.formation);
         setSessions(data.sessions);
+        setPrerequisSchema(Array.isArray(data.prerequisSchema) ? data.prerequisSchema : []);
         if (data.sessions.length > 0) {
           setForm((prev) => ({ ...prev, sessionId: data.sessions[0].id }));
         }
