@@ -92,6 +92,9 @@ type FormState = {
   notes: string;
 };
 
+const DEFAULT_LIEU = "39 bis rue Robert Creuzet, 47200 MARMANDE";
+const DEFAULT_HORAIRES = "9h00 - 17h00";
+
 function emptyForm(formationId = ""): FormState {
   return {
     formationId,
@@ -99,8 +102,8 @@ function emptyForm(formationId = ""): FormState {
     dateDebut: "",
     dateFin: "",
     capacite: "8",
-    lieu: "",
-    horaires: "",
+    lieu: DEFAULT_LIEU,
+    horaires: DEFAULT_HORAIRES,
     status: "planned",
     notes: "",
   };
@@ -540,6 +543,13 @@ function SessionsPageInner() {
                 </div>
               </div>
               <div className="flex items-center gap-2 ml-4">
+                <Link
+                  href={`/admin/formations/sessions/${s.id}`}
+                  className="text-xs px-3 py-1.5 rounded-full border"
+                  style={{ borderColor: "#1f2244", color: "#1f2244" }}
+                >
+                  Détails
+                </Link>
                 <button
                   onClick={() => handleEdit(s)}
                   className="text-xs px-3 py-1.5 rounded-full"

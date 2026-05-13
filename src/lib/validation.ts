@@ -141,11 +141,19 @@ export const VALID_TRAINEE_STATUSES = [
 export const VALID_INSCRIPTION_TYPES = ["particulier", "entreprise"] as const;
 
 export const VALID_MODES_FINANCEMENT = [
-  "OPCO",
   "Fonds propres entreprise",
-  "AFDAS",
+  "AFDAS (Intermittents)",
+  "OPCO entreprise",
   "France Travail",
   "Financement personnel",
+] as const;
+
+export const VALID_STATUTS_ACTUELS = [
+  "Salarié (CDI, CDD)",
+  "Intermittent du spectacle",
+  "Indépendant / Auto-entrepreneur / Libéral",
+  "Demandeur d'emploi",
+  "Particulier (Étudiant, autre)",
 ] as const;
 
 const sessionStatusSchema = z.enum(VALID_SESSION_STATUSES);
@@ -185,6 +193,74 @@ export const createSessionSchema = z.object({
   status: sessionStatusSchema.optional(),
   notes: z.string().trim().optional().default(""),
 });
+
+const emailSchema = z.string().trim().toLowerCase().email("Email invalide");
+
+// Public inscription (formulaire d'inscription stagiaire)
+export const publicInscriptionSchema = z
+  .object({
+    sessionId: z.string().trim().min(1, "Session requise"),
+
+    // Identité
+    nom: z.string().trim().min(1, "Nom requis"),
+    prenom: z.string().trim().min(1, "Prénom requis"),
+    email: emailSchema,
+    telephone: z.string().trim().min(1, "Téléphone requis"),
+
+    // Type
+    inscriptionType: z.enum(VALID_INSCRIPTION_TYPES),
+
+    // Statut professionnel (commun à tous)
+    statutActuel: z.enum(VALID_STATUTS_ACTUELS),
+
+    // Financement (commun à tous)
+    modeFinancement: z.enum(VALID_MODES_FINANCEMENT),
+
+    // Entreprise (requis si inscriptionType === "entreprise")
+    raisonSociale: z.string().trim().optional().default(""),
+    siret: z.string().trim().optional().default(""),
+    adresseSiege: z.string().trim().optional().default(""),
+    domaineActivite: z.string().trim().optional().default(""),
+    contactAdmin: z.string().trim().optional().default(""),
+
+    // Particulier (requis si inscriptionType === "particulier")
+    adressePostale: z.string().trim().optional().default(""),
+
+    // Accessibilité (PSH oui/non)
+    psh: z.boolean().default(false),
+
+    // Adaptations pédagogiques (oui/non + précisions si oui)
+    aBesoinsAdaptation: z.boolean().default(false),
+    besoinsAdaptation: z.string().trim().optional().default(""),
+
+    // Pré-requis : objet libre (clés/valeurs spécifiques à la formation)
+    prerequis: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional().default({}),
+
+    // Consentement RGPD (obligatoire, Qualiopi)
+    consentementRgpd: z.literal(true, { message: "Consentement RGPD requis" }),
+  })
+  .superRefine((data, ctx) => {
+    if (data.inscriptionType === "entreprise") {
+      if (!data.raisonSociale)
+        ctx.addIssue({ code: "custom", path: ["raisonSociale"], message: "Raison sociale requise" });
+      if (!data.siret || !/^\d{14}$/.test(data.siret.replace(/\s+/g, "")))
+        ctx.addIssue({ code: "custom", path: ["siret"], message: "SIRET (14 chiffres) requis" });
+      if (!data.adresseSiege)
+        ctx.addIssue({ code: "custom", path: ["adresseSiege"], message: "Adresse du siège requise" });
+      if (!data.domaineActivite)
+        ctx.addIssue({ code: "custom", path: ["domaineActivite"], message: "Domaine d'activité requis" });
+    } else {
+      if (!data.adressePostale)
+        ctx.addIssue({ code: "custom", path: ["adressePostale"], message: "Adresse postale requise" });
+    }
+    if (data.aBesoinsAdaptation && !data.besoinsAdaptation) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["besoinsAdaptation"],
+        message: "Merci de préciser vos besoins",
+      });
+    }
+  });
 
 export const updateSessionSchema = z.object({
   code: z.string().trim().min(1).optional(),
