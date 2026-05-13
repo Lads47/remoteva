@@ -317,19 +317,22 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
           </p>
         ) : (
           <div className="space-y-4">
-            {prerequisSchema.map((field) => {
-              const raw = prerequisAnswers[field.name];
-              return (
-                <div key={field.name}>
-                  <div className="text-xs font-medium mb-1" style={{ color: "#374151" }}>
-                    {field.label}
+            {prerequisSchema
+              // "attentes" a sa propre section dédiée plus bas (champ Trainee.attentes en BDD)
+              .filter((field) => field.name !== "attentes")
+              .map((field) => {
+                const raw = prerequisAnswers[field.name];
+                return (
+                  <div key={field.name}>
+                    <div className="text-xs font-medium mb-1" style={{ color: "#374151" }}>
+                      {field.label}
+                    </div>
+                    <div className="text-sm font-jetbrains" style={{ color: "#1f2244" }}>
+                      {formatPrerequisAnswer(field, raw)}
+                    </div>
                   </div>
-                  <div className="text-sm font-jetbrains" style={{ color: "#1f2244" }}>
-                    {formatPrerequisAnswer(field, raw)}
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
           </div>
         )}
       </Section>
