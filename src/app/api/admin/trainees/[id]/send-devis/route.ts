@@ -245,5 +245,11 @@ function buildOpportunityName(params: {
   nom: string;
 }): string {
   const code = params.codeOpportunite || params.formationCode;
-  return `${code} ${params.sessionCode} · ${params.nom.toUpperCase()} ${params.prenom}`;
+  // Évite la duplication si le sessionCode commence par le formationCode (ex: "vMixJ1-2026-05")
+  // → on extrait juste la partie temporelle "2026-05" (ou "2026-05-2" si collision).
+  const prefix = params.formationCode + "-";
+  const sessionSuffix = params.sessionCode.startsWith(prefix)
+    ? params.sessionCode.slice(prefix.length)
+    : params.sessionCode;
+  return `${code} ${sessionSuffix} · ${params.nom.toUpperCase()} ${params.prenom}`;
 }
