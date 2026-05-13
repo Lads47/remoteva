@@ -95,6 +95,16 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
   const [prerequisSchema, setPrerequisSchema] = useState<PrerequisField[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionFeedback, setActionFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+
+  async function refresh() {
+    const res = await fetch(`/api/admin/trainees/${id}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    setTrainee(data.trainee);
+    setPrerequisSchema(Array.isArray(data.prerequisSchema) ? data.prerequisSchema : []);
+  }
 
   useEffect(() => {
     fetch(`/api/admin/trainees/${id}`)
@@ -112,6 +122,34 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
   }, [id]);
+
+  async function handleSendDevis() {
+    if (!trainee) return;
+    if (!confirm(`Créer la fiche Sellsy + l'opportunité + le devis pour ${trainee.prenom} ${trainee.nom}, et lui envoyer le devis par email ?`)) {
+      return;
+    }
+    setActionLoading(true);
+    setActionFeedback(null);
+    try {
+      const res = await fetch(`/api/admin/trainees/${id}/send-devis`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setActionFeedback({ type: "error", msg: data.error || "Erreur" });
+        return;
+      }
+      setActionFeedback({
+        type: "success",
+        msg: data.emailSent
+          ? "Devis créé dans Sellsy et envoyé par email au stagiaire ✓"
+          : "Devis créé dans Sellsy, mais l'envoi du mail a échoué — vérifie les logs.",
+      });
+      await refresh();
+    } catch {
+      setActionFeedback({ type: "error", msg: "Erreur de connexion" });
+    } finally {
+      setActionLoading(false);
+    }
+  }
 
   const prerequisAnswers = useMemo<Record<string, unknown>>(() => {
     if (!trainee) return {};
@@ -171,6 +209,43 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
           {fmtDate(trainee.session.dateFin)}
         </p>
       </div>
+
+      {/* Bandeau d'action — uniquement si statut = inscrit */}
+      {trainee.status === "inscrit" && (
+        <div className="p-5 rounded-xl border flex items-center justify-between gap-3 flex-wrap" style={{ borderColor: "#fde68a", backgroundColor: "#fffbeb" }}>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold" style={{ color: "#92400e" }}>
+              Prochaine étape : envoyer le devis
+            </div>
+            <div className="text-xs mt-0.5 font-jetbrains" style={{ color: "#b45309" }}>
+              Crée la fiche {trainee.inscriptionType === "entreprise" ? "entreprise" : "particulier"} dans Sellsy,
+              ajoute l&apos;opportunité, génère le devis et l&apos;envoie au stagiaire par mail (avec PDF en pièce jointe).
+            </div>
+          </div>
+          <button
+            onClick={handleSendDevis}
+            disabled={actionLoading}
+            className="px-4 py-2 rounded-full text-sm font-medium text-white cursor-pointer disabled:opacity-50"
+            style={{ backgroundColor: "#1f2244" }}
+          >
+            {actionLoading ? "Création en cours..." : "Envoyer le devis"}
+          </button>
+        </div>
+      )}
+      {trainee.status !== "inscrit" && trainee.sellsyEstimateId && (
+        <div className="p-3 rounded-lg border text-sm font-jetbrains flex items-center gap-2" style={{ borderColor: "#dcfce7", backgroundColor: "#f0fdf4", color: "#166534" }}>
+          ✓ Devis Sellsy <strong>#{trainee.sellsyEstimateId}</strong> envoyé. Opportunité Sellsy : #{trainee.sellsyOpportunityId}.
+        </div>
+      )}
+      {actionFeedback && (
+        <div
+          className={`p-3 rounded-lg text-sm font-jetbrains ${
+            actionFeedback.type === "success" ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"
+          }`}
+        >
+          {actionFeedback.msg}
+        </div>
+      )}
 
       {/* Identité */}
       <Section title="Identité et contact">

@@ -16,12 +16,18 @@ export interface SendEmailResult {
   error?: string;
 }
 
+interface EmailAttachment {
+  filename: string;
+  content: string;             // base64
+}
+
 interface SendEmailParams {
   to: string;
   subject: string;
   html: string;
   text?: string;
   replyTo?: string;
+  attachments?: EmailAttachment[];
 }
 
 /**
@@ -51,6 +57,7 @@ async function sendEmail(params: SendEmailParams): Promise<SendEmailResult> {
         html: params.html,
         text: params.text,
         reply_to: params.replyTo,
+        attachments: params.attachments,
       }),
     });
 
@@ -205,6 +212,105 @@ Les Ateliers du Stream`;
     html,
     text,
     replyTo,
+  });
+}
+
+/**
+ * Mail au stagiaire avec le devis Sellsy en pièce jointe.
+ * Contextualisé selon le mode de financement (cf. financementGuide).
+ */
+export async function sendDevisToStagiaire(params: {
+  to: string;
+  prenom: string;
+  nom: string;
+  formationNomLong: string;
+  sessionDateDebut: Date | string;
+  sessionDateFin: Date | string;
+  sessionLieu: string;
+  modeFinancement: string;
+  contactAdminEmail?: string;     // CC vers le contact admin si différent du stagiaire
+  pdfBuffer: Buffer;
+  pdfFilename: string;
+}): Promise<SendEmailResult> {
+  const replyTo = process.env.ADMIN_NOTIFY_EMAIL;
+  const safe = {
+    prenom: escapeHtml(params.prenom),
+    nom: escapeHtml(params.nom),
+    formation: escapeHtml(params.formationNomLong),
+    lieu: escapeHtml(params.sessionLieu || "Lieu à préciser"),
+    mode: escapeHtml(params.modeFinancement),
+  };
+  const dateDebut = fmtDateFr(params.sessionDateDebut);
+  const dateFin = fmtDateFr(params.sessionDateFin);
+  const guide = financementGuide(params.modeFinancement);
+  const guideTitleSafe = escapeHtml(guide.title);
+  const guideParaSafe = escapeHtml(guide.paragraph);
+
+  const html = `<!DOCTYPE html>
+<html lang="fr">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #1f2244;">
+  <h1 style="font-size: 22px; margin: 0 0 16px;">Votre devis pour la formation ${safe.formation}</h1>
+  <p>Bonjour ${safe.prenom},</p>
+  <p>Suite à votre demande d'inscription pour la formation <strong>${safe.formation}</strong>
+  (session du ${dateDebut} au ${dateFin}), vous trouverez ci-joint votre devis personnalisé.</p>
+
+  <table style="border-collapse: collapse; margin: 16px 0; background: #f8fafc; border-radius: 8px; padding: 12px; width: 100%;">
+    <tr><td style="padding: 8px 12px; color: #727485;">Session</td><td style="padding: 8px 12px;"><strong>Du ${dateDebut} au ${dateFin}</strong></td></tr>
+    <tr><td style="padding: 8px 12px; color: #727485;">Lieu</td><td style="padding: 8px 12px;">${safe.lieu}</td></tr>
+    <tr><td style="padding: 8px 12px; color: #727485;">Mode de financement</td><td style="padding: 8px 12px;">${safe.mode}</td></tr>
+  </table>
+
+  <p style="background: #fef3c7; padding: 12px 16px; border-radius: 8px; border-left: 4px solid #f59e0b;">
+    <strong>${guideTitleSafe}</strong><br/>${guideParaSafe}
+  </p>
+
+  <p><strong>Prochaines étapes :</strong></p>
+  <ol style="padding-left: 20px;">
+    <li>Vérifiez le devis ci-joint et retournez-le signé.</li>
+    <li>Dès la signature reçue (et l'accord de prise en charge le cas échéant), votre place sera
+    définitivement validée.</li>
+    <li>Vous recevrez ensuite votre convocation et le programme détaillé.</li>
+  </ol>
+
+  <p>Pour toute question, vous pouvez simplement répondre à ce mail.</p>
+  <p>Bien cordialement,<br/>Noémie Marphay<br/><em>Les Ateliers du Stream</em></p>
+  <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;"/>
+  <p style="font-size: 11px; color: #9ca3af;">
+    Formation référencée Qualiopi. Vos données sont utilisées uniquement pour le traitement de votre inscription, conformément au RGPD.
+  </p>
+</body>
+</html>`;
+
+  const text = `Bonjour ${params.prenom},
+
+Suite à votre demande d'inscription à la formation ${params.formationNomLong} (session du ${dateDebut} au ${dateFin}), vous trouverez ci-joint votre devis personnalisé.
+
+Session : du ${dateDebut} au ${dateFin}
+Lieu : ${params.sessionLieu || "Lieu à préciser"}
+Mode de financement : ${params.modeFinancement}
+
+${guide.title} : ${guide.paragraph}
+
+Prochaines étapes :
+1. Vérifiez le devis ci-joint et retournez-le signé.
+2. Dès la signature reçue (et l'accord de prise en charge le cas échéant), votre place sera définitivement validée.
+3. Vous recevrez ensuite votre convocation et le programme détaillé.
+
+Pour toute question, répondez à ce mail.
+
+Bien cordialement,
+Noémie Marphay
+Les Ateliers du Stream`;
+
+  return sendEmail({
+    to: params.to,
+    subject: `Votre devis — ${params.formationNomLong}`,
+    html,
+    text,
+    replyTo,
+    attachments: [
+      { filename: params.pdfFilename, content: params.pdfBuffer.toString("base64") },
+    ],
   });
 }
 

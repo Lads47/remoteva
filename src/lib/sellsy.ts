@@ -158,3 +158,203 @@ function normalizeStep(s: SellsyStepRaw): SellsyStep {
     rank: s.rank,
   };
 }
+
+// === Companies / Individuals / Adresses ===
+
+export interface CreateCompanyInput {
+  name: string;
+  siret?: string;
+  email?: string;
+  phoneNumber?: string;
+}
+
+export interface SellsyCompany {
+  id: number;
+  name?: string;
+}
+
+export async function createCompany(input: CreateCompanyInput): Promise<SellsyCompany> {
+  const body: Record<string, unknown> = {
+    type: "prospect",
+    name: input.name,
+    email: input.email,
+    phone_number: input.phoneNumber,
+  };
+  if (input.siret) {
+    body.legal_france = { siret: input.siret.replace(/\s+/g, "") };
+  }
+  return sellsyFetch<SellsyCompany>("/companies", { method: "POST", body });
+}
+
+export interface CreateIndividualInput {
+  firstName: string;
+  lastName: string;
+  email?: string;
+  phoneNumber?: string;
+}
+
+export interface SellsyIndividual {
+  id: number;
+  first_name?: string;
+  last_name?: string;
+}
+
+export async function createIndividual(input: CreateIndividualInput): Promise<SellsyIndividual> {
+  const body = {
+    type: "prospect",
+    first_name: input.firstName,
+    last_name: input.lastName,
+    email: input.email,
+    phone_number: input.phoneNumber,
+  };
+  return sellsyFetch<SellsyIndividual>("/individuals", { method: "POST", body });
+}
+
+export interface AddAddressInput {
+  name: string;
+  addressLine1: string;
+  postalCode: string;
+  city: string;
+}
+
+export async function addCompanyAddress(companyId: number, input: AddAddressInput): Promise<{ id: number }> {
+  return sellsyFetch<{ id: number }>(`/companies/${companyId}/addresses`, {
+    method: "POST",
+    body: {
+      name: input.name,
+      address_line_1: input.addressLine1,
+      postal_code: input.postalCode,
+      city: input.city,
+      country_code: "FR",
+      is_invoicing_address: true,
+      is_delivery_address: true,
+    },
+  });
+}
+
+export async function addIndividualAddress(individualId: number, input: AddAddressInput): Promise<{ id: number }> {
+  return sellsyFetch<{ id: number }>(`/individuals/${individualId}/addresses`, {
+    method: "POST",
+    body: {
+      name: input.name,
+      address_line_1: input.addressLine1,
+      postal_code: input.postalCode,
+      city: input.city,
+      country_code: "FR",
+      is_invoicing_address: true,
+      is_delivery_address: true,
+    },
+  });
+}
+
+// === Opportunities ===
+
+export interface CreateOpportunityInput {
+  name: string;
+  pipelineId: number;
+  stepId: number;
+  relatedType: "company" | "individual";
+  relatedId: number;
+}
+
+export interface SellsyOpportunity {
+  id: number;
+  name?: string;
+  step?: { id: number };
+}
+
+export async function createOpportunity(input: CreateOpportunityInput): Promise<SellsyOpportunity> {
+  return sellsyFetch<SellsyOpportunity>("/opportunities", {
+    method: "POST",
+    body: {
+      name: input.name,
+      pipeline: input.pipelineId,
+      step: input.stepId,
+      related: [{ type: input.relatedType, id: input.relatedId }],
+    },
+  });
+}
+
+export async function updateOpportunityStep(opportunityId: number, stepId: number): Promise<void> {
+  // Sellsy v2 utilise PATCH pour les updates partiels
+  await sellsyFetch<unknown>(`/opportunities/${opportunityId}`, {
+    method: "PATCH",
+    body: { step: stepId },
+  });
+}
+
+// === Estimates (devis) ===
+
+export interface CreateEstimateInput {
+  subject: string;
+  serviceId: number;
+  unitAmountHT: number;
+  quantity?: number;
+  relatedType: "company" | "individual";
+  relatedId: number;
+  opportunityId: number;
+}
+
+export interface SellsyEstimate {
+  id: number;
+  pdf_link?: string;
+  public_link?: string;
+}
+
+export async function createEstimate(input: CreateEstimateInput): Promise<SellsyEstimate> {
+  return sellsyFetch<SellsyEstimate>("/estimates", {
+    method: "POST",
+    body: {
+      subject: input.subject,
+      rows: [
+        {
+          type: "catalog",
+          related: { type: "service", id: input.serviceId },
+          unit_amount: String(input.unitAmountHT),
+          quantity: String(input.quantity ?? 1),
+        },
+      ],
+      related: [
+        { type: input.relatedType, id: input.relatedId },
+        { type: "opportunity", id: input.opportunityId },
+      ],
+    },
+  });
+}
+
+/**
+ * Récupère un devis (avec son lien PDF).
+ */
+export async function getEstimate(id: number): Promise<SellsyEstimate> {
+  return sellsyFetch<SellsyEstimate>(`/estimates/${id}`);
+}
+
+/**
+ * Télécharge le PDF d'un devis depuis Sellsy.
+ * Sellsy peut prendre quelques secondes à générer le PDF après création du devis.
+ * On retente jusqu'à 4 fois (~6s total) en re-fetchant le devis à chaque essai
+ * pour récupérer une URL signée fraîche (les `key` du pdf_link peuvent être courtes).
+ */
+export async function downloadEstimatePdf(estimateId: number): Promise<{ buffer: Buffer; filename: string }> {
+  const delays = [0, 1000, 2000, 3000]; // 0 + 1 + 2 + 3 = ~6s max
+  let lastErr = "";
+  for (let i = 0; i < delays.length; i++) {
+    if (delays[i] > 0) await new Promise((r) => setTimeout(r, delays[i]));
+    try {
+      const estimate = await getEstimate(estimateId);
+      if (!estimate.pdf_link) {
+        lastErr = "pdf_link absent dans la réponse";
+        continue;
+      }
+      const res = await fetch(estimate.pdf_link, { cache: "no-store" });
+      if (res.ok) {
+        const arrayBuffer = await res.arrayBuffer();
+        return { buffer: Buffer.from(arrayBuffer), filename: `devis-${estimateId}.pdf` };
+      }
+      lastErr = `HTTP ${res.status}`;
+    } catch (err) {
+      lastErr = err instanceof Error ? err.message : "Unknown error";
+    }
+  }
+  throw new Error(`Échec téléchargement PDF devis ${estimateId} après ${delays.length} essais : ${lastErr}`);
+}

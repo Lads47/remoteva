@@ -164,6 +164,37 @@ export async function createTrainee(input: TraineeCreateInput): Promise<TraineeI
   return toInfo(t);
 }
 
+export interface TraineeUpdateInput {
+  status?: string;
+  sellsyCompanyId?: number | null;
+  sellsyIndividualId?: number | null;
+  sellsyOpportunityId?: number | null;
+  sellsyEstimateId?: number | null;
+  driveFolderId?: string | null;
+  dateEnvoiDevis?: Date | null;
+  dateSignatureDevis?: Date | null;
+  dateEnvoiConvention?: Date | null;
+  dateSignatureConvention?: Date | null;
+  dateConvocation?: Date | null;
+}
+
+export async function updateTrainee(id: string, input: TraineeUpdateInput): Promise<TraineeInfo> {
+  const data: Record<string, unknown> = {};
+  if (input.status !== undefined) data.status = input.status;
+  if (input.sellsyCompanyId !== undefined) data.sellsyCompanyId = input.sellsyCompanyId;
+  if (input.sellsyIndividualId !== undefined) data.sellsyIndividualId = input.sellsyIndividualId;
+  if (input.sellsyOpportunityId !== undefined) data.sellsyOpportunityId = input.sellsyOpportunityId;
+  if (input.sellsyEstimateId !== undefined) data.sellsyEstimateId = input.sellsyEstimateId;
+  if (input.driveFolderId !== undefined) data.driveFolderId = input.driveFolderId;
+  if (input.dateEnvoiDevis !== undefined) data.dateEnvoiDevis = input.dateEnvoiDevis;
+  if (input.dateSignatureDevis !== undefined) data.dateSignatureDevis = input.dateSignatureDevis;
+  if (input.dateEnvoiConvention !== undefined) data.dateEnvoiConvention = input.dateEnvoiConvention;
+  if (input.dateSignatureConvention !== undefined) data.dateSignatureConvention = input.dateSignatureConvention;
+  if (input.dateConvocation !== undefined) data.dateConvocation = input.dateConvocation;
+  const t = await prisma.trainee.update({ where: { id }, data });
+  return toInfo(t);
+}
+
 export async function recordTraineeEvent(
   traineeId: string,
   type: string,
