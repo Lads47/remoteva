@@ -177,37 +177,46 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <Link
-          href={`/admin/formations/sessions/${trainee.session.id}`}
-          className="text-xs font-jetbrains underline"
-          style={{ color: "#727485" }}
-        >
-          ← Session {trainee.session.code}
-        </Link>
-        <div className="flex items-center gap-3 flex-wrap mt-2">
-          <span
-            className="px-2 py-0.5 rounded text-xs font-jetbrains"
-            style={{ backgroundColor: "#e0e7ff", color: "#3730a3" }}
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <Link
+            href={`/admin/formations/sessions/${trainee.session.id}`}
+            className="text-xs font-jetbrains underline"
+            style={{ color: "#727485" }}
           >
-            {STATUS_LABELS[trainee.status] ?? trainee.status}
-          </span>
-          {trainee.psh && (
+            ← Session {trainee.session.code}
+          </Link>
+          <div className="flex items-center gap-3 flex-wrap mt-2">
             <span
               className="px-2 py-0.5 rounded text-xs font-jetbrains"
-              style={{ backgroundColor: "#fef3c7", color: "#92400e" }}
+              style={{ backgroundColor: "#e0e7ff", color: "#3730a3" }}
             >
-              PSH
+              {STATUS_LABELS[trainee.status] ?? trainee.status}
             </span>
-          )}
+            {trainee.psh && (
+              <span
+                className="px-2 py-0.5 rounded text-xs font-jetbrains"
+                style={{ backgroundColor: "#fef3c7", color: "#92400e" }}
+              >
+                PSH
+              </span>
+            )}
+          </div>
+          <h1 className="text-3xl font-bold mt-1" style={{ color: "#1f2244" }}>
+            {trainee.prenom} {trainee.nom}
+          </h1>
+          <p className="text-sm mt-1 font-jetbrains" style={{ color: "#727485" }}>
+            {trainee.formation.nomLong} · session du {fmtDate(trainee.session.dateDebut)} au{" "}
+            {fmtDate(trainee.session.dateFin)}
+          </p>
         </div>
-        <h1 className="text-3xl font-bold mt-1" style={{ color: "#1f2244" }}>
-          {trainee.prenom} {trainee.nom}
-        </h1>
-        <p className="text-sm mt-1 font-jetbrains" style={{ color: "#727485" }}>
-          {trainee.formation.nomLong} · session du {fmtDate(trainee.session.dateDebut)} au{" "}
-          {fmtDate(trainee.session.dateFin)}
-        </p>
+        <Link
+          href={`/admin/formations/trainees/${trainee.id}/edit`}
+          className="text-xs px-3 py-1.5 rounded-full border cursor-pointer mt-2"
+          style={{ borderColor: "#1f2244", color: "#1f2244" }}
+        >
+          Modifier
+        </Link>
       </div>
 
       {/* Bandeau d'action — uniquement si statut = inscrit */}

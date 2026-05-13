@@ -262,6 +262,35 @@ export const publicInscriptionSchema = z
     }
   });
 
+// Admin update d'un stagiaire (correction de saisie principalement).
+// Pas d'édition de la session ni du type d'inscription après création
+// (ces champs sont liés aux ressources Sellsy déjà créées).
+export const adminUpdateTraineeSchema = z.object({
+  nom: z.string().trim().min(1).optional(),
+  prenom: z.string().trim().min(1).optional(),
+  email: emailSchema.optional(),
+  telephone: z.string().trim().optional(),
+  statutActuel: z.string().trim().optional(),
+  modeFinancement: z.enum(VALID_MODES_FINANCEMENT).optional(),
+
+  // Volet entreprise
+  raisonSociale: z.string().trim().optional(),
+  siret: z.string().trim().optional(),
+  adresseSiege: z.string().trim().optional(),
+  domaineActivite: z.string().trim().optional(),
+  contactAdmin: z.string().trim().optional(),
+
+  // Volet particulier
+  adressePostale: z.string().trim().optional(),
+
+  // Accessibilité
+  psh: z.boolean().optional(),
+  besoinsAdaptation: z.string().trim().optional(),
+
+  // Attentes
+  attentes: z.string().trim().optional(),
+});
+
 export const updateSessionSchema = z.object({
   code: z.string().trim().min(1).optional(),
   dateDebut: dateString.optional(),

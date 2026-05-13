@@ -166,6 +166,21 @@ export async function createTrainee(input: TraineeCreateInput): Promise<TraineeI
 
 export interface TraineeUpdateInput {
   status?: string;
+  nom?: string;
+  prenom?: string;
+  email?: string;
+  telephone?: string;
+  statutActuel?: string;
+  modeFinancement?: string;
+  raisonSociale?: string;
+  siret?: string;
+  adresseSiege?: string;
+  domaineActivite?: string;
+  contactAdmin?: string;
+  adressePostale?: string;
+  psh?: boolean;
+  besoinsAdaptation?: string;
+  attentes?: string;
   sellsyCompanyId?: number | null;
   sellsyIndividualId?: number | null;
   sellsyOpportunityId?: number | null;
@@ -180,6 +195,27 @@ export interface TraineeUpdateInput {
 
 export async function updateTrainee(id: string, input: TraineeUpdateInput): Promise<TraineeInfo> {
   const data: Record<string, unknown> = {};
+  // Identité / contact
+  if (input.nom !== undefined) data.nom = input.nom;
+  if (input.prenom !== undefined) data.prenom = input.prenom;
+  if (input.email !== undefined) data.email = input.email;
+  if (input.telephone !== undefined) data.telephone = input.telephone;
+  if (input.statutActuel !== undefined) data.statutActuel = input.statutActuel;
+  if (input.modeFinancement !== undefined) data.modeFinancement = input.modeFinancement;
+  // Entreprise
+  if (input.raisonSociale !== undefined) data.raisonSociale = input.raisonSociale;
+  if (input.siret !== undefined) data.siret = input.siret;
+  if (input.adresseSiege !== undefined) data.adresseSiege = input.adresseSiege;
+  if (input.domaineActivite !== undefined) data.domaineActivite = input.domaineActivite;
+  if (input.contactAdmin !== undefined) data.contactAdmin = input.contactAdmin;
+  // Particulier
+  if (input.adressePostale !== undefined) data.adressePostale = input.adressePostale;
+  // Accessibilité
+  if (input.psh !== undefined) data.psh = input.psh;
+  if (input.besoinsAdaptation !== undefined) data.besoinsAdaptation = input.besoinsAdaptation;
+  // Attentes
+  if (input.attentes !== undefined) data.attentes = input.attentes;
+  // Statut + Sellsy + dates
   if (input.status !== undefined) data.status = input.status;
   if (input.sellsyCompanyId !== undefined) data.sellsyCompanyId = input.sellsyCompanyId;
   if (input.sellsyIndividualId !== undefined) data.sellsyIndividualId = input.sellsyIndividualId;
