@@ -223,10 +223,17 @@ export default function FormationsPage() {
             Configure le catalogue Qualiopi (paramètres Sellsy + templates Drive)
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Link
+            href="/admin/formations/sellsy-config"
+            className="px-4 py-2 rounded-full text-sm font-medium border transition-colors cursor-pointer"
+            style={{ borderColor: "#1f2244", color: "#1f2244" }}
+          >
+            ⚙ Config Sellsy
+          </Link>
           <Link
             href="/admin/formations/sessions"
-            className="px-4 py-2 rounded-full text-sm font-medium border transition-colors"
+            className="px-4 py-2 rounded-full text-sm font-medium border transition-colors cursor-pointer"
             style={{ borderColor: "#1f2244", color: "#1f2244" }}
           >
             Voir les sessions
@@ -234,7 +241,7 @@ export default function FormationsPage() {
           {!showForm && (
             <button
               onClick={() => setShowForm(true)}
-              className="px-4 py-2 rounded-full text-sm font-medium text-white"
+              className="px-4 py-2 rounded-full text-sm font-medium text-white cursor-pointer"
               style={{ backgroundColor: "#1f2244" }}
             >
               + Nouvelle formation

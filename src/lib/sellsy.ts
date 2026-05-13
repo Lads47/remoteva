@@ -1,0 +1,160 @@
+// Client Sellsy API v2 — OAuth2 client_credentials.
+// Doc : https://api.sellsy.com/doc/v2/
+//
+// Variables d'environnement requises :
+// - SELLSY_CLIENT_ID
+// - SELLSY_CLIENT_SECRET
+
+const TOKEN_URL = "https://login.sellsy.com/oauth2/access-tokens";
+const API_BASE = "https://api.sellsy.com/v2";
+
+// Cache mémoire du token : on évite d'appeler le token endpoint à chaque requête.
+// Sellsy renvoie un access_token avec un expires_in (typiquement 3600s = 1h).
+let cachedToken: { value: string; expiresAt: number } | null = null;
+
+async function getAccessToken(): Promise<string> {
+  const now = Date.now();
+  // Marge de 30s avant expiration pour éviter une 401 en bordure
+  if (cachedToken && cachedToken.expiresAt > now + 30_000) {
+    return cachedToken.value;
+  }
+  const clientId = process.env.SELLSY_CLIENT_ID;
+  const clientSecret = process.env.SELLSY_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    throw new Error("SELLSY_CLIENT_ID ou SELLSY_CLIENT_SECRET manquant dans .env");
+  }
+  const res = await fetch(TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      grant_type: "client_credentials",
+      client_id: clientId,
+      client_secret: clientSecret,
+    }),
+  });
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    throw new Error(`Sellsy auth failed (HTTP ${res.status}): ${errText.slice(0, 200)}`);
+  }
+  const data = (await res.json()) as { access_token: string; expires_in: number };
+  cachedToken = {
+    value: data.access_token,
+    expiresAt: now + data.expires_in * 1000,
+  };
+  return data.access_token;
+}
+
+interface SellsyFetchOptions {
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  body?: unknown;
+  query?: Record<string, string | number | undefined>;
+}
+
+/**
+ * Wrapper bas niveau pour appeler l'API Sellsy v2.
+ * Gère le token + sérialisation JSON + erreurs HTTP.
+ */
+export async function sellsyFetch<T = unknown>(
+  path: string,
+  options: SellsyFetchOptions = {}
+): Promise<T> {
+  const token = await getAccessToken();
+  const url = new URL(API_BASE + path);
+  if (options.query) {
+    for (const [k, v] of Object.entries(options.query)) {
+      if (v !== undefined) url.searchParams.set(k, String(v));
+    }
+  }
+  const res = await fetch(url.toString(), {
+    method: options.method ?? "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    throw new Error(`Sellsy ${options.method ?? "GET"} ${path} failed (HTTP ${res.status}): ${errText.slice(0, 400)}`);
+  }
+  // 204 No Content
+  if (res.status === 204) return undefined as T;
+  return (await res.json()) as T;
+}
+
+// === Types Sellsy partiels (que ce dont on a besoin) ===
+
+// Sellsy peut retourner soit `label`, soit `name` selon la ressource.
+// Les types ci-dessous sont permissifs et normalisés par les fonctions métier.
+interface SellsyPipelineRaw {
+  id: number;
+  label?: string;
+  name?: string;
+}
+
+interface SellsyStepRaw {
+  id: number;
+  label?: string;
+  name?: string;
+  probability?: number;
+  rank?: number;
+  pipeline_id?: number;
+  pipeline?: { id: number };
+}
+
+export interface SellsyPipeline {
+  id: number;
+  label: string;
+}
+
+export interface SellsyStep {
+  id: number;
+  label: string;
+  probability?: number;
+  rank?: number;
+}
+
+interface PaginatedResponse<T> {
+  data: T[];
+  pagination?: { count?: number; total?: number };
+}
+
+// === Endpoints métier ===
+
+/**
+ * Liste les pipelines d'opportunités du compte Sellsy.
+ * Endpoint Sellsy v2 : GET /opportunities/pipelines
+ */
+export async function listPipelines(): Promise<SellsyPipeline[]> {
+  const res = await sellsyFetch<PaginatedResponse<SellsyPipelineRaw>>("/opportunities/pipelines", {
+    query: { limit: 100 },
+  });
+  return (res.data || []).map((p) => ({
+    id: p.id,
+    label: p.label || p.name || `Pipeline ${p.id}`,
+  }));
+}
+
+/**
+ * Récupère les steps d'un pipeline donné.
+ * Endpoint Sellsy v2 : POST /opportunities/steps/search avec body { filters: { funnel: <pipelineId> } }.
+ * Sellsy garde la nomenclature historique "funnel" pour désigner un pipeline d'opportunités.
+ */
+export async function listPipelineSteps(pipelineId: number): Promise<SellsyStep[]> {
+  const res = await sellsyFetch<PaginatedResponse<SellsyStepRaw>>("/opportunities/steps/search", {
+    method: "POST",
+    body: { filters: { funnel: pipelineId } },
+  });
+  return (res.data || []).map(normalizeStep).sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
+}
+
+function normalizeStep(s: SellsyStepRaw): SellsyStep {
+  return {
+    id: s.id,
+    label: s.name || s.label || `Étape ${s.id}`,
+    probability: s.probability,
+    rank: s.rank,
+  };
+}

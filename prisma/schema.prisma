@@ -293,6 +293,18 @@ model TraineeEvent {
   @@index([traineeId, createdAt])
 }
 
+// === Configuration globale (clé/valeur) ===
+
+// Stocke des paramètres applicatifs partagés (mapping Sellsy, etc.).
+// `value` est libre — souvent du JSON sérialisé en string.
+model AppConfig {
+  key       String   @id
+  value     String                                                // JSON ou texte simple
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("app_config")
+}
+
 // === Liens d'accès clients (Newsletter / Download) ===
 
 model AccessLink {
