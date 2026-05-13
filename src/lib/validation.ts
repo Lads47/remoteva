@@ -115,6 +115,90 @@ export const availabilitySchema = z.object({
   date: dateString,
 });
 
+// === Formations ===
+
+export const VALID_SESSION_STATUSES = [
+  "planned",
+  "open",
+  "full",
+  "closed",
+  "cancelled",
+] as const;
+
+export const VALID_TRAINEE_STATUSES = [
+  "inscrit",
+  "devis_envoye",
+  "devis_signe",
+  "convention_envoyee",
+  "convention_signee",
+  "valide",
+  "convoque",
+  "en_formation",
+  "termine",
+  "abandonne",
+] as const;
+
+export const VALID_INSCRIPTION_TYPES = ["particulier", "entreprise"] as const;
+
+export const VALID_MODES_FINANCEMENT = [
+  "OPCO",
+  "Fonds propres entreprise",
+  "AFDAS",
+  "France Travail",
+  "Financement personnel",
+] as const;
+
+const sessionStatusSchema = z.enum(VALID_SESSION_STATUSES);
+
+export const createFormationSchema = z.object({
+  code: z.string().trim().min(1, "Code requis"),
+  nomLong: z.string().trim().min(1, "Nom complet requis"),
+  description: z.string().trim().optional().default(""),
+  prixHT: z.number().nonnegative("Prix HT >= 0"),
+  dureeJours: z.number().int().positive("Durée >= 1 jour"),
+  active: z.boolean().optional(),
+  sellsyPipelineId: z.number().int().nullable().optional(),
+  sellsyStepInitial: z.number().int().nullable().optional(),
+  sellsyServiceId: z.number().int().nullable().optional(),
+  codeOpportunite: z.string().trim().optional().default(""),
+  driveDossierRacineId: z.string().trim().nullable().optional(),
+  driveDossierSessionsId: z.string().trim().nullable().optional(),
+  driveTemplateProgrammeId: z.string().trim().nullable().optional(),
+  driveTemplateConventionId: z.string().trim().nullable().optional(),
+  driveTemplateContratId: z.string().trim().nullable().optional(),
+  driveTemplateConvocationId: z.string().trim().nullable().optional(),
+  driveTemplateEmargementId: z.string().trim().nullable().optional(),
+  driveTemplateSuiviId: z.string().trim().nullable().optional(),
+  configForm: z.string().optional().default("{}"),
+});
+
+export const updateFormationSchema = createFormationSchema.partial();
+
+export const createSessionSchema = z.object({
+  formationId: z.string().trim().min(1, "Formation requise"),
+  code: z.string().trim().optional(),                          // Auto-généré si absent
+  dateDebut: dateString,
+  dateFin: dateString,
+  capacite: z.number().int().positive().optional().default(8),
+  lieu: z.string().trim().optional().default(""),
+  horaires: z.string().trim().optional().default(""),
+  status: sessionStatusSchema.optional(),
+  notes: z.string().trim().optional().default(""),
+});
+
+export const updateSessionSchema = z.object({
+  code: z.string().trim().min(1).optional(),
+  dateDebut: dateString.optional(),
+  dateFin: dateString.optional(),
+  capacite: z.number().int().positive().optional(),
+  lieu: z.string().trim().optional(),
+  horaires: z.string().trim().optional(),
+  status: sessionStatusSchema.optional(),
+  driveFolderId: z.string().trim().nullable().optional(),
+  driveSuiviFileId: z.string().trim().nullable().optional(),
+  notes: z.string().trim().optional(),
+});
+
 // === Sync offline ===
 
 export const syncOfflineSchema = z.object({

@@ -120,6 +120,179 @@ model ApiKey {
   @@index([revoked])
 }
 
+// === FORMATIONS : Catalogue, sessions, stagiaires (organisme Qualiopi) ===
+
+// Formation = produit du catalogue (ex: "Perfectionnement vMix 1J", "Initiation IA")
+model Formation {
+  id                          String   @id @default(cuid())
+  code                        String   @unique                              // "vMix-1J"
+  nomLong                     String   @map("nom_long")                     // Libellé commercial complet
+  description                 String   @default("")
+  prixHT                      Float    @map("prix_ht")
+  dureeJours                  Int      @map("duree_jours")
+  active                      Boolean  @default(true)
+
+  // Sellsy
+  sellsyPipelineId            Int?     @map("sellsy_pipeline_id")
+  sellsyStepInitial           Int?     @map("sellsy_step_initial")
+  sellsyServiceId             Int?     @map("sellsy_service_id")
+  codeOpportunite             String   @default("") @map("code_opportunite")
+
+  // Google Drive (templates et arbo cible)
+  driveDossierRacineId        String?  @map("drive_dossier_racine_id")        // Shared Drive "FORMATION"
+  driveDossierSessionsId      String?  @map("drive_dossier_sessions_id")      // Parent où créer les sessions
+  driveTemplateProgrammeId    String?  @map("drive_template_programme_id")    // PDF programme
+  driveTemplateConventionId   String?  @map("drive_template_convention_id")
+  driveTemplateContratId      String?  @map("drive_template_contrat_id")
+  driveTemplateConvocationId  String?  @map("drive_template_convocation_id")
+  driveTemplateEmargementId   String?  @map("drive_template_emargement_id")
+  driveTemplateSuiviId        String?  @map("drive_template_suivi_id")
+
+  configForm                  String   @default("{}") @map("config_form")    // JSON: champs custom du formulaire inscription
+  createdAt                   DateTime @default(now()) @map("created_at")
+  updatedAt                   DateTime @updatedAt      @map("updated_at")
+
+  sessions                    Session[]
+
+  @@map("formations")
+  @@index([active])
+}
+
+// Session = instance datée d'une formation (ex: vMix-2026-03)
+model Session {
+  id               String   @id @default(cuid())
+  formationId      String   @map("formation_id")
+  code             String   @unique                                          // "vMix-2026-03"
+  dateDebut        DateTime @map("date_debut")
+  dateFin          DateTime @map("date_fin")
+  capacite         Int      @default(8)
+  lieu             String   @default("")
+  horaires         String   @default("")                                      // Format libre "9h-17h30"
+  status           String   @default("planned")                              // planned|open|full|closed|cancelled
+  driveFolderId    String?  @map("drive_folder_id")                          // Dossier session sur Drive
+  driveSuiviFileId String?  @map("drive_suivi_file_id")                      // Sheet de suivi (legacy)
+  notes            String   @default("")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt      @map("updated_at")
+
+  formation        Formation @relation(fields: [formationId], references: [id], onDelete: Restrict)
+  trainees         Trainee[]
+
+  @@map("formation_sessions")
+  @@index([formationId])
+  @@index([dateDebut])
+  @@index([status])
+}
+
+// Trainee = stagiaire inscrit à une session
+model Trainee {
+  id                       String   @id @default(cuid())
+  sessionId                String   @map("session_id")
+
+  // Pipeline (Kanban)
+  status                   String   @default("inscrit")
+  // inscrit | devis_envoye | devis_signe | convention_envoyee | convention_signee
+  // | valide | convoque | en_formation | termine | abandonne
+
+  // Identité
+  nom                      String
+  prenom                   String
+  email                    String
+  telephone                String   @default("")
+
+  // Type d'inscription
+  inscriptionType          String   @map("inscription_type")                  // particulier | entreprise
+
+  // Volet entreprise
+  raisonSociale            String   @default("") @map("raison_sociale")
+  siret                    String   @default("")
+  adresseSiege             String   @default("") @map("adresse_siege")
+  domaineActivite          String   @default("") @map("domaine_activite")
+  contactAdmin             String   @default("") @map("contact_admin")        // Référent admin si différent du stagiaire
+
+  // Volet particulier
+  adressePostale           String   @default("") @map("adresse_postale")
+  statutActuel             String   @default("") @map("statut_actuel")        // Intermittent | Salarié | DE | etc.
+
+  // Financement
+  modeFinancement          String   @default("") @map("mode_financement")
+  // Via un OPCO | Fonds propres entreprise | AFDAS (Intermittents) | France Travail | Financement personnel
+  opcoDetecte              String   @default("") @map("opco_detecte")          // AFDAS | ATLAS | AKTO | ...
+  idOpco                   String   @default("") @map("id_opco")               // N° dossier OPCO
+  statutDossierFinancement String   @default("") @map("statut_dossier_financement")
+  montantHT                Float?   @map("montant_ht")
+
+  // PSH / Adaptations
+  psh                      Boolean  @default(false)
+  besoinsAdaptation        String   @default("") @map("besoins_adaptation")
+
+  // Sellsy
+  sellsyCompanyId          Int?     @map("sellsy_company_id")
+  sellsyIndividualId       Int?     @map("sellsy_individual_id")
+  sellsyOpportunityId      Int?     @map("sellsy_opportunity_id")
+  sellsyEstimateId         Int?     @map("sellsy_estimate_id")
+
+  // Drive
+  driveFolderId            String?  @map("drive_folder_id")                    // Dossier perso du stagiaire dans 01_ENTRANTS
+
+  // Évaluation entrée (JSON libre — varie par formation)
+  evalEntree               String   @default("{}") @map("eval_entree")
+  attentes                 String   @default("")
+
+  // Jalons
+  dateEnvoiDevis           DateTime? @map("date_envoi_devis")
+  dateSignatureDevis       DateTime? @map("date_signature_devis")
+  dateEnvoiConvention      DateTime? @map("date_envoi_convention")
+  dateSignatureConvention  DateTime? @map("date_signature_convention")
+  dateConvocation          DateTime? @map("date_convocation")
+
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @updatedAt      @map("updated_at")
+
+  session                  Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  documents                TraineeDocument[]
+  events                   TraineeEvent[]
+
+  @@map("trainees")
+  @@index([sessionId])
+  @@index([status])
+  @@index([email])
+}
+
+// Document généré ou reçu pour un stagiaire (devis, convention, convocation, etc.)
+model TraineeDocument {
+  id           String    @id @default(cuid())
+  traineeId    String    @map("trainee_id")
+  type         String                                                          // devis | convention | contrat | convocation | emargement | attestation | programme | tuto_opco | other
+  driveFileId  String    @map("drive_file_id")
+  driveFileUrl String    @default("") @map("drive_file_url")
+  fileName     String    @map("file_name")
+  generatedAt  DateTime  @default(now()) @map("generated_at")
+  sentAt       DateTime? @map("sent_at")
+  signedAt     DateTime? @map("signed_at")
+
+  trainee      Trainee   @relation(fields: [traineeId], references: [id], onDelete: Cascade)
+
+  @@map("trainee_documents")
+  @@index([traineeId])
+  @@index([type])
+}
+
+// Journal d'événements pour audit Qualiopi (timeline du stagiaire)
+model TraineeEvent {
+  id        String   @id @default(cuid())
+  traineeId String   @map("trainee_id")
+  type      String                                                              // status_change | doc_generated | doc_sent | email_sent | sellsy_synced | note
+  payload   String   @default("{}")                                             // JSON
+  message   String   @default("")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  trainee   Trainee  @relation(fields: [traineeId], references: [id], onDelete: Cascade)
+
+  @@map("trainee_events")
+  @@index([traineeId, createdAt])
+}
+
 // === Liens d'accès clients (Newsletter / Download) ===
 
 model AccessLink {

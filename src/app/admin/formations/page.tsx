@@ -1,0 +1,580 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+
+interface Formation {
+  id: string;
+  code: string;
+  nomLong: string;
+  description: string;
+  prixHT: number;
+  dureeJours: number;
+  active: boolean;
+  sellsyPipelineId: number | null;
+  sellsyStepInitial: number | null;
+  sellsyServiceId: number | null;
+  codeOpportunite: string;
+  driveDossierRacineId: string | null;
+  driveDossierSessionsId: string | null;
+  driveTemplateProgrammeId: string | null;
+  driveTemplateConventionId: string | null;
+  driveTemplateContratId: string | null;
+  driveTemplateConvocationId: string | null;
+  driveTemplateEmargementId: string | null;
+  driveTemplateSuiviId: string | null;
+  configForm: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+type FormState = {
+  code: string;
+  nomLong: string;
+  description: string;
+  prixHT: string;
+  dureeJours: string;
+  active: boolean;
+  sellsyPipelineId: string;
+  sellsyStepInitial: string;
+  sellsyServiceId: string;
+  codeOpportunite: string;
+  driveDossierRacineId: string;
+  driveDossierSessionsId: string;
+  driveTemplateProgrammeId: string;
+  driveTemplateConventionId: string;
+  driveTemplateContratId: string;
+  driveTemplateConvocationId: string;
+  driveTemplateEmargementId: string;
+  driveTemplateSuiviId: string;
+};
+
+const EMPTY_FORM: FormState = {
+  code: "",
+  nomLong: "",
+  description: "",
+  prixHT: "",
+  dureeJours: "1",
+  active: true,
+  sellsyPipelineId: "",
+  sellsyStepInitial: "",
+  sellsyServiceId: "",
+  codeOpportunite: "",
+  driveDossierRacineId: "",
+  driveDossierSessionsId: "",
+  driveTemplateProgrammeId: "",
+  driveTemplateConventionId: "",
+  driveTemplateContratId: "",
+  driveTemplateConvocationId: "",
+  driveTemplateEmargementId: "",
+  driveTemplateSuiviId: "",
+};
+
+export default function FormationsPage() {
+  const [formations, setFormations] = useState<Formation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+
+  useEffect(() => {
+    fetchFormations();
+  }, []);
+
+  async function fetchFormations() {
+    try {
+      const res = await fetch("/api/admin/formations");
+      const data = await res.json();
+      if (Array.isArray(data.formations)) setFormations(data.formations);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function toFormState(f: Formation): FormState {
+    return {
+      code: f.code,
+      nomLong: f.nomLong,
+      description: f.description,
+      prixHT: f.prixHT.toString(),
+      dureeJours: f.dureeJours.toString(),
+      active: f.active,
+      sellsyPipelineId: f.sellsyPipelineId?.toString() ?? "",
+      sellsyStepInitial: f.sellsyStepInitial?.toString() ?? "",
+      sellsyServiceId: f.sellsyServiceId?.toString() ?? "",
+      codeOpportunite: f.codeOpportunite,
+      driveDossierRacineId: f.driveDossierRacineId ?? "",
+      driveDossierSessionsId: f.driveDossierSessionsId ?? "",
+      driveTemplateProgrammeId: f.driveTemplateProgrammeId ?? "",
+      driveTemplateConventionId: f.driveTemplateConventionId ?? "",
+      driveTemplateContratId: f.driveTemplateContratId ?? "",
+      driveTemplateConvocationId: f.driveTemplateConvocationId ?? "",
+      driveTemplateEmargementId: f.driveTemplateEmargementId ?? "",
+      driveTemplateSuiviId: f.driveTemplateSuiviId ?? "",
+    };
+  }
+
+  function fromFormState(f: FormState) {
+    const toIntOrNull = (s: string) => (s.trim() === "" ? null : parseInt(s, 10));
+    const toStrOrNull = (s: string) => (s.trim() === "" ? null : s.trim());
+    return {
+      code: f.code.trim(),
+      nomLong: f.nomLong.trim(),
+      description: f.description.trim(),
+      prixHT: parseFloat(f.prixHT) || 0,
+      dureeJours: parseInt(f.dureeJours, 10) || 1,
+      active: f.active,
+      sellsyPipelineId: toIntOrNull(f.sellsyPipelineId),
+      sellsyStepInitial: toIntOrNull(f.sellsyStepInitial),
+      sellsyServiceId: toIntOrNull(f.sellsyServiceId),
+      codeOpportunite: f.codeOpportunite.trim(),
+      driveDossierRacineId: toStrOrNull(f.driveDossierRacineId),
+      driveDossierSessionsId: toStrOrNull(f.driveDossierSessionsId),
+      driveTemplateProgrammeId: toStrOrNull(f.driveTemplateProgrammeId),
+      driveTemplateConventionId: toStrOrNull(f.driveTemplateConventionId),
+      driveTemplateContratId: toStrOrNull(f.driveTemplateContratId),
+      driveTemplateConvocationId: toStrOrNull(f.driveTemplateConvocationId),
+      driveTemplateEmargementId: toStrOrNull(f.driveTemplateEmargementId),
+      driveTemplateSuiviId: toStrOrNull(f.driveTemplateSuiviId),
+    };
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setSaving(true);
+    try {
+      const payload = fromFormState(form);
+      const method = editingId ? "PUT" : "POST";
+      const body = editingId ? { id: editingId, ...payload } : payload;
+      const res = await fetch("/api/admin/formations", {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Erreur");
+        return;
+      }
+      setFeedback({ type: "success", msg: editingId ? "Formation mise à jour" : "Formation créée" });
+      setForm(EMPTY_FORM);
+      setEditingId(null);
+      setShowForm(false);
+      await fetchFormations();
+      setTimeout(() => setFeedback(null), 4000);
+    } catch (err) {
+      console.error(err);
+      setError("Erreur connexion");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleEdit(f: Formation) {
+    setEditingId(f.id);
+    setForm(toFormState(f));
+    setShowForm(true);
+    setError("");
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm("Supprimer cette formation ? (Impossible si des sessions existent)")) return;
+    try {
+      const res = await fetch(`/api/admin/formations?id=${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) {
+        setFeedback({ type: "error", msg: data.error || "Erreur suppression" });
+        setTimeout(() => setFeedback(null), 5000);
+        return;
+      }
+      setFeedback({ type: "success", msg: "Formation supprimée" });
+      await fetchFormations();
+      setTimeout(() => setFeedback(null), 3000);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  function handleCancel() {
+    setForm(EMPTY_FORM);
+    setEditingId(null);
+    setShowForm(false);
+    setError("");
+  }
+
+  if (loading) {
+    return <div className="text-center py-12 font-jetbrains text-sm" style={{ color: "#727485" }}>Chargement...</div>;
+  }
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-3xl font-bold" style={{ color: "#1f2244" }}>
+            Catalogue des formations
+          </h1>
+          <p className="text-sm mt-1 font-jetbrains" style={{ color: "#727485" }}>
+            Configure le catalogue Qualiopi (paramètres Sellsy + templates Drive)
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Link
+            href="/admin/formations/sessions"
+            className="px-4 py-2 rounded-full text-sm font-medium border transition-colors"
+            style={{ borderColor: "#1f2244", color: "#1f2244" }}
+          >
+            Voir les sessions
+          </Link>
+          {!showForm && (
+            <button
+              onClick={() => setShowForm(true)}
+              className="px-4 py-2 rounded-full text-sm font-medium text-white"
+              style={{ backgroundColor: "#1f2244" }}
+            >
+              + Nouvelle formation
+            </button>
+          )}
+        </div>
+      </div>
+
+      {feedback && (
+        <div
+          className={`mb-4 p-3 rounded-lg text-sm font-jetbrains ${
+            feedback.type === "success" ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"
+          }`}
+        >
+          {feedback.msg}
+        </div>
+      )}
+
+      {showForm && (
+        <form
+          onSubmit={handleSubmit}
+          className="mb-8 p-6 rounded-lg border space-y-6"
+          style={{ borderColor: "#e5e7eb", backgroundColor: "#fafbff" }}
+        >
+          <h2 className="text-xl font-semibold" style={{ color: "#1f2244" }}>
+            {editingId ? "Modifier la formation" : "Nouvelle formation"}
+          </h2>
+
+          <Section title="Informations générales">
+            <Field label="Code (unique)" required>
+              <input
+                type="text"
+                value={form.code}
+                onChange={(e) => setForm({ ...form, code: e.target.value })}
+                placeholder="vMix-1J"
+                className="input"
+                required
+              />
+            </Field>
+            <Field label="Nom complet" required>
+              <input
+                type="text"
+                value={form.nomLong}
+                onChange={(e) => setForm({ ...form, nomLong: e.target.value })}
+                placeholder="Perfectionnement vMix 1 Jour"
+                className="input"
+                required
+              />
+            </Field>
+            <Field label="Prix HT (€)" required>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={form.prixHT}
+                onChange={(e) => setForm({ ...form, prixHT: e.target.value })}
+                className="input"
+                required
+              />
+            </Field>
+            <Field label="Durée (jours)" required>
+              <input
+                type="number"
+                min="1"
+                value={form.dureeJours}
+                onChange={(e) => setForm({ ...form, dureeJours: e.target.value })}
+                className="input"
+                required
+              />
+            </Field>
+            <Field label="Description" full>
+              <textarea
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                rows={2}
+                className="input"
+              />
+            </Field>
+            <Field label="Active" full>
+              <label className="inline-flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.active}
+                  onChange={(e) => setForm({ ...form, active: e.target.checked })}
+                />
+                Visible dans le catalogue
+              </label>
+            </Field>
+          </Section>
+
+          <Section title="Configuration Sellsy" hint="IDs Sellsy pour la création d'opportunités et de devis">
+            <Field label="Pipeline ID">
+              <input
+                type="text"
+                value={form.sellsyPipelineId}
+                onChange={(e) => setForm({ ...form, sellsyPipelineId: e.target.value })}
+                className="input"
+              />
+            </Field>
+            <Field label="Step initial">
+              <input
+                type="text"
+                value={form.sellsyStepInitial}
+                onChange={(e) => setForm({ ...form, sellsyStepInitial: e.target.value })}
+                className="input"
+              />
+            </Field>
+            <Field label="Service ID (catalogue)">
+              <input
+                type="text"
+                value={form.sellsyServiceId}
+                onChange={(e) => setForm({ ...form, sellsyServiceId: e.target.value })}
+                className="input"
+              />
+            </Field>
+            <Field label="Code opportunité">
+              <input
+                type="text"
+                value={form.codeOpportunite}
+                onChange={(e) => setForm({ ...form, codeOpportunite: e.target.value })}
+                placeholder="VMX1"
+                className="input"
+              />
+            </Field>
+          </Section>
+
+          <Section title="Google Drive" hint="IDs des dossiers/templates Google (laisser vide tant que Drive non branché)">
+            <Field label="Dossier racine FORMATION" full>
+              <input
+                type="text"
+                value={form.driveDossierRacineId}
+                onChange={(e) => setForm({ ...form, driveDossierRacineId: e.target.value })}
+                placeholder="0ALeGbEg0d77jUk9PVA"
+                className="input font-jetbrains text-xs"
+              />
+            </Field>
+            <Field label="Dossier parent des sessions" full>
+              <input
+                type="text"
+                value={form.driveDossierSessionsId}
+                onChange={(e) => setForm({ ...form, driveDossierSessionsId: e.target.value })}
+                className="input font-jetbrains text-xs"
+              />
+            </Field>
+            <Field label="Template programme (PDF)">
+              <input
+                type="text"
+                value={form.driveTemplateProgrammeId}
+                onChange={(e) => setForm({ ...form, driveTemplateProgrammeId: e.target.value })}
+                className="input font-jetbrains text-xs"
+              />
+            </Field>
+            <Field label="Template convention (Doc)">
+              <input
+                type="text"
+                value={form.driveTemplateConventionId}
+                onChange={(e) => setForm({ ...form, driveTemplateConventionId: e.target.value })}
+                className="input font-jetbrains text-xs"
+              />
+            </Field>
+            <Field label="Template contrat (Doc)">
+              <input
+                type="text"
+                value={form.driveTemplateContratId}
+                onChange={(e) => setForm({ ...form, driveTemplateContratId: e.target.value })}
+                className="input font-jetbrains text-xs"
+              />
+            </Field>
+            <Field label="Template convocation (Doc)">
+              <input
+                type="text"
+                value={form.driveTemplateConvocationId}
+                onChange={(e) => setForm({ ...form, driveTemplateConvocationId: e.target.value })}
+                className="input font-jetbrains text-xs"
+              />
+            </Field>
+            <Field label="Template émargement (Doc)">
+              <input
+                type="text"
+                value={form.driveTemplateEmargementId}
+                onChange={(e) => setForm({ ...form, driveTemplateEmargementId: e.target.value })}
+                className="input font-jetbrains text-xs"
+              />
+            </Field>
+            <Field label="Template suivi (Sheet)">
+              <input
+                type="text"
+                value={form.driveTemplateSuiviId}
+                onChange={(e) => setForm({ ...form, driveTemplateSuiviId: e.target.value })}
+                className="input font-jetbrains text-xs"
+              />
+            </Field>
+          </Section>
+
+          {error && <p className="text-sm text-red-600">{error}</p>}
+
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={saving}
+              className="px-4 py-2 rounded-full text-sm font-medium text-white disabled:opacity-50"
+              style={{ backgroundColor: "#1f2244" }}
+            >
+              {saving ? "Enregistrement..." : editingId ? "Mettre à jour" : "Créer"}
+            </button>
+            <button
+              type="button"
+              onClick={handleCancel}
+              className="px-4 py-2 rounded-full text-sm font-medium border"
+              style={{ borderColor: "#d1d5db", color: "#374151" }}
+            >
+              Annuler
+            </button>
+          </div>
+
+          <style jsx>{`
+            .input {
+              width: 100%;
+              padding: 0.5rem 0.75rem;
+              border: 1px solid #d1d5db;
+              border-radius: 0.5rem;
+              font-size: 0.875rem;
+              background-color: white;
+            }
+            .input:focus {
+              outline: 2px solid #7dcef5;
+              outline-offset: 1px;
+            }
+          `}</style>
+        </form>
+      )}
+
+      {formations.length === 0 ? (
+        <div className="text-center py-12 border rounded-lg font-jetbrains text-sm" style={{ borderColor: "#e5e7eb", color: "#727485" }}>
+          Aucune formation. Crée la première via &laquo; + Nouvelle formation &raquo;.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {formations.map((f) => (
+            <div
+              key={f.id}
+              className="p-4 rounded-lg border flex items-center justify-between"
+              style={{ borderColor: "#e5e7eb" }}
+            >
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span
+                    className="px-2 py-0.5 rounded text-xs font-jetbrains"
+                    style={{ backgroundColor: "#1f2244", color: "white" }}
+                  >
+                    {f.code}
+                  </span>
+                  {!f.active && (
+                    <span className="px-2 py-0.5 rounded text-xs font-jetbrains bg-gray-200 text-gray-600">
+                      inactive
+                    </span>
+                  )}
+                  <h3 className="font-semibold" style={{ color: "#1f2244" }}>
+                    {f.nomLong}
+                  </h3>
+                </div>
+                <div className="text-sm mt-1 font-jetbrains" style={{ color: "#727485" }}>
+                  {f.prixHT.toLocaleString("fr-FR")} € HT · {f.dureeJours} jour
+                  {f.dureeJours > 1 ? "s" : ""}
+                </div>
+                <div className="text-xs mt-1 flex gap-3 font-jetbrains" style={{ color: "#9ca3af" }}>
+                  <span>Sellsy: {f.sellsyPipelineId ? "ok" : "à configurer"}</span>
+                  <span>Drive: {f.driveDossierRacineId ? "ok" : "à configurer"}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 ml-4">
+                <Link
+                  href={`/admin/formations/sessions?formationId=${f.id}`}
+                  className="text-xs px-3 py-1.5 rounded-full border"
+                  style={{ borderColor: "#1f2244", color: "#1f2244" }}
+                >
+                  Sessions
+                </Link>
+                <button
+                  onClick={() => handleEdit(f)}
+                  className="text-xs px-3 py-1.5 rounded-full text-white"
+                  style={{ backgroundColor: "#7dcef5", color: "#1f2244" }}
+                >
+                  Modifier
+                </button>
+                <button
+                  onClick={() => handleDelete(f.id)}
+                  className="text-xs px-3 py-1.5 rounded-full border border-red-200 text-red-600 hover:bg-red-50"
+                >
+                  Supprimer
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Section({
+  title,
+  hint,
+  children,
+}: {
+  title: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <div className="mb-3">
+        <h3 className="text-sm font-semibold uppercase tracking-wide" style={{ color: "#1f2244" }}>
+          {title}
+        </h3>
+        {hint && <p className="text-xs mt-0.5 font-jetbrains" style={{ color: "#727485" }}>{hint}</p>}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{children}</div>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  required,
+  full,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  full?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={full ? "sm:col-span-2" : ""}>
+      <label className="block text-xs font-medium mb-1" style={{ color: "#374151" }}>
+        {label}
+        {required && <span className="text-red-500"> *</span>}
+      </label>
+      {children}
+    </div>
+  );
+}
