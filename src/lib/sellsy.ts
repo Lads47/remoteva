@@ -174,16 +174,29 @@ export interface SellsyCompany {
 }
 
 export async function createCompany(input: CreateCompanyInput): Promise<SellsyCompany> {
-  const body: Record<string, unknown> = {
+  const baseBody: Record<string, unknown> = {
     type: "prospect",
     name: input.name,
-    email: input.email,
     phone_number: input.phoneNumber,
   };
   if (input.siret) {
-    body.legal_france = { siret: input.siret.replace(/\s+/g, "") };
+    baseBody.legal_france = { siret: input.siret.replace(/\s+/g, "") };
   }
-  return sellsyFetch<SellsyCompany>("/companies", { method: "POST", body });
+
+  try {
+    return await sellsyFetch<SellsyCompany>("/companies", {
+      method: "POST",
+      body: { ...baseBody, email: input.email },
+    });
+  } catch (err) {
+    // Sellsy refuse de réutiliser l'email d'un collaborateur (staff) existant.
+    // Dans ce cas, on retry sans email pour ne pas bloquer la création du prospect.
+    if (input.email && isEmailConflict(err)) {
+      console.warn(`[sellsy] Email "${input.email}" déjà utilisé chez Sellsy — création de la company sans email`);
+      return await sellsyFetch<SellsyCompany>("/companies", { method: "POST", body: baseBody });
+    }
+    throw err;
+  }
 }
 
 export interface CreateIndividualInput {
@@ -200,14 +213,34 @@ export interface SellsyIndividual {
 }
 
 export async function createIndividual(input: CreateIndividualInput): Promise<SellsyIndividual> {
-  const body = {
+  const baseBody: Record<string, unknown> = {
     type: "prospect",
     first_name: input.firstName,
     last_name: input.lastName,
-    email: input.email,
     phone_number: input.phoneNumber,
   };
-  return sellsyFetch<SellsyIndividual>("/individuals", { method: "POST", body });
+  try {
+    return await sellsyFetch<SellsyIndividual>("/individuals", {
+      method: "POST",
+      body: { ...baseBody, email: input.email },
+    });
+  } catch (err) {
+    if (input.email && isEmailConflict(err)) {
+      console.warn(`[sellsy] Email "${input.email}" déjà utilisé chez Sellsy — création de l'individual sans email`);
+      return await sellsyFetch<SellsyIndividual>("/individuals", { method: "POST", body: baseBody });
+    }
+    throw err;
+  }
+}
+
+/**
+ * Détecte si une erreur Sellsy 400 vient d'un conflit d'email
+ * (email déjà utilisé par un collaborateur existant).
+ */
+function isEmailConflict(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const m = err.message.toLowerCase();
+  return m.includes("400") && m.includes("email") && (m.includes("utilis") || m.includes("already") || m.includes("collaborateur"));
 }
 
 export interface AddAddressInput {
