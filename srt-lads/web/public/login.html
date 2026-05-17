@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SRT LADS — Connexion</title>
+  <link rel="stylesheet" href="/css/login.css">
+</head>
+<body>
+  <div class="brand">
+    <h1>SRT LADS</h1>
+    <p>Hub SRT &middot; Régie multi-sites</p>
+  </div>
+
+  <form class="login-card" method="POST" action="/auth/login" autocomplete="off">
+    <h2>Connexion</h2>
+
+    <div id="error-banner" class="error" hidden>
+      Identifiants incorrects.
+    </div>
+
+    <div class="field">
+      <label for="user">Utilisateur</label>
+      <input id="user" name="user" type="text" required autofocus>
+    </div>
+
+    <div class="field">
+      <label for="password">Mot de passe</label>
+      <input id="password" name="password" type="password" required>
+    </div>
+
+    <button class="btn-primary" type="submit">Se connecter</button>
+  </form>
+
+  <div class="footer">v0.2.0 · Phase 2.1</div>
+
+  <script>
+    // Affiche le bandeau d'erreur si ?error=1 dans l'URL.
+    // (Petit JS inline OK — autorisé par la CSP : non. On lit donc l'URL ici via un script séparé.)
+  </script>
+  <script src="/js/login.js"></script>
+</body>
+</html>

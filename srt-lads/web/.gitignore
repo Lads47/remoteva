@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Env / secrets (le vrai .env est dans /opt/srt-lads/.env, jamais ici)
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Runtime
+*.pid
+*.seed
