@@ -2,95 +2,90 @@
 
 **Date** : 17 mai 2026
 **Cible** : VPS-3 OVH Ubuntu 24.04.4 LTS, 193.70.43.0 (vps-8c26538c)
-**Operateur** : Claude Code + Lads47
+**Etat** : Validee
 
-## 1.0 Repo GitHub
+## Resume
 
-- Repo : github.com/Lads47/remoteva (prive)
-- Sous-dossier cree : srt-lads/
-- L'existant (Next.js, n8n-workflows, prisma...) n'est pas modifie
+Toutes les sous-phases (1.0 -> 1.10) sont terminees et validees.
 
-## 1.1 Securisation serveur
+| # | Phase | Statut |
+|---|-------|--------|
+| 1.0 | Verification repo GitHub | OK |
+| 1.1 | Securisation serveur | OK |
+| 1.2 | Structure srt-lads/ | OK |
+| 1.3 | SLS (libsrt 1.5.5 + sls patche) | OK |
+| 1.4 | Mumble | OK |
+| 1.5 | Nginx + Let's Encrypt | OK |
+| 1.6 | Netdata | OK |
+| 1.7 | .env (chmod 600) | OK |
+| 1.8 | /var/lib/srt-lads | OK |
+| 1.9 | Commit + push | OK |
+| 1.10 | Tests de validation | OK |
 
-- OS mis a jour (apt update + upgrade)
-- Timezone : Europe/Paris (CEST)
-- Outils installes : git curl wget htop vim build-essential cmake tcl-dev libssl-dev pkg-config
-- Utilisateur `srtadmin` cree (uid 1001) avec sudo NOPASSWD
-- Cle SSH copiee dans /home/srtadmin/.ssh/authorized_keys
-- SSH durci via /etc/ssh/sshd_config.d/99-srtlads.conf :
-  - PermitRootLogin no
-  - PasswordAuthentication no
-  - PubkeyAuthentication yes
-  - AllowUsers srtadmin ubuntu
-  - MaxAuthTries 3, LoginGraceTime 30
-- Fail2ban actif (jail sshd, maxretry 5, findtime 600s, bantime 3600s)
-- UFW actif (default deny incoming) :
-  - 22/tcp SSH
-  - 80/tcp HTTP redirect
-  - 443/tcp HTTPS web
-  - 443/udp SRT backup
-  - 10000/udp SRT main
-  - 64738/tcp+udp Mumble
-- unattended-upgrades active pour les patchs de securite
+## Securite
 
-## 1.2 Structure repo
+- SSH key-only (PermitRootLogin no, PasswordAuthentication no)
+- User srtadmin (uid 1001) sudo NOPASSWD
+- AllowUsers : srtadmin ubuntu
+- Fail2ban actif (jail sshd, maxretry 5, bantime 1h)
+- UFW : 7 regles, default deny incoming
+- unattended-upgrades : security patches automatiques
 
-```
-srt-lads/
-|-- README.md
-|-- CAHIER_DES_CHARGES.md
-|-- install.sh
-|-- update.sh
-|-- backup.sh
-|-- .env.example
-|-- .gitignore
-|-- server/
-|   |-- sls/
-|   |-- mumble/
-|   |-- nginx/
-|   `-- systemd/
-|-- web/  (Phase 2)
-`-- docs/
-    `-- PHASE1.md
-```
+## Services actifs
 
-## 1.3 SLS
-
-A compiler depuis :
-- https://github.com/Haivision/srt (libsrt v1.5.x)
-- https://github.com/Edward-Wu/srt-live-server
-
-## 1.4 Mumble
-
-apt install mumble-server, port 64738 TCP+UDP.
-
-## 1.5 Nginx + Let's Encrypt
-
-gatesrt.evaremote.com sur 443/tcp avec certbot.
-
-## 1.6 Netdata
-
-Bind localhost + nginx /netdata/ avec auth basique.
-
-## 1.7 .env
-
-/opt/srt-lads/.env (chmod 600, owner srtadmin), gitignore.
+| Service              | Etat   | Port           |
+|----------------------|--------|----------------|
+| ssh                  | active | 22/tcp         |
+| sls                  | active | 10000+443/udp  |
+| mumble-server        | active | 64738 tcp+udp  |
+| nginx                | active | 80+443/tcp     |
+| netdata              | active | 127.0.0.1:19999|
+| fail2ban             | active | -              |
+| unattended-upgrades  | active | -              |
 
 ## Tests realises
 
-- ssh srtadmin@193.70.43.0 par cle : OK
-- sudo -n whoami : root
-- ufw status verbose : 7 regles + IPv6
-- fail2ban-client status sshd : actif (deja 2 IPs bannies en debut de session)
+- **SSH** : connexion srtadmin par cle OK, sudo -n root OK
+- **UFW** : 14 regles actives (IPv4+IPv6)
+- **Fail2ban** : 8 IPs bannies depuis le debut de la session (brute force SSH)
+- **SLS** : ss -ulnp confirme listen 10000+443
+- **Mumble** : ss confirme listen 64738 TCP+UDP
+- **Nginx** : ss confirme listen 80+443 TCP
+- **Netdata** : bind 127.0.0.1 uniquement, accessible via /netdata/ avec auth
+- **HTTPS** : certificat valide jusqu'au 15/08/2026, auto-renouvellement OK
+- **SRT push test** : ffmpeg testsrc -> SLS sur port 10000 et 443 : OK
+  - Logs SLS : `new pub=..., key_stream_name=publish/live/testXXX`
+
+## Convention stream-ids SLS
+
+Pattern : `<domain>/<app>/<stream>` (3 segments)
+- Publisher : `publish/live/<nom>` (ex: `publish/live/bordeaux-cam`)
+- Player : `play/live/<nom>` (ex: `play/live/bordeaux-cam`)
 
 ## Acces
 
 | Service       | URL / Endpoint                          |
 |---------------|-----------------------------------------|
 | SSH           | srtadmin@193.70.43.0 (cle SSH dediee)  |
-| Web           | https://gatesrt.evaremote.com (a venir) |
+| Web public    | https://gatesrt.evaremote.com           |
+| Netdata       | https://gatesrt.evaremote.com/netdata/  |
 | SRT main      | srt.evaremote.com:10000/UDP             |
 | SRT backup    | srt.evaremote.com:443/UDP               |
 | Mumble        | mumble.evaremote.com:64738              |
-| Netdata       | https://gatesrt.evaremote.com/netdata/  |
+
+## Secrets
+
+Tous dans `/opt/srt-lads/.env` (chmod 600, owner srtadmin) :
+- GITHUB_TOKEN
+- ADMIN_WEB_PASSWORD (Netdata + interface Phase 2)
+- WEB_SESSION_SECRET
+- MUMBLE_SUPERUSER_PASSWORD
+
+Le fichier `.env` n'est jamais commit (gitignore racine + srt-lads/.gitignore).
+
+## Notes techniques
+
+- SLS upstream a un bug de compilation avec GCC 13 (header ctime manquant), patche dans slscore/common.cpp.
+- SLS upstream limite listen=1024-10000 et latency=1-300ms ; patche pour 1-65535 et 1-2000ms (conforme CDC).
+- Netdata a deux installs paralleles (apt + kickstart static), seul /opt/netdata est actif. Config dans /opt/netdata/etc/netdata/netdata.conf.
 
