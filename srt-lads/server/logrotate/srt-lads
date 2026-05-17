@@ -1,0 +1,59 @@
+# /etc/logrotate.d/srt-lads
+#
+# Rotation des logs SRT LADS (SLS, Mumble, srt-lads-web)
+# A installer :
+#   sudo cp /home/srtadmin/git/remoteva/srt-lads/server/logrotate/srt-lads /etc/logrotate.d/srt-lads
+#   sudo chmod 644 /etc/logrotate.d/srt-lads
+#   sudo logrotate -d /etc/logrotate.d/srt-lads   # dry-run
+#
+# La rotation est declenchee quotidiennement par /etc/cron.daily/logrotate (standard Ubuntu).
+
+# SLS application log (ecrit par SLS lui-meme, owner srtadmin)
+/var/log/sls/error.log {
+    daily
+    rotate 14
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+    su srtadmin srtadmin
+}
+
+# SLS stdout/stderr (ecrit par systemd via StandardOutput=append:, owner root)
+# copytruncate evite de devoir relancer SLS pour reprendre l'ecriture.
+/var/log/sls/stdout.log /var/log/sls/stderr.log {
+    daily
+    rotate 7
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+}
+
+# Mumble server logs (si activation logfile= dans /etc/mumble/mumble-server.ini)
+/var/log/mumble-server/*.log {
+    weekly
+    rotate 8
+    missingok
+    notifempty
+    compress
+    delaycompress
+    su mumble-server adm
+    postrotate
+        /bin/systemctl kill -s SIGUSR1 mumble-server.service > /dev/null 2>&1 || true
+    endscript
+}
+
+# srt-lads-web : logger applicatif fichier (cf web/lib/logger.js -> DATA_PATH/logs/web.log)
+/var/lib/srt-lads/logs/web.log /var/lib/srt-lads/logs/events.log {
+    daily
+    rotate 14
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+    su srtadmin srtadmin
+}
