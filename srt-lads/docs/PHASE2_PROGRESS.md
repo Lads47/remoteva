@@ -8,7 +8,7 @@
 | Sous-phase | Contenu | Statut |
 |------------|---------|--------|
 | **2.1** | Backend Node.js + auth + structure | ✅ Validée |
-| **2.2** | API REST gestion projets (CRUD) | ⏳ À venir |
+| **2.2** | API REST gestion projets (CRUD) | ✅ Validée |
 | **2.3** | Frontend HTML/CSS + pages projets | ⏳ À venir |
 | **2.4** | WebSocket + Vue Live + PDF + finitions | ⏳ À venir |
 
@@ -124,3 +124,148 @@ cd614a4 fix(phase2.1): use req.originalUrl for /api detection (mount-relative pa
 - **CSP `unsafe-inline`** sur styleSrc : à durcir en Phase 2.3 (déplacer le `<style>`
   inline du dashboard placeholder vers un fichier CSS dédié).
 - **Nginx** : déjà prêt pour Phase 2.4 (WebSocket upgrade headers présents).
+
+---
+
+## Phase 2.2 — API REST projets (✅ Validée)
+
+**Date** : 17 mai 2026
+
+### Réalisations
+
+| # | Étape | Statut |
+|---|-------|--------|
+| 1 | Vérification serveur + `/var/lib/srt-lads/projects` writable | OK |
+| 2 | `lib/projects.js` : CRUD JSON file-based + validation stricte | OK |
+| 3 | `lib/srtUrl.js` : génération URLs SRT (4 par site) | OK |
+| 4 | `routes/api.js` : 16 endpoints REST | OK |
+| 5 | `test-api.sh` : 16/16 PASS sur HTTPS prod | OK |
+| 6 | `backup-data.sh` + timer systemd quotidien (03:30 +0-15min) | OK |
+| 7 | Commit + push + doc | OK |
+
+### Endpoints REST implémentés
+
+Toutes les routes sont protégées par auth de session.
+
+**Health & projet actif**
+| Méthode | Route | Description |
+|---------|-------|-------------|
+| GET | `/api/health` | Statut serveur (phase 2.2) |
+| GET | `/api/active-project` | Projet `status=active` (ou `null`) |
+
+**Projets (collection)**
+| Méthode | Route | Description |
+|---------|-------|-------------|
+| GET | `/api/projects` | Liste, triée actifs → date desc |
+| POST | `/api/projects` | Création (id auto-slug, unicité) |
+| GET | `/api/projects/_passphrase?length=N` | Génère une passphrase aléatoire 8-79 |
+
+**Projets (instance)**
+| Méthode | Route | Description |
+|---------|-------|-------------|
+| GET | `/api/projects/:id` | Récupère |
+| PUT | `/api/projects/:id` | Mise à jour partielle |
+| DELETE | `/api/projects/:id` | Suppression |
+| POST | `/api/projects/:id/archive` | Passe en `archived` |
+| POST | `/api/projects/:id/duplicate` | Body `{newName}` → nouveau projet `draft` |
+
+**Sites**
+| Méthode | Route | Description |
+|---------|-------|-------------|
+| POST | `/api/projects/:id/sites` | Ajout (id auto-slug si absent) |
+| PUT | `/api/projects/:id/sites/:siteId` | Modif (id préservé) |
+| DELETE | `/api/projects/:id/sites/:siteId` | Suppression |
+
+**URLs SRT**
+| Méthode | Route | Description |
+|---------|-------|-------------|
+| GET | `/api/projects/:id/sites/:siteId/urls` | Les 4 URLs (publish/play × principal/secours) |
+
+### Validation (renvoie 400 + message clair)
+
+- `name` : 1-100 chars
+- `status` : `active` \| `archived` \| `draft`
+- `config.passphrase` : 8-79 chars (limite SRT)
+- `config.defaultLatency` : entier 80-2000
+- `config.defaultOverhead` : entier 10-100
+- `config.defaultBitrate` : entier 500-50000
+- `streamIdCam`, `streamIdReturn` : regex `^[a-z0-9\-_/]+$`, max 100 chars
+- Pas de doublon de streamId dans un projet
+- `customLatency` : `null` ou entier 80-2000
+
+### Convention URLs SRT générées
+
+Alignée sur `server/sls/sls.conf` (3 segments : `<domain>/<app>/<stream>`) :
+
+```
+publish principal : srt://srt.evaremote.com:10000?streamid=publish/live/<streamIdCam>&latency=<X>&oheadbw=<X>&passphrase=<X>&pbkeylen=32
+publish secours   : srt://srt.evaremote.com:443?streamid=publish/live/<streamIdCam>&latency=<X>&oheadbw=<X>&passphrase=<X>&pbkeylen=32
+play principal    : srt://srt.evaremote.com:10000?streamid=play/live/<streamIdReturn>&latency=<X>&passphrase=<X>&pbkeylen=32
+play secours      : srt://srt.evaremote.com:443?streamid=play/live/<streamIdReturn>&latency=<X>&passphrase=<X>&pbkeylen=32
+```
+
+La latence appliquée = `site.customLatency` si défini, sinon `project.config.defaultLatency`.
+
+> **Note** : le format diffère du prompt initial 2.2 (qui omettait `/live/`) car SLS
+> est configuré avec `domain_publisher=publish` / `app_publisher=live` (idem `play/live`).
+> Sans le segment `live/` les flux étaient rejetés au handshake.
+
+### Stockage
+
+- 1 fichier JSON par projet : `/var/lib/srt-lads/projects/<id>.json`
+- Écriture atomique (`tmp` + `rename`), mode `0640`
+- Lecture/parse en mémoire à chaque requête (pas de cache en V1, OK pour les volumes attendus)
+
+### Backup automatique
+
+- **Script** : `srt-lads/backup-data.sh`
+- **Cible** : `/var/lib/srt-lads/backups/data-YYYYMMDD-HHMMSS.tar.gz` (exclut le dossier `backups/`)
+- **Rotation** : garde les 7 plus récents
+- **Timer** : `srt-lads-backup.timer` → tous les jours 03:30 + délai aléatoire 0-15 min, `Persistent=true`
+- **Service** : `srt-lads-backup.service` (oneshot, durci `ProtectSystem=full`, `Nice=10`, `IOSchedulingClass=idle`)
+- Premier run test exécuté avec succès le 17 mai 2026 à 13:59 (1.6 KB)
+
+### Tests d'intégration (`web/test-api.sh`)
+
+**16/16 PASS** sur `https://gatesrt.evaremote.com` :
+
+```
+1. Authentification (login GET, login POST, health authentifié)
+2. POST /api/projects (création)
+3. GET /api/projects (liste)
+4. POST /api/projects/:id/sites (ajout site)
+5. GET /api/projects/:id/sites/:siteId/urls (génération URLs)
+6. POST site avec streamId invalide → 400 (validation regex)
+7. POST site avec doublon de streamId → 400 (unicité)
+8. PUT /api/projects/:id (passage en active)
+9. GET /api/active-project
+10. POST /api/projects/:id/duplicate
+11. DELETE /api/projects/:id/sites/:siteId
+12. DELETE projets (original + dupliqué)
+13. GET projet supprimé → 404
+```
+
+### Fichiers ajoutés
+
+```
+srt-lads/backup-data.sh
+srt-lads/server/systemd/srt-lads-backup.service
+srt-lads/server/systemd/srt-lads-backup.timer
+srt-lads/web/lib/projects.js        (320 l)
+srt-lads/web/lib/srtUrl.js          (115 l)
+srt-lads/web/test-api.sh
+srt-lads/web/routes/api.js          (réécrit, 165 l)
+```
+
+### Commit Phase 2.2
+
+```
+649623a feat(phase2.2): API REST projets + URLs SRT + backup quotidien
+```
+
+### Écarts vs prompt 2.2 (à noter)
+
+- **Format des URLs** : ajout du segment `/live/` (cf note ci-dessus) — conforme à `sls.conf`.
+- **Endpoint bonus** `GET /api/projects/_passphrase` (générateur prêt pour le bouton 🎲 de la Phase 2.3).
+- **Backup** : implémenté en `backup-data.sh` séparé (le `backup.sh` racine reste pour backup système complet incluant configs).
+- **Tests** : exécutés via HTTPS public (pas loopback) — le cookie `secure` ne passe pas en HTTP nu.
