@@ -1,0 +1,38 @@
+[Unit]
+Description=SRT LADS - Backend Web (Node.js + Express)
+Documentation=https://github.com/Lads47/remoteva
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=srtadmin
+Group=srtadmin
+WorkingDirectory=/home/srtadmin/git/remoteva/srt-lads/web
+EnvironmentFile=/opt/srt-lads/.env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node /home/srtadmin/git/remoteva/srt-lads/web/server.js
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=srt-lads-web
+
+# Sécurité (durcissement systemd)
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=read-only
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+# /var/lib/srt-lads doit rester accessible en écriture
+ReadWritePaths=/var/lib/srt-lads
+# Limites
+LimitNOFILE=8192
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target
