@@ -1,0 +1,21 @@
+[Unit]
+Description=SRT LADS - Backup quotidien de /var/lib/srt-lads
+Documentation=https://github.com/Lads47/remoteva
+
+[Service]
+Type=oneshot
+User=srtadmin
+Group=srtadmin
+ExecStart=/home/srtadmin/git/remoteva/srt-lads/backup-data.sh
+Nice=10
+IOSchedulingClass=idle
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=srt-lads-backup
+
+# Sécurité
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/var/lib/srt-lads
+PrivateTmp=true

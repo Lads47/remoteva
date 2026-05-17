@@ -1,0 +1,14 @@
+[Unit]
+Description=SRT LADS - Timer backup quotidien
+Documentation=https://github.com/Lads47/remoteva
+
+[Timer]
+# Tous les jours à 03:30 heure locale, avec délai aléatoire jusqu'à 15 min
+OnCalendar=*-*-* 03:30:00
+RandomizedDelaySec=15m
+# Rattrape si le serveur était éteint à l'heure prévue
+Persistent=true
+Unit=srt-lads-backup.service
+
+[Install]
+WantedBy=timers.target
