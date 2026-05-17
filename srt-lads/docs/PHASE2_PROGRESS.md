@@ -10,7 +10,7 @@
 | **2.1** | Backend Node.js + auth + structure | ✅ Validée |
 | **2.2** | API REST gestion projets (CRUD) | ✅ Validée |
 | **2.3** | Frontend HTML/CSS + pages projets | ✅ Validée |
-| **2.4** | WebSocket + Vue Live + PDF + finitions | ⏳ À venir |
+| **2.4** | WebSocket + Vue Live + PDF + finitions | ✅ Validée |
 
 ---
 
@@ -423,4 +423,120 @@ srt-lads/web/package-lock.json             (NEW)
 | **2.1** | Backend Node.js + auth + structure | ✅ Validée |
 | **2.2** | API REST gestion projets (CRUD) | ✅ Validée |
 | **2.3** | Frontend HTML/CSS + pages projets | ✅ Validée |
-| **2.4** | WebSocket + Vue Live + PDF + finitions | ⏳ À venir |
+| **2.4** | WebSocket + Vue Live + PDF + finitions | ✅ Validée |
+
+---
+
+## Phase 2.4 - Monitoring Live + PDF + finitions (Validee, v1.0.0)
+
+Date : 17 mai 2026
+
+### Realisations
+
+| # | Etape | Statut |
+|---|-------|--------|
+| 1 | Audit SLS v1.4.x (pas d endpoint HTTP stats, fallback log tail) | OK |
+| 2 | lib/slsLogTail.js (tail /var/log/sls/error.log + parse) | OK |
+| 3 | lib/eventsLog.js (journal append-only + recherche + CSV) | OK |
+| 4 | lib/pdfGenerator.js (vMix + IT + ZIP + runbook via pdfkit + archiver) | OK |
+| 5 | lib/systemControl.js (statut + restart whitelist) | OK |
+| 6 | server.js : WebSocket /ws/live + auth session + broadcast 1s | OK |
+| 7 | routes/api.js : 11 nouveaux endpoints | OK |
+| 8 | public/live.{html,css,js} : Vue Live WS + pulse + animation | OK |
+| 9 | public/system.{html,js} : statut systemd + restart | OK |
+| 10 | public/logs.{html,js} : journal + tabs + recherche + CSV | OK |
+| 11 | public/runbook.{html,js} + docs/runbook.md (10 sections ops) | OK |
+| 12 | Boutons PDF (vMix/IT/ZIP) dans project-edit | OK |
+| 13 | server/sudoers.d/srt-lads-web (restart NOPASSWD whitelist) | OK |
+| 14 | Deploy serveur + tests bout-en-bout (push SRT reel) | OK |
+| 15 | Tag v1.0.0 | OK |
+
+### WebSocket /ws/live
+
+- Authentification : cookie session (handshake refuse 401 si non auth)
+- Broadcast : snapshot complet toutes les 1 s
+- Push immediat sur evenement SLS (connect/disconnect)
+- Ping/pong toutes les 30 s, terminate des sockets morts
+- Format : { type: "snapshot", data: { stats, health, t } }
+- Nginx deja configure Phase 1 (Upgrade + Connection + read_timeout 86400s)
+
+### Endpoints API ajoutes
+
+- GET /api/stats : Snapshot SLS + health + projet actif
+- GET /api/system/status : 4 services + ressources
+- POST /api/system/:service/restart : Whitelist (sls/mumble/nginx/srt-lads-web)
+- GET /api/logs : Evenements (connect/disconnect/restart)
+- GET /api/logs.csv : Export
+- GET /api/runbook : Markdown + HTML rendu via marked
+- GET /api/runbook/pdf : Runbook PDF
+- GET /api/projects/:id/sites/:siteId/pdf/vmix : Fiche vMix
+- GET /api/projects/:id/sites/:siteId/pdf/it : Fiche IT
+- GET /api/projects/:id/pdf/all : ZIP de toutes les fiches
+- POST /api/streams/:streamId/kick : 501 (non supporte par SLS v1.4.x)
+
+### Monitoring SLS - choix d architecture
+
+SLS v1.4.x N expose PAS d endpoint HTTP de statistiques. Trois options evaluees :
+
+1. Recompiler SLS avec un fork
+2. Bindings SRT en Node (peu maintenu)
+3. Tail du log SLS (retenu)
+
+Couverture suffisante pour la V1 : detection connect/disconnect, stream-id, IP, port, fd, duree de session.
+Limitations : pas de bitrate / RTT / pertes / latence (non ecrits par SLS dans le log). Latence d apparition possible selon le flush du buffer log SLS.
+Banner d avertissement visible sur la Vue Live.
+
+### Securite
+
+- WebSocket auth = cookie session
+- CSP connectSrc 'self' ws: wss:
+- Restart whitelist double : Node + sudoers (4 lignes NOPASSWD)
+- sudo -n non interactif uniquement pour ces 4 commandes
+- visudo -c valide sur le fragment deploye
+- Aucun JS inline (CSP script-src 'self')
+
+### Tests prod (https://gatesrt.evaremote.com)
+
+- GET /api/health -> 200 phase 2.4 version 1.0.0
+- GET /api/stats -> 200 publishers=[] players=[] tailRunning=true
+- GET /api/system/status -> 200 4 services active
+- GET /api/runbook /api/logs -> 200
+- GET /live /system /logs /runbook -> 200
+- PDFs verifies via `file` : vMix 3270B PDF 1.3, IT 3119B PDF 1.3, ZIP 5305B, Runbook 5771B PDF 1.3 2p
+
+### Test SRT reel
+
+ffmpeg push vers srt://127.0.0.1:10000?streamid=publish/live/e2e-nopass
+Resultat /api/logs : connect + disconnect avec durationSec=10 traces.
+
+### Fichiers ajoutes
+
+- srt-lads/web/lib/slsLogTail.js
+- srt-lads/web/lib/eventsLog.js
+- srt-lads/web/lib/pdfGenerator.js
+- srt-lads/web/lib/systemControl.js
+- srt-lads/web/public/{live,system,logs,runbook}.html
+- srt-lads/web/public/css/live.css
+- srt-lads/web/public/js/{live,system,logs,runbook}.js
+- srt-lads/docs/runbook.md
+- srt-lads/server/sudoers.d/srt-lads-web
+
+Modifies : server.js, routes/api.js, routes/index.js, project-edit.{html,js}, projects.css, package.json (v1.0.0).
+
+### Commits Phase 2.4
+
+- 2272b8c fix(phase2.4): restrict streamId regex
+- d1257d6 feat(phase2.4): monitoring live + PDF + system + logs + runbook
+
+### Limitations connues
+
+1. Pas de bitrate/RTT/pertes en temps reel (SLS v1.4.x)
+2. Kick non supporte (utiliser restart sls)
+3. Sessions MemoryStore (perdues a chaque restart)
+4. Passphrase SLS refusee ("ERROR:UNSECURE") - a investiguer
+
+---
+
+## Bilan Phase 2 (complete)
+
+Tag v1.0.0 - premiere version stable de l interface SRT LADS.
