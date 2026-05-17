@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SRT LADS — Vue Live</title>
+  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/css/live.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <h1>SRT LADS</h1>
+      <span class="crumb"><a href="/dashboard">Dashboard</a> &rsaquo; Vue Live</span>
+    </div>
+    <nav>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/projects">Projets</a>
+      <a href="/live" class="active">Vue Live</a>
+      <a href="/system">Système</a>
+      <a href="/logs">Logs</a>
+    </nav>
+    <div class="user-zone">
+      <button class="btn btn-ghost btn-sm" id="btn-fullscreen" title="Plein écran (F11)">⛶</button>
+      <button class="btn btn-sm" id="btn-logout">Déconnexion</button>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <div class="live-hero">
+      <div class="pulse level-idle" id="hero-pulse"></div>
+      <div>
+        <h2 id="hero-title">Connexion…</h2>
+        <div class="sub" id="hero-sub">Initialisation du monitoring</div>
+      </div>
+      <div class="ws-state">
+        <span class="dot dot-warn" id="ws-dot"></span><span id="ws-text">WS : initialisation</span>
+      </div>
+    </div>
+
+    <div id="warn-banner" class="warn-banner hidden">
+      ⚠ Monitoring limité : SLS v1.4.x n'expose pas les statistiques détaillées (RTT, bitrate, pertes).
+      La Vue Live indique l'état des connexions (publishers / players) sans télémétrie SRT fine.
+    </div>
+
+    <div class="live-section">
+      <h3>📡 Flux entrants — publishers <span class="count" id="cnt-pub">0</span></h3>
+      <div id="publishers"></div>
+    </div>
+
+    <div class="live-section">
+      <h3>↩ Flux sortants — players <span class="count" id="cnt-play">0</span></h3>
+      <div id="players"></div>
+    </div>
+  </main>
+
+  <script src="/js/common.js"></script>
+  <script src="/js/live.js"></script>
+</body>
+</html>

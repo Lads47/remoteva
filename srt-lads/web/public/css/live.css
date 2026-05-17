@@ -1,0 +1,85 @@
+/* live.css — Vue Live monitoring */
+
+.live-hero {
+  display: flex;
+  align-items: center;
+  gap: var(--pad-xl);
+  margin-bottom: var(--pad-xl);
+  padding: var(--pad-xl);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.live-hero .pulse {
+  width: 60px; height: 60px; border-radius: 50%;
+  background: var(--text-dim);
+  flex: 0 0 60px;
+  box-shadow: 0 0 0 0 rgba(0, 0, 0, 0);
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+.live-hero .pulse.level-ok     { background: var(--ok);     box-shadow: 0 0 28px rgba(16, 185, 129, 0.55); animation: pulse-ok 2s infinite; }
+.live-hero .pulse.level-warn   { background: var(--warn);   box-shadow: 0 0 28px rgba(245, 158, 11, 0.55); }
+.live-hero .pulse.level-danger { background: var(--danger); box-shadow: 0 0 28px rgba(239, 68, 68, 0.55); }
+.live-hero .pulse.level-idle   { background: var(--text-dim); }
+
+@keyframes pulse-ok {
+  0%   { box-shadow: 0 0 18px rgba(16, 185, 129, 0.45); }
+  50%  { box-shadow: 0 0 32px rgba(16, 185, 129, 0.75); }
+  100% { box-shadow: 0 0 18px rgba(16, 185, 129, 0.45); }
+}
+
+.live-hero h2 { font-size: 30px; margin: 0 0 4px 0; }
+.live-hero .sub { color: var(--text-dim); }
+.live-hero .ws-state { margin-left: auto; font-size: 13px; color: var(--text-dim); }
+.live-hero .ws-state .dot { margin-right: 6px; }
+
+.live-section { margin-bottom: var(--pad-xl); }
+.live-section h3 {
+  display: flex; align-items: center; gap: var(--pad-md);
+  margin-bottom: var(--pad-md);
+  font-size: 18px;
+}
+.live-section h3 .count {
+  font-size: 13px;
+  color: var(--text-dim);
+  background: var(--bg-panel-hi);
+  padding: 2px 10px;
+  border-radius: 999px;
+}
+
+.live-table { font-size: 15px; }
+.live-table td.streamid { font-family: var(--font-mono); font-size: 13px; color: var(--text-dim); }
+.live-table td.site-name { font-weight: 500; color: var(--text-strong); }
+.live-table .tech-info { color: var(--text-dim); font-size: 12px; }
+.live-table .duration { font-variant-numeric: tabular-nums; }
+.live-table tr { transition: background 0.18s; }
+.live-table tr.new { animation: row-flash 0.6s ease; }
+
+@keyframes row-flash {
+  0% { background: rgba(59, 130, 246, 0.18); }
+  100% { background: transparent; }
+}
+
+.no-data {
+  padding: var(--pad-xl);
+  text-align: center;
+  color: var(--text-dim);
+  background: var(--bg-panel);
+  border: 1px dashed var(--border-hi);
+  border-radius: var(--radius);
+}
+
+/* Plein écran */
+:fullscreen .app-header, :-webkit-full-screen .app-header { padding: 0 var(--pad-md); }
+:fullscreen .live-hero h2 { font-size: 38px; }
+:fullscreen .live-table { font-size: 17px; }
+
+.warn-banner {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid var(--warn);
+  color: var(--warn-hi);
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  margin-bottom: var(--pad-lg);
+}

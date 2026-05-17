@@ -163,6 +163,7 @@
 
         '    <h4 class="mt-md">URLs SRT générées</h4>' +
         renderUrlBlock(site) +
+        renderSitePdfs(site) +
         '  </div>' +
         '</div>'
       );
@@ -187,6 +188,18 @@
         btn.addEventListener('click', () => copyToClipboard(btn.getAttribute('data-copy')));
       });
     });
+  }
+
+  function renderSitePdfs(site) {
+    // PDFs disponibles uniquement pour les sites SAUVÉS (id stable côté serveur).
+    if (IS_NEW || site._isNew || !PROJECT_ID) {
+      return '<div class="site-pdfs"><span class="faint">Sauvegarde le projet pour générer les PDFs.</span></div>';
+    }
+    const base = '/api/projects/' + encodeURIComponent(PROJECT_ID) + '/sites/' + encodeURIComponent(site.id) + '/pdf/';
+    return '<div class="site-pdfs">' +
+      '<a class="btn btn-sm" href="' + base + 'vmix">📄 Fiche vMix</a>' +
+      '<a class="btn btn-sm" href="' + base + 'it">📄 Fiche IT</a>' +
+      '</div>';
   }
 
   function renderUrlBlock(site) {
@@ -289,6 +302,12 @@
       // ouvre le premier site par défaut
       if (workingSites[0]) openedSites.add(workingSites[0].id);
       renderSites();
+      // Active le bouton ZIP global si au moins un site
+      const zipBtn = document.getElementById('btn-pdf-zip');
+      if (zipBtn && workingSites.length > 0) {
+        zipBtn.setAttribute('href', '/api/projects/' + encodeURIComponent(PROJECT_ID) + '/pdf/all');
+        zipBtn.hidden = false;
+      }
     } catch (err) {
       notify('Erreur chargement : ' + err.message, 'error');
     }

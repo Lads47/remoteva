@@ -1,19 +1,24 @@
 // server.js
-// Point d'entrée du backend SRT LADS - Phase 2.1
-// Express + session + helmet + bind loopback (Nginx en reverse proxy HTTPS)
+// Point d'entrée du backend SRT LADS - Phase 2.4 (v1.0)
+// Express + sessions + helmet + WebSocket (/ws/live) + bind loopback
+// (Nginx en reverse proxy HTTPS).
 
 'use strict';
 
 const path = require('path');
+const http = require('http');
 const express = require('express');
 const session = require('express-session');
 const helmet = require('helmet');
 const compression = require('compression');
 const morgan = require('morgan');
 const cors = require('cors');
+const { WebSocketServer } = require('ws');
 
 const config = require('./config');
 const logger = require('./lib/logger');
+const sls = require('./lib/slsLogTail');
+const eventsLog = require('./lib/eventsLog');
 
 const authRouter = require('./routes/auth');
 const apiRouter = require('./routes/api');
@@ -31,82 +36,154 @@ app.set('trust proxy', 'loopback');
 // Sécurité HTTP
 app.use(helmet({
   contentSecurityPolicy: {
-    // CSP raisonnable pour pages HTML/CSS sans CDN externe.
-    // 'unsafe-inline' pour le CSS inline minimal (à durcir plus tard).
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", 'data:'],
-      connectSrc: ["'self'"],
+      // 'self' couvre ws://<host> et wss://<host> selon la spec CSP3 (Chrome accepte, certains user-agents non).
+      // On ajoute donc explicitement wss/ws en plus.
+      connectSrc: ["'self'", 'ws:', 'wss:'],
       objectSrc: ["'none'"],
       frameAncestors: ["'self'"],
       formAction: ["'self'"],
       baseUri: ["'self'"],
     },
   },
-  crossOriginEmbedderPolicy: false, // pas nécessaire en V1, iframe Netdata viendra en 2.4
+  crossOriginEmbedderPolicy: false,
 }));
 
 app.use(compression());
-app.use(cors({ origin: false })); // pas de CORS, tout passe par le même domaine via Nginx
+app.use(cors({ origin: false }));
 app.use(express.json({ limit: '256kb' }));
 app.use(express.urlencoded({ extended: false, limit: '256kb' }));
 
-// Logs HTTP : combined en prod, dev sinon
+// Logs HTTP
 app.use(morgan(config.env === 'production' ? 'combined' : 'dev', {
   stream: { write: (msg) => logger.info(msg.trim()) },
 }));
 
-// Sessions
+// Sessions (partagée entre Express et WebSocket via cookie)
 const isProd = config.env === 'production';
-app.use(session({
+const sessionMiddleware = session({
   name: 'srtlads.sid',
   secret: config.sessionSecret,
   resave: false,
   saveUninitialized: false,
-  rolling: true, // prolonge la session à chaque requête authentifiée
+  rolling: true,
   cookie: {
     httpOnly: true,
     sameSite: 'lax',
-    secure: isProd, // requiert HTTPS (Nginx pose X-Forwarded-Proto=https)
+    secure: isProd,
     maxAge: config.sessionMaxAgeMs,
   },
-}));
+});
+app.use(sessionMiddleware);
 
-// Fichiers statiques publics (CSS, login.html, etc.)
+// Statiques
 app.use(express.static(path.join(__dirname, 'public'), {
   index: false,
   maxAge: isProd ? '1h' : 0,
 }));
 
-// Routes
-app.use('/auth', authRouter);             // publique
-app.use('/api', requireAuth, apiRouter);  // protégée
-app.use('/', indexRouter);                // pages HTML (dashboard protégé via requireAuth dans le router)
+// Routes HTTP
+app.use('/auth', authRouter);
+app.use('/api', requireAuth, apiRouter);
+app.use('/', indexRouter);
 
-// 404 + erreurs
 app.use(notFound);
 app.use(errorHandler);
 
-// Démarrage
-const server = app.listen(config.port, config.host, () => {
-  logger.info(`SRT LADS Web démarré`, {
-    host: config.host,
-    port: config.port,
-    env: config.env,
-    phase: '2.1',
+// -- HTTP server + WebSocket -------------------------------------------------
+
+const server = http.createServer(app);
+
+const wss = new WebSocketServer({ noServer: true, path: '/ws/live' });
+
+// Authentifie le handshake WS via le cookie de session
+server.on('upgrade', (req, socket, head) => {
+  if (!req.url.startsWith('/ws/live')) {
+    socket.destroy();
+    return;
+  }
+  // Lance le middleware session sur un faux res (cookie -> req.session)
+  sessionMiddleware(req, {}, () => {
+    if (!req.session || !req.session.authenticated) {
+      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      wss.emit('connection', ws, req);
+    });
   });
 });
 
-// Arrêt propre (systemd envoie SIGTERM)
+wss.on('connection', (ws, req) => {
+  logger.info('WS connect', { ip: req.socket && req.socket.remoteAddress });
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
+  ws.on('error', (err) => logger.warn('WS error', { msg: err.message }));
+  // Push immédiat
+  try { ws.send(JSON.stringify({ type: 'snapshot', data: buildSnapshot() })); } catch (e) {}
+});
+
+// Ping clients toutes les 30s ; ferme les morts
+setInterval(() => {
+  wss.clients.forEach((ws) => {
+    if (ws.isAlive === false) return ws.terminate();
+    ws.isAlive = false;
+    try { ws.ping(); } catch (e) { /* ignore */ }
+  });
+}, 30_000).unref();
+
+// Broadcast 1s (snapshot complet)
+setInterval(() => {
+  if (wss.clients.size === 0) return;
+  const payload = JSON.stringify({ type: 'snapshot', data: buildSnapshot() });
+  wss.clients.forEach((ws) => {
+    if (ws.readyState === ws.OPEN) {
+      try { ws.send(payload); } catch (e) { /* ignore */ }
+    }
+  });
+}, 1000).unref();
+
+// Push immédiat sur changement (connect/disconnect)
+sls.events.on('change', () => {
+  if (wss.clients.size === 0) return;
+  const payload = JSON.stringify({ type: 'snapshot', data: buildSnapshot() });
+  wss.clients.forEach((ws) => {
+    if (ws.readyState === ws.OPEN) {
+      try { ws.send(payload); } catch (e) { /* ignore */ }
+    }
+  });
+});
+
+function buildSnapshot() {
+  const stats = sls.getStats();
+  const health = sls.healthLevel();
+  return { stats, health, t: Date.now() };
+}
+
+// -- Démarrage ---------------------------------------------------------------
+
+server.listen(config.port, config.host, () => {
+  logger.info('SRT LADS Web démarré', {
+    host: config.host, port: config.port, env: config.env, phase: '2.4',
+  });
+  // SLS monitoring : tail du log SLS + journal d'événements
+  sls.start();
+  eventsLog.start();
+});
+
+// Arrêt propre
 function shutdown(signal) {
-  logger.info(`Arrêt sur ${signal}`);
+  logger.info('Arrêt sur ' + signal);
+  sls.stop();
   server.close(() => {
     logger.info('Serveur HTTP fermé');
     process.exit(0);
   });
-  // Filet de sécurité
   setTimeout(() => process.exit(1), 10_000).unref();
 }
 process.on('SIGTERM', () => shutdown('SIGTERM'));

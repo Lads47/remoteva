@@ -22,15 +22,13 @@ router.get('/', (req, res) => {
   return res.redirect('/auth/login');
 });
 
-// Pages protégées (Phase 2.3)
+// Pages protégées
 router.get('/dashboard',    requireAuth, sendPage('dashboard.html'));
 router.get('/projects',     requireAuth, sendPage('projects.html'));
 router.get('/project-edit', requireAuth, sendPage('project-edit.html'));
-
-// Pages placeholders pour la Phase 2.4
-router.get('/live',    requireAuth, sendPage('placeholder.html'));
-router.get('/system',  requireAuth, sendPage('placeholder.html'));
-router.get('/logs',    requireAuth, sendPage('placeholder.html'));
-router.get('/runbook', requireAuth, sendPage('placeholder.html'));
+router.get('/live',         requireAuth, sendPage('live.html'));
+router.get('/system',       requireAuth, sendPage('system.html'));
+router.get('/logs',         requireAuth, sendPage('logs.html'));
+router.get('/runbook',      requireAuth, sendPage('runbook.html'));
 
 module.exports = router;

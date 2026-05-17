@@ -1,0 +1,17 @@
+# /etc/sudoers.d/srt-lads-web
+#
+# Autorise l'utilisateur srtadmin à redémarrer (uniquement) les services
+# de la stack SRT LADS depuis l'interface web (route POST /api/system/:svc/restart).
+#
+# À installer ainsi (en tant que root) :
+#   sudo cp /home/srtadmin/git/remoteva/srt-lads/server/sudoers.d/srt-lads-web \
+#           /etc/sudoers.d/srt-lads-web
+#   sudo chmod 0440 /etc/sudoers.d/srt-lads-web
+#   sudo visudo -c -f /etc/sudoers.d/srt-lads-web
+#
+# Whitelist stricte : aucun autre service / commande accessible sans mot de passe.
+
+srtadmin ALL=(root) NOPASSWD: /bin/systemctl restart sls
+srtadmin ALL=(root) NOPASSWD: /bin/systemctl restart mumble-server
+srtadmin ALL=(root) NOPASSWD: /bin/systemctl restart nginx
+srtadmin ALL=(root) NOPASSWD: /bin/systemctl restart srt-lads-web

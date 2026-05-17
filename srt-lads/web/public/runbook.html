@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SRT LADS — Runbook</title>
+  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/css/projects.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <h1>SRT LADS</h1>
+      <span class="crumb"><a href="/dashboard">Dashboard</a> &rsaquo; Runbook</span>
+    </div>
+    <nav>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/projects">Projets</a>
+      <a href="/live">Vue Live</a>
+      <a href="/system">Système</a>
+      <a href="/logs">Logs</a>
+    </nav>
+    <div class="user-zone">
+      <button class="btn btn-sm" id="btn-logout">Déconnexion</button>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <div class="page-head">
+      <h2>Runbook</h2>
+      <div class="actions">
+        <a class="btn btn-primary btn-sm" href="/api/runbook/pdf">⤓ Télécharger PDF</a>
+      </div>
+    </div>
+    <div id="runbook-body" class="runbook-body">Chargement…</div>
+  </main>
+
+  <script src="/js/common.js"></script>
+  <script src="/js/runbook.js"></script>
+</body>
+</html>
