@@ -70,13 +70,15 @@ const PATTERNS = [
     },
   },
   // new pub=ADDR, key_stream_name=xxx
+  // Restreint la capture à [a-z0-9-_/] (cf validation streamId côté projects.js)
+  // — évite de capturer le point final ajouté par SLS en fin de ligne.
   {
-    re: /new pub=0x[0-9a-f]+,\s*key_stream_name=([^\s,]+)/,
+    re: /new pub=0x[0-9a-f]+,\s*key_stream_name=([a-zA-Z0-9\-_/]+)/,
     fn: (m, ts, line) => addConnection('publisher', m[1], ts, line),
   },
   // new player[ip:port], key_stream_name=xxx
   {
-    re: /new player\[[^\]]+\],\s*key_stream_name=([^\s,]+)/,
+    re: /new player\[[^\]]+\],\s*key_stream_name=([a-zA-Z0-9\-_/]+)/,
     fn: (m, ts, line) => addConnection('player', m[1], ts, line),
   },
   // libsrt_close, fd=NNN
