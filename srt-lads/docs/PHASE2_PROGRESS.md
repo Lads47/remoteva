@@ -435,7 +435,7 @@ Date : 17 mai 2026
 
 | # | Etape | Statut |
 |---|-------|--------|
-| 1 | Audit SLS v1.4.x (pas d endpoint HTTP stats, fallback log tail) | OK |
+| 1 | Audit SLS v1.4.9 (pas d endpoint HTTP stats, fallback log tail) | OK |
 | 2 | lib/slsLogTail.js (tail /var/log/sls/error.log + parse) | OK |
 | 3 | lib/eventsLog.js (journal append-only + recherche + CSV) | OK |
 | 4 | lib/pdfGenerator.js (vMix + IT + ZIP + runbook via pdfkit + archiver) | OK |
@@ -472,11 +472,11 @@ Date : 17 mai 2026
 - GET /api/projects/:id/sites/:siteId/pdf/vmix : Fiche vMix
 - GET /api/projects/:id/sites/:siteId/pdf/it : Fiche IT
 - GET /api/projects/:id/pdf/all : ZIP de toutes les fiches
-- POST /api/streams/:streamId/kick : 501 (non supporte par SLS v1.4.x)
+- POST /api/streams/:streamId/kick : 501 (non supporte par SLS v1.4.9)
 
 ### Monitoring SLS - choix d architecture
 
-SLS v1.4.x N expose PAS d endpoint HTTP de statistiques. Trois options evaluees :
+SLS v1.4.9 N expose PAS d endpoint HTTP de statistiques. Trois options evaluees :
 
 1. Recompiler SLS avec un fork
 2. Bindings SRT en Node (peu maintenu)
@@ -530,7 +530,7 @@ Modifies : server.js, routes/api.js, routes/index.js, project-edit.{html,js}, pr
 
 ### Limitations connues
 
-1. Pas de bitrate/RTT/pertes en temps reel (SLS v1.4.x)
+1. Pas de bitrate/RTT/pertes en temps reel (SLS v1.4.9)
 2. Kick non supporte (utiliser restart sls)
 3. Sessions MemoryStore (perdues a chaque restart)
 4. Passphrase SLS refusee ("ERROR:UNSECURE") - a investiguer

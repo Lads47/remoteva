@@ -203,13 +203,13 @@ router.get('/stats', handleAsync(async (req, res) => {
   });
 }));
 
-// Kick : SLS v1.4.x ne supporte pas la déconnexion d'un seul flux par streamId.
+// Kick : SLS v1.4.9 ne supporte pas la déconnexion d'un seul flux par streamId.
 // On expose le statut explicitement et propose un restart full via /system.
 router.post('/streams/:streamId/kick', handleAsync(async (req, res) => {
-  logger.warn('Kick demandé mais non supporté par SLS v1.4.x', { streamId: req.params.streamId });
+  logger.warn('Kick demandé mais non supporté par SLS v1.4.9', { streamId: req.params.streamId });
   res.status(501).json({
     success: false,
-    error: 'Kick non supporté par SLS v1.4.x. Utilise /api/system/sls/restart (déconnecte tous les flux).',
+    error: 'Kick non supporté par SLS v1.4.9. Utilise /api/system/sls/restart (déconnecte tous les flux).',
   });
 }));
 

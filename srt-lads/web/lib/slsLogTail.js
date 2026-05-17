@@ -1,6 +1,6 @@
 // lib/slsLogTail.js
 //
-// SLS v1.4.x ne fournit PAS d'endpoint HTTP stats (le fork upstream le supporte
+// SLS v1.4.9 ne fournit PAS d'endpoint HTTP stats (le fork upstream le supporte
 // mais pas cette version-ci). On dérive donc l'état temps réel en tailant le
 // fichier de log applicatif SLS (/var/log/sls/error.log).
 //
@@ -16,7 +16,7 @@
 //
 // État maintenu : Map<fd, connection> + émetteur EventEmitter pour broadcast.
 // Limitations connues (documentées dans PHASE2_PROGRESS) :
-//   - Pas de bitrate / RTT / pertes (non exposés par SLS v1.4.x)
+//   - Pas de bitrate / RTT / pertes (non exposés par SLS v1.4.9)
 //   - Détection basée sur les logs : précision ~100ms, dépend du buffer log
 
 'use strict';
