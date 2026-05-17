@@ -76,10 +76,15 @@ const PATTERNS = [
     re: /new pub=0x[0-9a-f]+,\s*key_stream_name=([a-zA-Z0-9\-_/]+)/,
     fn: (m, ts, line) => addConnection('publisher', m[1], ts, line),
   },
-  // new player[ip:port], key_stream_name=xxx
+  // new player[0xADDR]=[ip:port], key_stream_name=publish/live/xxx
+  // NB: SLS v1.4.9 logue le key_stream_name du publisher correspondant (préfixe
+  // publish/). On normalise en play/ pour cohérence côté UI (rôle = player).
   {
-    re: /new player\[[^\]]+\],\s*key_stream_name=([a-zA-Z0-9\-_/]+)/,
-    fn: (m, ts, line) => addConnection('player', m[1], ts, line),
+    re: /new player\[0x[0-9a-f]+\]=\[[0-9.:a-fA-F]+:\d+\],\s*key_stream_name=([a-zA-Z0-9\-_/]+)/,
+    fn: (m, ts, line) => {
+      const sid = m[1].replace(/^publish\//, 'play/');
+      addConnection('player', sid, ts, line);
+    },
   },
   // libsrt_close, fd=NNN
   {
