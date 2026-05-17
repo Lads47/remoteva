@@ -9,6 +9,11 @@ const { requireAuth } = require('../middlewares/auth');
 
 const router = express.Router();
 
+const PUBLIC = path.join(__dirname, '..', 'public');
+function sendPage(name) {
+  return (req, res) => res.sendFile(path.join(PUBLIC, name));
+}
+
 // Racine : si authentifié → dashboard, sinon → login
 router.get('/', (req, res) => {
   if (req.session && req.session.authenticated) {
@@ -17,9 +22,15 @@ router.get('/', (req, res) => {
   return res.redirect('/auth/login');
 });
 
-// Dashboard (placeholder en Phase 2.1, remplacé en Phase 2.3)
-router.get('/dashboard', requireAuth, (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'public', 'dashboard.html'));
-});
+// Pages protégées (Phase 2.3)
+router.get('/dashboard',    requireAuth, sendPage('dashboard.html'));
+router.get('/projects',     requireAuth, sendPage('projects.html'));
+router.get('/project-edit', requireAuth, sendPage('project-edit.html'));
+
+// Pages placeholders pour la Phase 2.4
+router.get('/live',    requireAuth, sendPage('placeholder.html'));
+router.get('/system',  requireAuth, sendPage('placeholder.html'));
+router.get('/logs',    requireAuth, sendPage('placeholder.html'));
+router.get('/runbook', requireAuth, sendPage('placeholder.html'));
 
 module.exports = router;

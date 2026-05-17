@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SRT LADS — Édition projet</title>
+  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/css/projects.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <h1>SRT LADS</h1>
+      <span class="crumb"><a href="/dashboard">Dashboard</a> &rsaquo; <a href="/projects">Projets</a> &rsaquo; <span id="crumb-name">Édition</span></span>
+    </div>
+    <nav>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/projects" class="active">Projets</a>
+      <a href="/live">Vue Live</a>
+      <a href="/system">Système</a>
+      <a href="/logs">Logs</a>
+    </nav>
+    <div class="user-zone">
+      <button class="btn btn-ghost btn-sm" id="btn-fullscreen" title="Plein écran">⛶</button>
+      <button class="btn btn-sm" id="btn-logout">Déconnexion</button>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <div class="page-head">
+      <h2 id="page-title">Nouveau projet</h2>
+    </div>
+
+    <form id="form" novalidate>
+      <div class="edit-grid">
+
+        <!-- Colonne gauche : paramètres généraux -->
+        <div class="card">
+          <h3>Paramètres généraux</h3>
+
+          <div class="field">
+            <label for="f-name">Nom du projet</label>
+            <input type="text" id="f-name" name="name" required maxlength="100" placeholder="ex: TF1 Factory - Tour de France 2026">
+            <div class="hint" id="hint-name"></div>
+          </div>
+
+          <div class="field">
+            <label for="f-status">Statut</label>
+            <select id="f-status" name="status">
+              <option value="draft">Brouillon</option>
+              <option value="active">Actif</option>
+              <option value="archived">Archivé</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="f-passphrase">Passphrase SRT (8-79 caractères)</label>
+            <div class="input-group">
+              <input type="text" id="f-passphrase" name="passphrase" minlength="8" maxlength="79" required placeholder="••••••••">
+              <button type="button" class="btn" id="btn-genpass" title="Générer aléatoire">🎲</button>
+            </div>
+            <div class="hint" id="hint-passphrase"></div>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label for="f-latency">Latence par défaut (ms)</label>
+              <input type="number" id="f-latency" name="defaultLatency" min="80" max="2000" value="300" required>
+            </div>
+            <div class="field">
+              <label for="f-overhead">Overhead (%)</label>
+              <input type="number" id="f-overhead" name="defaultOverhead" min="10" max="100" value="25" required>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="f-bitrate">Bitrate cible (kbps)</label>
+            <input type="number" id="f-bitrate" name="defaultBitrate" min="500" max="50000" value="8000" required>
+          </div>
+        </div>
+
+        <!-- Colonne droite : sites -->
+        <div>
+          <div class="page-head">
+            <h3 class="mt-0">Sites</h3>
+            <button type="button" class="btn btn-primary btn-sm" id="btn-add-site">+ Ajouter un site</button>
+          </div>
+          <div id="sites-list" class="sites-list">
+            <div class="no-results">Aucun site. Clique sur « + Ajouter un site » pour commencer.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="edit-actions">
+        <button type="button" class="btn left" id="btn-pdf" disabled title="Disponible en Phase 2.4">📄 Exporter PDF</button>
+        <a class="btn" href="/projects">Annuler</a>
+        <button type="submit" class="btn btn-primary" id="btn-save">Sauvegarder</button>
+      </div>
+    </form>
+  </main>
+
+  <script src="/js/common.js"></script>
+  <script src="/js/project-edit.js"></script>
+</body>
+</html>

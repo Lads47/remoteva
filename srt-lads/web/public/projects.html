@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SRT LADS — Projets</title>
+  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/css/projects.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <h1>SRT LADS</h1>
+      <span class="crumb"><a href="/dashboard">Dashboard</a> &rsaquo; Projets</span>
+    </div>
+    <nav>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/projects" class="active">Projets</a>
+      <a href="/live">Vue Live</a>
+      <a href="/system">Système</a>
+      <a href="/logs">Logs</a>
+    </nav>
+    <div class="user-zone">
+      <button class="btn btn-ghost btn-sm" id="btn-fullscreen" title="Plein écran">⛶</button>
+      <button class="btn btn-sm" id="btn-logout">Déconnexion</button>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <div class="page-head">
+      <h2>Projets</h2>
+      <div class="actions">
+        <a class="btn btn-primary" href="/project-edit?new=1">+ Nouveau projet</a>
+      </div>
+    </div>
+
+    <div class="card filters">
+      <div class="filter-tabs" id="filter-tabs">
+        <button data-filter="all"      class="filter-tab active">Tous <span class="count" id="cnt-all">0</span></button>
+        <button data-filter="active"   class="filter-tab">Actifs <span class="count" id="cnt-active">0</span></button>
+        <button data-filter="draft"    class="filter-tab">Brouillons <span class="count" id="cnt-draft">0</span></button>
+        <button data-filter="archived" class="filter-tab">Archivés <span class="count" id="cnt-archived">0</span></button>
+      </div>
+      <input type="search" id="search" placeholder="Rechercher un projet ou un site…" class="search-input">
+    </div>
+
+    <div id="projects-list">
+      <p class="muted text-center" id="loading-msg">Chargement…</p>
+    </div>
+  </main>
+
+  <script src="/js/common.js"></script>
+  <script src="/js/projects.js"></script>
+</body>
+</html>

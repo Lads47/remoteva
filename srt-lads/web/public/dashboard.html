@@ -4,56 +4,83 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SRT LADS — Dashboard</title>
-  <link rel="stylesheet" href="/css/login.css">
-  <style>
-    .placeholder {
-      max-width: 640px;
-      text-align: left;
-      background: var(--bg-panel);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 28px 32px;
-      margin-top: 16px;
-    }
-    .placeholder h3 { margin-top: 0; }
-    .placeholder ul { margin: 0; padding-left: 20px; line-height: 1.7; color: var(--text-dim); }
-    .logout-bar {
-      position: absolute;
-      top: 20px;
-      right: 24px;
-    }
-    .btn-secondary {
-      background: transparent;
-      color: var(--text-dim);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      padding: 8px 14px;
-      font-size: 13px;
-      cursor: pointer;
-    }
-    .btn-secondary:hover { color: var(--text); border-color: var(--text-dim); }
-  </style>
+  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/css/dashboard.css">
 </head>
 <body>
-  <form class="logout-bar" method="POST" action="/auth/logout">
-    <button class="btn-secondary" type="submit">Se déconnecter</button>
-  </form>
+  <header class="app-header">
+    <div class="brand">
+      <h1>SRT LADS</h1>
+      <span class="crumb">Dashboard</span>
+    </div>
+    <nav>
+      <a href="/dashboard" class="active">Dashboard</a>
+      <a href="/projects">Projets</a>
+      <a href="/live">Vue Live</a>
+      <a href="/system">Système</a>
+      <a href="/logs">Logs</a>
+    </nav>
+    <div class="user-zone">
+      <button class="btn btn-ghost btn-sm" id="btn-fullscreen" title="Plein écran (F11)">⛶</button>
+      <button class="btn btn-sm" id="btn-logout">Déconnexion</button>
+    </div>
+  </header>
 
-  <div class="brand">
-    <h1>SRT LADS</h1>
-    <p>Dashboard</p>
-  </div>
+  <main class="app-main">
+    <section class="dash-hero card">
+      <div class="dash-state">
+        <span id="state-dot" class="dot dot-xl"></span>
+        <div>
+          <h2 id="state-title">Chargement…</h2>
+          <p id="state-detail" class="muted mb-0">—</p>
+        </div>
+      </div>
+      <div class="dash-counters">
+        <div class="counter"><span class="counter-num" id="cnt-active">—</span><span class="counter-lbl">Projet actif</span></div>
+        <div class="counter"><span class="counter-num" id="cnt-projects">—</span><span class="counter-lbl">Projets</span></div>
+        <div class="counter"><span class="counter-num" id="cnt-sites">—</span><span class="counter-lbl">Sites configurés</span></div>
+        <div class="counter"><span class="counter-num" id="cnt-uptime">—</span><span class="counter-lbl">Uptime</span></div>
+      </div>
+    </section>
 
-  <div class="placeholder">
-    <h3>Phase 2.1 — Backend OK ✓</h3>
-    <p>Cette page est un placeholder. L'interface complète arrive en Phase 2.3.</p>
-    <ul>
-      <li><strong>Phase 2.2</strong> — API REST gestion des projets</li>
-      <li><strong>Phase 2.3</strong> — Frontend complet (dashboard, projets, édition)</li>
-      <li><strong>Phase 2.4</strong> — Monitoring live + génération PDF</li>
-    </ul>
-  </div>
+    <section class="card" id="active-card">
+      <div class="card-head">
+        <h3>Projet actif</h3>
+        <a class="btn btn-sm" href="/projects">Tous les projets →</a>
+      </div>
+      <div id="active-body" class="muted">Chargement…</div>
+    </section>
 
-  <div class="footer">v0.2.0 · Phase 2.1</div>
+    <section>
+      <h3 class="mt-md mb-0">Navigation rapide</h3>
+      <div class="dash-grid grid grid-4 mt-md">
+        <a class="dash-tile" href="/live">
+          <div class="tile-icon">📡</div>
+          <div class="tile-title">Vue Live</div>
+          <div class="tile-sub muted">Monitoring temps réel</div>
+        </a>
+        <a class="dash-tile" href="/projects">
+          <div class="tile-icon">📁</div>
+          <div class="tile-title">Projets</div>
+          <div class="tile-sub muted">Gérer les projets SRT</div>
+        </a>
+        <a class="dash-tile" href="/system">
+          <div class="tile-icon">⚙</div>
+          <div class="tile-title">Système</div>
+          <div class="tile-sub muted">Services & ressources</div>
+        </a>
+        <a class="dash-tile" href="/logs">
+          <div class="tile-icon">📜</div>
+          <div class="tile-title">Logs</div>
+          <div class="tile-sub muted">Événements & alertes</div>
+        </a>
+      </div>
+    </section>
+
+    <footer class="dash-footer muted">SRT LADS v0.2.0 · Phase 2.3</footer>
+  </main>
+
+  <script src="/js/common.js"></script>
+  <script src="/js/dashboard.js"></script>
 </body>
 </html>
