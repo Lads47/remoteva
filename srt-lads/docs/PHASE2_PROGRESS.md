@@ -9,7 +9,7 @@
 |------------|---------|--------|
 | **2.1** | Backend Node.js + auth + structure | ✅ Validée |
 | **2.2** | API REST gestion projets (CRUD) | ✅ Validée |
-| **2.3** | Frontend HTML/CSS + pages projets | ⏳ À venir |
+| **2.3** | Frontend HTML/CSS + pages projets | ✅ Validée |
 | **2.4** | WebSocket + Vue Live + PDF + finitions | ⏳ À venir |
 
 ---
@@ -269,3 +269,158 @@ srt-lads/web/routes/api.js          (réécrit, 165 l)
 - **Endpoint bonus** `GET /api/projects/_passphrase` (générateur prêt pour le bouton 🎲 de la Phase 2.3).
 - **Backup** : implémenté en `backup-data.sh` séparé (le `backup.sh` racine reste pour backup système complet incluant configs).
 - **Tests** : exécutés via HTTPS public (pas loopback) — le cookie `secure` ne passe pas en HTTP nu.
+
+---
+
+## Phase 2.3 — Frontend complet (✅ Validée)
+
+**Date** : 17 mai 2026
+
+### Réalisations
+
+| # | Étape | Statut |
+|---|-------|--------|
+| 1 | `common.css` design system + `common.js` utilitaires | OK |
+| 2 | Routes pages (/projects, /project-edit, placeholders 2.4) | OK |
+| 3 | Dashboard (état global + projet actif + 4 tuiles nav) | OK |
+| 4 | Liste projets (filtres tabs, recherche, actions) | OK |
+| 5 | Édition projet (2 colonnes + sites accordéon + URLs live) | OK |
+| 6 | Vérif preview locale (création/édition/suppression via UI) | OK |
+| 7 | Deploy serveur (pull + npm ci + restart, 7/7 pages + 7/7 statics → 200) | OK |
+
+### Design system (`public/css/common.css`)
+
+- Variables CSS centralisées : couleurs (fond `#0a0e1a`, panel `#131a2b`, accent `#3b82f6`, ok/warn/danger), espacements, radius, ombres
+- Layout app : header sticky avec brand + breadcrumb + nav + user-zone
+- Composants : boutons (primary/danger/ghost, tailles), inputs avec `aria-invalid` colorisé, cards, tableaux avec hover, badges (ok/warn/danger/info/draft), pastilles (dot, dot-xl), toasts, modals
+- Responsive (breakpoint 640px)
+- Font system + mono pour les URLs/IDs
+
+### Utilitaires JS (`public/js/common.js`)
+
+Exposés sur `window.SrtLads` :
+- `apiCall(method, path, body)` — wrapper fetch, JSON, gestion 401 (redirect login)
+- `notify(message, type)` — toast en haut à droite, auto-hide 4 s
+- `confirmAction(message, opts)` — modal de confirmation, Promise, danger:true pour bouton rouge
+- `promptText(message, opts)` — modal de saisie texte (utilisé pour le nom de duplication)
+- `copyToClipboard(text)` — Clipboard API + fallback execCommand
+- `fmtDate(iso)` — format `JJ/MM/AAAA HH:MM`
+- `statusBadge(status)` — HTML d'un badge selon status
+- `toggleFullscreen()` / `logout()`
+
+### Pages
+
+**`/dashboard`** (`dashboard.html` + `dashboard.css` + `dashboard.js`)
+- En-tête avec pastille XL ok/warn/danger + titre + détail
+- 4 compteurs : Projet actif (0/1), Projets, Sites configurés, Uptime
+- Carte "Projet actif" avec lien direct vers édition
+- Grille 4 tuiles : Vue Live, Projets, Système, Logs
+- Boutons Plein écran (F11) + Déconnexion
+
+**`/projects`** (`projects.html` + `projects.css` + `projects.js`)
+- Tabs filtres : Tous / Actifs / Brouillons / Archivés avec compteurs
+- Recherche full-text (nom projet, ID, noms de sites, streamIds)
+- Tableau : Nom + ID slug, badge statut, nombre de sites, date modif
+- Actions par ligne : Éditer, Dupliquer (modal saisie nom), Archiver/Activer, Supprimer (modal confirmation rouge)
+- Bouton "+ Nouveau projet" → `/project-edit?new=1`
+
+**`/project-edit`** (`project-edit.html` + `project-edit.js`)
+- Mode création (`?new=1`) ou édition (`?id=xxx`)
+- Layout 2 colonnes desktop (collapse vertical < 1024px)
+- Colonne gauche : nom, statut, passphrase (bouton 🎲 → `GET /api/projects/_passphrase`), latence/overhead/bitrate
+- Colonne droite : liste des sites en accordéon (premier site ouvert par défaut)
+- Par site : nom, latence custom, streamId cam/retour, technicien (nom+tel), notes
+- **Validation live** : regex `/^[a-z0-9\-_/]+$/` + détection doublons → hint vert ✓ ou rouge avec message, `aria-invalid` sur les inputs
+- **URLs SRT générées en live côté client** (mirroring `lib/srtUrl.js`) — 4 URLs/site avec bouton "Copier" individuel
+- Boutons sticky en bas : Exporter PDF (disabled — Phase 2.4), Annuler, Sauvegarder
+
+**`/placeholder.html`** : page « bientôt » pour `/live`, `/system`, `/logs`, `/runbook` (impl Phase 2.4)
+
+### Sécurité
+
+- Toutes les pages protégées par `requireAuth` (cf `routes/index.js`)
+- CSP `script-src 'self'` respectée (zéro JS inline, zéro `onclick=` attribut)
+- Boutons de déconnexion via `POST` form (`placeholder.html`) ou helper JS `SrtLads.logout()`
+- Échappement HTML systématique des valeurs utilisateur (`escapeHtml()` dans `projects.js` et `project-edit.js`)
+
+### Tests preview locaux (`http://127.0.0.1:3000`)
+
+- Login → redirect `/dashboard` OK
+- Dashboard rendu desktop : pastille warn + 4 compteurs + tuiles OK
+- `/projects` page vide → état "Aucun projet" + bouton Créer
+- Création "TF1 Factory - Test Preview" → id slug `tf1-factory-test-preview`, passphrase auto-générée 24 chars
+- Ajout site Bordeaux + streamIds → validation ✓ verte live
+- URLs SRT générées live cohérentes avec `lib/srtUrl.js` :
+  - `srt://srt.evaremote.com:10000?streamid=publish/live/bordeaux-cam&latency=300&oheadbw=25&passphrase=…&pbkeylen=32`
+  - `srt://srt.evaremote.com:10000?streamid=play/live/bordeaux-retour&latency=300&passphrase=…&pbkeylen=32`
+  - + ports 443 pour les versions secours
+- Sauvegarde → 201, redirect vers `/project-edit?id=…`
+- Retour liste : projet affiché avec badge BROUILLON, 1 site, date
+
+### Tests deploy prod (`https://gatesrt.evaremote.com`)
+
+Toutes les pages renvoient `200` après login :
+
+```
+/dashboard     -> 200
+/projects      -> 200
+/project-edit  -> 200
+/live          -> 200  (placeholder)
+/system        -> 200  (placeholder)
+/logs          -> 200  (placeholder)
+/runbook       -> 200  (placeholder)
+```
+
+Tous les statics servis correctement :
+
+```
+/css/common.css     -> 200
+/css/dashboard.css  -> 200
+/css/projects.css   -> 200
+/js/common.js       -> 200
+/js/dashboard.js    -> 200
+/js/projects.js     -> 200
+/js/project-edit.js -> 200
+```
+
+### Fichiers ajoutés / modifiés
+
+```
+srt-lads/web/public/css/common.css         (NEW, ~340 l - design system)
+srt-lads/web/public/css/dashboard.css      (NEW, ~85 l)
+srt-lads/web/public/css/projects.css       (NEW, ~150 l)
+srt-lads/web/public/js/common.js           (NEW, ~270 l)
+srt-lads/web/public/js/dashboard.js        (NEW, ~95 l)
+srt-lads/web/public/js/projects.js         (NEW, ~150 l)
+srt-lads/web/public/js/project-edit.js     (NEW, ~340 l)
+srt-lads/web/public/dashboard.html         (REFAIT)
+srt-lads/web/public/projects.html          (NEW)
+srt-lads/web/public/project-edit.html      (NEW)
+srt-lads/web/public/placeholder.html       (NEW)
+srt-lads/web/public/login.html             (cleanup CSP, footer Phase 2.3)
+srt-lads/web/routes/index.js               (routes pages + placeholders 2.4)
+srt-lads/web/package-lock.json             (NEW)
+```
+
+### Commit Phase 2.3
+
+```
+5ba1b46 feat(phase2.3): frontend complet projets + dashboard
+```
+
+### Écarts vs prompt 2.3 — à noter
+
+- **Pas de fichier `js/dashboard.js` séparé pour le polling temps réel** — la mise à jour live des compteurs viendra en Phase 2.4 via WebSocket. Le dashboard 2.3 fait un seul chargement initial.
+- **Le bouton "Exporter PDF" est présent mais disabled** (sera activé en Phase 2.4 avec génération PDFkit).
+- **Validation des champs config (latence/overhead/bitrate) côté client** : les `<input type="number">` ont les attributs `min`/`max` HTML5. La vraie validation reste côté serveur (lib/projects.js).
+- **Bouton "Activer" sur les projets archivés** (en plus du PUT générique) : ajouté côté liste pour symétrie avec Archiver.
+- **Le générateur de passphrase** appelle `GET /api/projects/_passphrase?length=N` (endpoint Phase 2.2 bonus) plutôt que de générer côté client — garantit qualité de l'aléa via `crypto.randomBytes`.
+
+### Mise à jour vue d'ensemble
+
+| Sous-phase | Contenu | Statut |
+|------------|---------|--------|
+| **2.1** | Backend Node.js + auth + structure | ✅ Validée |
+| **2.2** | API REST gestion projets (CRUD) | ✅ Validée |
+| **2.3** | Frontend HTML/CSS + pages projets | ✅ Validée |
+| **2.4** | WebSocket + Vue Live + PDF + finitions | ⏳ À venir |
