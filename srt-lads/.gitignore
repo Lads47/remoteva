@@ -1,0 +1,24 @@
+# Secrets - NEVER commit
+.env
+.env.local
+*.key
+*.pem
+authorized_keys
+
+# Logs
+*.log
+logs/
+
+# Backups
+backups/
+*.tar.gz
+*.zip
+
+# Build/runtime
+node_modules/
+dist/
+build/
+
+# OS
+.DS_Store
+Thumbs.db
