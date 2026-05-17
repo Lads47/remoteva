@@ -8,7 +8,7 @@ const logger = require('../lib/logger');
 
 // 404 : aucune route n'a matché
 function notFound(req, res) {
-  if (req.path.startsWith('/api')) {
+  if (req.originalUrl.startsWith('/api')) {
     return res.status(404).json({ success: false, error: 'Endpoint inconnu' });
   }
   return res.status(404).send('Page introuvable');
@@ -20,7 +20,7 @@ function errorHandler(err, req, res, next) {
   logger.error('Erreur HTTP', { path: req.path, method: req.method, msg: err.message, stack: err.stack });
 
   const status = err.status || 500;
-  if (req.path.startsWith('/api')) {
+  if (req.originalUrl.startsWith('/api')) {
     return res.status(status).json({
       success: false,
       error: err.publicMessage || 'Erreur serveur',

@@ -11,7 +11,8 @@ function requireAuth(req, res, next) {
   }
 
   // Distinction API / HTML
-  const isApi = req.path.startsWith('/api') || req.xhr || req.get('Accept') === 'application/json';
+  // req.originalUrl est l'URL complète (req.path est relatif au mount point)
+  const isApi = req.originalUrl.startsWith('/api') || req.xhr || req.get('Accept') === 'application/json';
   if (isApi) {
     return res.status(401).json({ success: false, error: 'Non authentifié' });
   }
