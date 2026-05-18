@@ -118,6 +118,125 @@ export async function deleteTrainer(id: string): Promise<void> {
   await prisma.trainer.delete({ where: { id } });
 }
 
+// === Portail formateur (lecture seule, auth par magic-token) ===
+
+export interface TrainerSessionInfo {
+  id: string;
+  code: string;
+  formationCode: string;
+  formationNomLong: string;
+  dateDebut: Date;
+  dateFin: Date;
+  lieu: string;
+  horaires: string;
+  status: string;
+  traineeCount: number;
+  capacite: number;
+  isPast: boolean;
+}
+
+/**
+ * Authentifie un formateur par son magic token (actif uniquement) + charge
+ * ses sessions assignées (passées + à venir), triées par date décroissante.
+ */
+export async function authTrainerWithSessions(
+  token: string
+): Promise<{ trainer: TrainerInfo; sessions: TrainerSessionInfo[] } | null> {
+  if (!token) return null;
+  const trainerRow = await prisma.trainer.findUnique({
+    where: { magicToken: token },
+    include: { _count: { select: { sessions: true } } },
+  });
+  if (!trainerRow || !trainerRow.active) return null;
+
+  const sessions = await prisma.session.findMany({
+    where: { trainerId: trainerRow.id },
+    include: {
+      formation: { select: { code: true, nomLong: true } },
+      _count: { select: { trainees: true } },
+    },
+    orderBy: { dateDebut: "desc" },
+  });
+
+  const now = Date.now();
+  const trainerSessions: TrainerSessionInfo[] = sessions.map((s) => ({
+    id: s.id,
+    code: s.code,
+    formationCode: s.formation.code,
+    formationNomLong: s.formation.nomLong,
+    dateDebut: s.dateDebut,
+    dateFin: s.dateFin,
+    lieu: s.lieu,
+    horaires: s.horaires,
+    status: s.status,
+    traineeCount: s._count.trainees,
+    capacite: s.capacite,
+    isPast: s.dateFin.getTime() < now,
+  }));
+
+  return { trainer: toInfo(trainerRow), sessions: trainerSessions };
+}
+
+/**
+ * Récupère une session spécifique pour un formateur (vérifie ownership via le token).
+ * Retourne aussi les stagiaires inscrits + formation pour le portail.
+ */
+export async function getTrainerSessionDetail(token: string, sessionId: string) {
+  if (!token) return null;
+  const trainer = await prisma.trainer.findUnique({ where: { magicToken: token } });
+  if (!trainer || !trainer.active) return null;
+
+  const session = await prisma.session.findUnique({
+    where: { id: sessionId },
+    include: {
+      formation: true,
+      trainees: { orderBy: { createdAt: "asc" } },
+    },
+  });
+  if (!session) return null;
+  // Ownership : la session doit être assignée à ce formateur
+  if (session.trainerId !== trainer.id) return null;
+
+  return {
+    trainer: { id: trainer.id, prenom: trainer.prenom, nom: trainer.nom, email: trainer.email },
+    session: {
+      id: session.id,
+      code: session.code,
+      dateDebut: session.dateDebut,
+      dateFin: session.dateFin,
+      lieu: session.lieu,
+      horaires: session.horaires,
+      status: session.status,
+      capacite: session.capacite,
+      notes: session.notes,
+    },
+    formation: {
+      id: session.formation.id,
+      code: session.formation.code,
+      nomLong: session.formation.nomLong,
+      description: session.formation.description,
+      dureeJours: session.formation.dureeJours,
+      configForm: session.formation.configForm,
+    },
+    trainees: session.trainees.map((t) => ({
+      id: t.id,
+      nom: t.nom,
+      prenom: t.prenom,
+      email: t.email,
+      telephone: t.telephone,
+      inscriptionType: t.inscriptionType,
+      raisonSociale: t.raisonSociale,
+      statutActuel: t.statutActuel,
+      modeFinancement: t.modeFinancement,
+      psh: t.psh,
+      besoinsAdaptation: t.besoinsAdaptation,
+      attentes: t.attentes,
+      evalEntree: t.evalEntree,
+      status: t.status,
+    })),
+  };
+}
+
 type TrainerRow = Awaited<ReturnType<typeof prisma.trainer.findUniqueOrThrow>> & {
   _count: { sessions: number };
 };
