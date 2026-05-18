@@ -133,10 +133,8 @@ function PrintInner({ id }: { id: string }) {
 
         .top-row { display: flex; justify-content: flex-end; margin-bottom: 8px; }
         .logo {
-          width: 50px; height: 50px; border-radius: 50%;
-          background: var(--eva-blue); color: white;
-          display: flex; align-items: center; justify-content: center;
-          font-size: 22px;
+          height: 56px; width: auto;
+          object-fit: contain;
         }
 
         .title-box {
@@ -332,7 +330,8 @@ function DayPage({ day, data }: { day: string; data: Payload }) {
   return (
     <section className="page">
       <div className="top-row">
-        <div className="logo" title="Les Ateliers du Stream">⌬</div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo-lads-fonce.svg" alt="Les Ateliers du Stream" className="logo" />
       </div>
 
       <div className="title-box">
