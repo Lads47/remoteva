@@ -344,7 +344,6 @@ function DayPage({ day, data }: { day: string; data: Payload }) {
         <InfoLine label="Lieu du stage" value={session.lieu || ""} />
         <InfoLine label="Date de l’émargement" value={fmtDateLong(day)} />
         <InfoLine label="Nom du ou des formateurs" value={trainerFullName} />
-        <InfoLine label="Client / Financeur du stage" value="" />
         <InfoLine label="Intitulé du module de formation" value={formation.nomLong} />
       </div>
 
@@ -397,7 +396,7 @@ function DayPage({ day, data }: { day: string; data: Payload }) {
         <br />
         par <strong>{trainerFullName}</strong>
         <br />
-        Date :
+        Date : {fmtDateLong(day)}
         <br />
         Signature du ou des formateurs :
         <div className="sig-zone" aria-hidden />
