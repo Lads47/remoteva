@@ -35,7 +35,6 @@ const HOURS_PER_SLOT = 3.5;
 // Coordonnées de l'organisme (modifier ici si elles changent)
 const FOOTER_LINE1 = "Les Ateliers du Stream - Siège : 39 bis rue Robert Creuzet 47200 MARMANDE - Siret : 81950223800036 - APE : 59.11B - formation@lesateliersdustream.fr";
 const FOOTER_LINE2 = "Tel : 06.46.65.65.77 – Organisme de formation professionnelle continue - NDA N°75470196847";
-const SIGNATAIRE = "Mme Noémie Marphay";
 
 function fmtDateLong(iso: string) {
   return new Date(iso + "T00:00:00Z").toLocaleDateString("fr-FR", {
@@ -50,10 +49,12 @@ function fmtDateLong(iso: string) {
 function PrintInner({ id }: { id: string }) {
   const params = useSearchParams();
   const token = params.get("token") ?? "";
+  const queryDay = params.get("day");
 
   const [data, setData] = useState<Payload | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) {
@@ -69,31 +70,26 @@ function PrintInner({ id }: { id: string }) {
         }
         return r.json();
       })
-      .then(setData)
+      .then((d: Payload) => setData(d))
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
   }, [id, token]);
 
-  // Regroupe les slots par jour : [{ date, morning?: GridSlot, afternoon?: GridSlot }]
+  // Liste des jours uniques de la session
   const days = useMemo(() => {
     if (!data) return [];
-    const map = new Map<string, { date: string; morning: boolean; afternoon: boolean }>();
-    for (const s of data.grid.slots) {
-      if (!map.has(s.date)) map.set(s.date, { date: s.date, morning: false, afternoon: false });
-      const day = map.get(s.date)!;
-      if (s.slot === "morning") day.morning = true;
-      if (s.slot === "afternoon") day.afternoon = true;
-    }
-    return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
+    const set = new Set<string>();
+    for (const s of data.grid.slots) set.add(s.date);
+    return Array.from(set).sort();
   }, [data]);
 
-  // Auto-trigger print
+  // Au premier chargement, pré-sélectionne le jour : ?day=... s'il est valide, sinon le 1er
   useEffect(() => {
-    if (!loading && data && !error) {
-      const t = setTimeout(() => window.print(), 500);
-      return () => clearTimeout(t);
-    }
-  }, [loading, data, error]);
+    if (!data) return;
+    if (selectedDay && days.includes(selectedDay)) return;
+    const initial = queryDay && days.includes(queryDay) ? queryDay : days[0] ?? null;
+    setSelectedDay(initial);
+  }, [data, days, queryDay, selectedDay]);
 
   if (loading) return <p style={{ padding: 20 }}>Chargement...</p>;
   if (error || !data) return <p style={{ padding: 20, color: "#991b1b" }}>{error || "Erreur"}</p>;
@@ -101,38 +97,66 @@ function PrintInner({ id }: { id: string }) {
   return (
     <div className="print-root">
       <style>{`
-        @page { size: A4 portrait; margin: 15mm 15mm 20mm 15mm; }
-        body { background: white !important; margin: 0; }
-        .print-root { font-family: 'Open Sans', Arial, Helvetica, sans-serif; color: #1f2244; }
-        .page { page-break-after: always; padding: 0; }
-        .page:last-child { page-break-after: auto; }
+        :root { --eva-blue: #1f2244; }
+
+        @page { size: A4 portrait; margin: 0; }
+        body { background: #f1f5f9 !important; margin: 0; }
+
+        .print-root {
+          font-family: var(--font-geist-sans), 'Geist Sans', Arial, Helvetica, sans-serif;
+          color: var(--eva-blue);
+        }
+
+        /* En mode écran : on simule une feuille A4 centrée avec un peu d'ombre */
+        .page {
+          width: 210mm;
+          min-height: 297mm;
+          margin: 24px auto;
+          padding: 15mm 15mm 25mm 15mm;
+          background: white;
+          box-shadow: 0 2px 20px rgba(31, 34, 68, 0.15);
+          position: relative;
+          box-sizing: border-box;
+        }
+
+        @media print {
+          body { background: white !important; }
+          .page {
+            width: auto;
+            min-height: 0;
+            margin: 0;
+            padding: 15mm 15mm 20mm 15mm;
+            box-shadow: none;
+          }
+          .no-print { display: none !important; }
+        }
 
         .top-row { display: flex; justify-content: flex-end; margin-bottom: 8px; }
         .logo {
           width: 50px; height: 50px; border-radius: 50%;
-          background: #1f2244; color: white;
+          background: var(--eva-blue); color: white;
           display: flex; align-items: center; justify-content: center;
           font-size: 22px;
         }
 
         .title-box {
-          border: 1.5px dashed #1f2244;
+          border: 1.5px dashed var(--eva-blue);
           padding: 14px 24px;
           text-align: center;
           margin: 0 30px 22px;
         }
         .title-box h1 {
           margin: 0;
-          font-family: Georgia, 'Times New Roman', serif;
+          font-family: var(--font-montserrat), Georgia, 'Times New Roman', serif;
           font-style: italic;
-          font-weight: bold;
+          font-weight: 700;
           font-size: 22px;
           letter-spacing: 1px;
-          color: #1f2244;
+          color: var(--eva-blue);
         }
 
         .info-box {
-          border: 1.5px solid #1f2244;
+          border: 1.5px solid var(--eva-blue);
           padding: 12px 14px;
           font-size: 11.5px;
           line-height: 1.7;
@@ -144,24 +168,24 @@ function PrintInner({ id }: { id: string }) {
           flex: 1;
           border-bottom: 1px dotted #6b7280;
           margin-left: 6px;
-          padding-bottom: 0;
-          color: #1f2244;
+          color: var(--eva-blue);
         }
         .info-line { display: flex; align-items: baseline; }
 
         table.emargement {
           border-collapse: collapse; width: 100%;
-          font-size: 11px; margin-bottom: 6px;
+          font-size: 11.5px;
+          margin-bottom: 8px;
         }
         table.emargement th, table.emargement td {
-          border: 1px solid #1f2244;
+          border: 1px solid var(--eva-blue);
           padding: 6px 8px;
           text-align: center;
           vertical-align: middle;
         }
         table.emargement thead th {
           background: white;
-          color: #1f2244;
+          color: var(--eva-blue);
           font-weight: 700;
           font-size: 10.5px;
           letter-spacing: 0.3px;
@@ -172,16 +196,8 @@ function PrintInner({ id }: { id: string }) {
           width: 28%;
           height: 50px;
         }
-        /* Cases signature : grandes, vides — le stagiaire signe dedans */
-        table.emargement td.sig {
-          width: 25%;
-          height: 50px;
-        }
-        table.emargement td.hours {
-          width: 22%;
-          height: 50px;
-        }
-        table.emargement td.empty { background: white; }
+        table.emargement td.sig { width: 25%; height: 50px; }
+        table.emargement td.hours { width: 22%; height: 50px; }
         table.emargement tr.total td {
           height: 28px;
           font-weight: 700;
@@ -194,6 +210,7 @@ function PrintInner({ id }: { id: string }) {
           color: #991b1b;
           font-size: 12px;
         }
+
         .sig-hint {
           font-size: 10px;
           font-style: italic;
@@ -201,7 +218,11 @@ function PrintInner({ id }: { id: string }) {
           margin-bottom: 12px;
         }
 
-        .signature-block { margin-top: 22px; font-size: 11.5px; line-height: 1.8; }
+        .signature-block {
+          margin-top: 18px;
+          font-size: 11.5px;
+          line-height: 1.8;
+        }
         .signature-block strong { font-weight: 600; }
         .sig-zone {
           margin-top: 8px;
@@ -210,73 +231,78 @@ function PrintInner({ id }: { id: string }) {
         }
 
         .footer {
-          position: fixed;
-          bottom: 8mm; left: 15mm; right: 15mm;
+          position: absolute;
+          bottom: 10mm; left: 15mm; right: 15mm;
           text-align: center;
-          font-size: 9.5px;
-          color: #1f2244;
+          font-size: 9px;
+          color: var(--eva-blue);
           line-height: 1.5;
+          font-family: var(--font-jetbrains-mono), 'JetBrains Mono', monospace;
           border-top: 1px solid #e5e7eb;
           padding-top: 4px;
         }
 
-        @media print {
-          .no-print { display: none !important; }
+        /* Barre d'outils (uniquement écran) */
+        .toolbar {
+          max-width: 210mm;
+          margin: 24px auto 0;
+          padding: 12px 16px;
+          background: white;
+          border-radius: 12px;
+          box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+          display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+        }
+        .toolbar label {
+          font-size: 13px; color: var(--eva-blue); font-weight: 600;
+        }
+        .toolbar select {
+          padding: 6px 10px;
+          border: 1px solid #d1d5db;
+          border-radius: 8px;
+          font-size: 13px;
+          font-family: inherit;
+          color: var(--eva-blue);
+          background: white;
+        }
+        .toolbar button {
+          margin-left: auto;
+          padding: 8px 14px;
+          background: var(--eva-blue);
+          color: white;
+          border: none; border-radius: 999px;
+          cursor: pointer; font-size: 13px;
         }
       `}</style>
 
-      <div className="no-print" style={{ padding: 16 }}>
-        <button
-          onClick={() => window.print()}
-          style={{
-            padding: "8px 14px",
-            background: "#1f2244",
-            color: "white",
-            border: "none",
-            borderRadius: 999,
-            cursor: "pointer",
-            fontSize: 13,
-          }}
+      {/* Barre d'outils (écran uniquement) */}
+      <div className="toolbar no-print">
+        <label htmlFor="day-select">Jour :</label>
+        <select
+          id="day-select"
+          value={selectedDay ?? ""}
+          onChange={(e) => setSelectedDay(e.target.value)}
         >
+          {days.map((d) => (
+            <option key={d} value={d}>
+              {fmtDateLong(d)}
+            </option>
+          ))}
+        </select>
+        <button type="button" onClick={() => window.print()}>
           🖨️ Imprimer / Enregistrer en PDF
         </button>
       </div>
 
-      {days.length === 0 && (
-        <p style={{ padding: 20, color: "#777" }}>
-          La session n&apos;a aucune demi-journée à émarger.
-        </p>
-      )}
-
-      {days.map((day) => (
-        <DayPage
-          key={day.date}
-          day={day}
-          data={data}
-        />
-      ))}
-
-      <div className="footer">
-        {FOOTER_LINE1}
-        <br />
-        {FOOTER_LINE2}
-      </div>
+      {selectedDay && <DayPage day={selectedDay} data={data} />}
     </div>
   );
 }
 
-function DayPage({
-  day,
-  data,
-}: {
-  day: { date: string; morning: boolean; afternoon: boolean };
-  data: Payload;
-}) {
+function DayPage({ day, data }: { day: string; data: Payload }) {
   const { session, formation, trainer, grid } = data;
 
-  // Récupère les statuts du jour pour chaque stagiaire
   function statusOf(row: TraineeRow, slot: Slot): Status {
-    const c = row.cells.find((c) => c.date === day.date && c.slot === slot);
+    const c = row.cells.find((c) => c.date === day && c.slot === slot);
     return c?.status ?? null;
   }
 
@@ -289,8 +315,6 @@ function DayPage({
 
   const totalHeures = grid.rows.reduce((sum, row) => sum + hoursOf(row), 0);
 
-  // Cellule signature : si "absent" → mention ABSENT figée ; sinon case vide
-  // pour signature manuscrite du stagiaire le jour J.
   function renderSignCell(status: Status) {
     if (status === "absent") return <span className="absent">ABSENT</span>;
     return "";
@@ -303,9 +327,7 @@ function DayPage({
     return minutes === 0 ? `${heures}h` : `${heures}h${String(minutes).padStart(2, "0")}`;
   }
 
-  // Min 8 lignes pour respecter le template (cases vides en bas si moins de stagiaires)
-  const minRows = 8;
-  const filler = Math.max(0, minRows - grid.rows.length);
+  const trainerFullName = `${trainer.prenom} ${trainer.nom}`;
 
   return (
     <section className="page">
@@ -320,8 +342,8 @@ function DayPage({
       <div className="info-box">
         <InfoLine label="Intitulé et n° du stage" value={`${formation.nomLong} (${session.code})`} />
         <InfoLine label="Lieu du stage" value={session.lieu || ""} />
-        <InfoLine label="Date de l’émargement" value={fmtDateLong(day.date)} />
-        <InfoLine label="Nom du ou des formateurs" value={`${trainer.prenom} ${trainer.nom}`} />
+        <InfoLine label="Date de l’émargement" value={fmtDateLong(day)} />
+        <InfoLine label="Nom du ou des formateurs" value={trainerFullName} />
         <InfoLine label="Client / Financeur du stage" value="" />
         <InfoLine label="Intitulé du module de formation" value={formation.nomLong} />
       </div>
@@ -339,6 +361,13 @@ function DayPage({
           </tr>
         </thead>
         <tbody>
+          {grid.rows.length === 0 && (
+            <tr>
+              <td colSpan={4} style={{ padding: 20, color: "#777", fontStyle: "italic" }}>
+                Aucun stagiaire inscrit à cette session.
+              </td>
+            </tr>
+          )}
           {grid.rows.map((row) => (
             <tr key={row.traineeId}>
               <td className="name">{row.prenom} {row.nom}</td>
@@ -347,20 +376,14 @@ function DayPage({
               <td className="hours">{fmtHours(hoursOf(row))}</td>
             </tr>
           ))}
-          {Array.from({ length: filler }).map((_, i) => (
-            <tr key={`filler-${i}`}>
-              <td className="name empty"></td>
-              <td className="sig empty"></td>
-              <td className="sig empty"></td>
-              <td className="hours empty"></td>
+          {grid.rows.length > 0 && (
+            <tr className="total">
+              <td></td>
+              <td></td>
+              <td>TOTAL HEURES -<br />STAGIAIRES</td>
+              <td>{fmtHours(totalHeures)}</td>
             </tr>
-          ))}
-          <tr className="total">
-            <td className="empty"></td>
-            <td className="empty"></td>
-            <td>TOTAL HEURES -<br />STAGIAIRES</td>
-            <td>{fmtHours(totalHeures)}</td>
-          </tr>
+          )}
         </tbody>
       </table>
 
@@ -372,12 +395,18 @@ function DayPage({
       <div className="signature-block">
         Certifié exact par l’organisme,
         <br />
-        par <strong>{SIGNATAIRE}</strong>
+        par <strong>{trainerFullName}</strong>
         <br />
         Date :
         <br />
         Signature du ou des formateurs :
         <div className="sig-zone" aria-hidden />
+      </div>
+
+      <div className="footer">
+        {FOOTER_LINE1}
+        <br />
+        {FOOTER_LINE2}
       </div>
     </section>
   );
