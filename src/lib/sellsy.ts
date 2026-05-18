@@ -309,9 +309,11 @@ export async function createOpportunity(input: CreateOpportunityInput): Promise<
 }
 
 export async function updateOpportunityStep(opportunityId: number, stepId: number): Promise<void> {
-  // Sellsy v2 utilise PATCH pour les updates partiels
+  // Sellsy v2 attend un PUT sur l'opportunité (le PATCH exige un paramètre `only`
+  // peu pratique pour notre cas). Le body est `{ step: <id> }` — juste l'ID,
+  // pas un objet imbriqué.
   await sellsyFetch<unknown>(`/opportunities/${opportunityId}`, {
-    method: "PATCH",
+    method: "PUT",
     body: { step: stepId },
   });
 }
