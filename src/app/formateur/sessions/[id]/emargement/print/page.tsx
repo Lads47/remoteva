@@ -83,11 +83,29 @@ function PrintInner({ id }: { id: string }) {
     return Array.from(set).sort();
   }, [data]);
 
-  // Au premier chargement, pré-sélectionne le jour : ?day=... s'il est valide, sinon le 1er
+  // Au premier chargement, pré-sélectionne le jour :
+  // 1. ?day=... si fourni et valide (lien direct)
+  // 2. Sinon today si la session inclut aujourd'hui
+  // 3. Sinon le jour le plus proche d'aujourd'hui (avant ou après)
   useEffect(() => {
     if (!data) return;
     if (selectedDay && days.includes(selectedDay)) return;
-    const initial = queryDay && days.includes(queryDay) ? queryDay : days[0] ?? null;
+    let initial: string | null = null;
+    if (queryDay && days.includes(queryDay)) {
+      initial = queryDay;
+    } else if (days.length > 0) {
+      const todayIso = new Date().toISOString().slice(0, 10);
+      if (days.includes(todayIso)) {
+        initial = todayIso;
+      } else {
+        const todayMs = new Date(todayIso + "T00:00:00Z").getTime();
+        initial = days.reduce((best, d) => {
+          const diffD = Math.abs(new Date(d + "T00:00:00Z").getTime() - todayMs);
+          const diffBest = Math.abs(new Date(best + "T00:00:00Z").getTime() - todayMs);
+          return diffD < diffBest ? d : best;
+        }, days[0]);
+      }
+    }
     setSelectedDay(initial);
   }, [data, days, queryDay, selectedDay]);
 
