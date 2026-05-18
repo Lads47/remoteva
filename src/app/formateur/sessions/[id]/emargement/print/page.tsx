@@ -131,7 +131,7 @@ function PrintInner({ id }: { id: string }) {
           .no-print { display: none !important; }
         }
 
-        .top-row { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+        .top-row { display: flex; justify-content: flex-end; margin-bottom: 28px; }
         .logo {
           height: 56px; width: auto;
           object-fit: contain;
