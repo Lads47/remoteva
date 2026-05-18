@@ -3,7 +3,7 @@
 import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { PrerequisField } from "@/lib/formation-prerequis";
-import { EVA_STATUSES, EVA_STATUS_LABELS, type EvaStatus } from "@/lib/appConfig-types";
+import TraineeStatusDropdown from "@/components/TraineeStatusDropdown";
 
 interface TraineeEvent {
   id: string;
@@ -98,7 +98,6 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
   const [error, setError] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
-  const [statusUpdating, setStatusUpdating] = useState(false);
 
   async function refresh() {
     const res = await fetch(`/api/admin/trainees/${id}`);
@@ -150,52 +149,6 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
       setActionFeedback({ type: "error", msg: "Erreur de connexion" });
     } finally {
       setActionLoading(false);
-    }
-  }
-
-  async function handleStatusChange(newStatus: EvaStatus) {
-    if (!trainee || newStatus === trainee.status) return;
-
-    // Garde-fou : aller à "devis_envoye" sans opportunité Sellsy passe par le bouton dédié.
-    if (newStatus === "devis_envoye" && !trainee.sellsyOpportunityId) {
-      setActionFeedback({
-        type: "error",
-        msg: "Utilise le bouton « Envoyer le devis » plutôt — il crée la fiche Sellsy + le devis et envoie le mail.",
-      });
-      setTimeout(() => setActionFeedback(null), 7000);
-      return;
-    }
-
-    if (!confirm(`Passer le statut à « ${EVA_STATUS_LABELS[newStatus]} » ?`)) return;
-
-    setStatusUpdating(true);
-    setActionFeedback(null);
-    try {
-      const res = await fetch(`/api/admin/trainees/${id}/status`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setActionFeedback({ type: "error", msg: data.error || "Erreur" });
-        return;
-      }
-      const sellsyNote = data.sellsySynced
-        ? " · Sellsy synchronisé ✓"
-        : data.sellsyError
-        ? ` · Sellsy en erreur (${data.sellsyError.slice(0, 80)})`
-        : "";
-      setActionFeedback({
-        type: "success",
-        msg: `Statut → ${EVA_STATUS_LABELS[newStatus]}${sellsyNote}`,
-      });
-      setTimeout(() => setActionFeedback(null), 5000);
-      await refresh();
-    } catch {
-      setActionFeedback({ type: "error", msg: "Erreur de connexion" });
-    } finally {
-      setStatusUpdating(false);
     }
   }
 
@@ -263,26 +216,16 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
             <label className="text-xs font-jetbrains" style={{ color: "#727485" }}>
               Statut :
             </label>
-            <select
-              value={trainee.status}
-              onChange={(e) => handleStatusChange(e.target.value as EvaStatus)}
-              disabled={statusUpdating}
-              className="text-xs px-3 py-1.5 rounded-full border cursor-pointer disabled:opacity-50"
-              style={{ borderColor: "#1f2244", color: "#1f2244", backgroundColor: "white" }}
-            >
-              {EVA_STATUSES.map((s) => (
-                <option
-                  key={s}
-                  value={s}
-                  disabled={s === "devis_envoye" && !trainee.sellsyOpportunityId && trainee.status !== "devis_envoye"}
-                >
-                  {EVA_STATUS_LABELS[s]}
-                  {s === "devis_envoye" && !trainee.sellsyOpportunityId && trainee.status !== "devis_envoye"
-                    ? " (utiliser le bouton)"
-                    : ""}
-                </option>
-              ))}
-            </select>
+            <TraineeStatusDropdown
+              traineeId={trainee.id}
+              currentStatus={trainee.status}
+              hasSellsyOpportunity={!!trainee.sellsyOpportunityId}
+              onChanged={() => refresh()}
+              onFeedback={(msg) => {
+                setActionFeedback({ type: msg.type, msg: msg.text });
+                setTimeout(() => setActionFeedback(null), msg.type === "error" ? 7000 : 5000);
+              }}
+            />
           </div>
           <Link
             href={`/admin/formations/trainees/${trainee.id}/edit`}

@@ -2,6 +2,7 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
+import TraineeStatusDropdown from "@/components/TraineeStatusDropdown";
 
 interface SessionDetail {
   id: string;
@@ -30,6 +31,7 @@ interface Trainee {
   modeFinancement: string;
   opcoDetecte: string;
   psh: boolean;
+  sellsyOpportunityId: number | null;
   createdAt: string;
 }
 
@@ -62,6 +64,16 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+
+  async function refreshTrainees() {
+    try {
+      const r = await fetch(`/api/admin/trainees?sessionId=${id}`);
+      if (!r.ok) return;
+      const d = await r.json();
+      setTrainees(d.trainees || []);
+    } catch {}
+  }
 
   async function copyInscriptionUrl(url: string) {
     try {
@@ -128,6 +140,16 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
           {session.horaires && ` · ${session.horaires}`}
         </p>
       </div>
+
+      {feedback && (
+        <div
+          className={`mb-4 p-3 rounded-lg text-sm font-jetbrains ${
+            feedback.type === "success" ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"
+          }`}
+        >
+          {feedback.msg}
+        </div>
+      )}
 
       {/* Bloc lien d'inscription */}
       <div className="mb-8 p-5 rounded-xl border" style={{ borderColor: "#e5e7eb", backgroundColor: "#fafbff" }}>
@@ -230,9 +252,17 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                       )}
                     </td>
                     <td className="px-3 py-3">
-                      <span className="text-xs font-jetbrains px-2 py-0.5 rounded" style={{ backgroundColor: "#e0e7ff", color: "#3730a3" }}>
-                        {STATUS_LABELS[t.status] ?? t.status}
-                      </span>
+                      <TraineeStatusDropdown
+                        traineeId={t.id}
+                        currentStatus={t.status}
+                        hasSellsyOpportunity={!!t.sellsyOpportunityId}
+                        compact
+                        onChanged={() => refreshTrainees()}
+                        onFeedback={(msg) => {
+                          setFeedback({ type: msg.type, msg: msg.text });
+                          setTimeout(() => setFeedback(null), msg.type === "error" ? 7000 : 5000);
+                        }}
+                      />
                     </td>
                     <td className="px-3 py-3 font-jetbrains text-xs" style={{ color: "#9ca3af" }}>
                       {fmtDateTime(t.createdAt)}
