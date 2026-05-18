@@ -151,14 +151,13 @@ function PrintInner({ id }: { id: string }) {
 
         table.emargement {
           border-collapse: collapse; width: 100%;
-          font-size: 11px; margin-bottom: 14px;
+          font-size: 11px; margin-bottom: 6px;
         }
         table.emargement th, table.emargement td {
           border: 1px solid #1f2244;
           padding: 6px 8px;
           text-align: center;
           vertical-align: middle;
-          height: 26px;
         }
         table.emargement thead th {
           background: white;
@@ -170,16 +169,37 @@ function PrintInner({ id }: { id: string }) {
         table.emargement td.name {
           text-align: left;
           font-weight: 600;
-          width: 30%;
+          width: 28%;
+          height: 50px;
+        }
+        /* Cases signature : grandes, vides — le stagiaire signe dedans */
+        table.emargement td.sig {
+          width: 25%;
+          height: 50px;
+        }
+        table.emargement td.hours {
+          width: 22%;
+          height: 50px;
         }
         table.emargement td.empty { background: white; }
         table.emargement tr.total td {
+          height: 28px;
           font-weight: 700;
           letter-spacing: 0.3px;
         }
-        table.emargement .status-mark { font-weight: 700; font-size: 13px; }
-        .status-present { color: #166534; }
-        .status-absent { color: #991b1b; }
+        table.emargement .absent {
+          font-style: italic;
+          font-weight: 700;
+          letter-spacing: 1px;
+          color: #991b1b;
+          font-size: 12px;
+        }
+        .sig-hint {
+          font-size: 10px;
+          font-style: italic;
+          color: #6b7280;
+          margin-bottom: 12px;
+        }
 
         .signature-block { margin-top: 22px; font-size: 11.5px; line-height: 1.8; }
         .signature-block strong { font-weight: 600; }
@@ -269,9 +289,10 @@ function DayPage({
 
   const totalHeures = grid.rows.reduce((sum, row) => sum + hoursOf(row), 0);
 
-  function renderStatus(status: Status) {
-    if (status === "present") return <span className="status-mark status-present">P</span>;
-    if (status === "absent") return <span className="status-mark status-absent">A</span>;
+  // Cellule signature : si "absent" → mention ABSENT figée ; sinon case vide
+  // pour signature manuscrite du stagiaire le jour J.
+  function renderSignCell(status: Status) {
+    if (status === "absent") return <span className="absent">ABSENT</span>;
     return "";
   }
 
@@ -321,17 +342,17 @@ function DayPage({
           {grid.rows.map((row) => (
             <tr key={row.traineeId}>
               <td className="name">{row.prenom} {row.nom}</td>
-              <td>{renderStatus(statusOf(row, "morning"))}</td>
-              <td>{renderStatus(statusOf(row, "afternoon"))}</td>
-              <td>{fmtHours(hoursOf(row))}</td>
+              <td className="sig">{renderSignCell(statusOf(row, "morning"))}</td>
+              <td className="sig">{renderSignCell(statusOf(row, "afternoon"))}</td>
+              <td className="hours">{fmtHours(hoursOf(row))}</td>
             </tr>
           ))}
           {Array.from({ length: filler }).map((_, i) => (
             <tr key={`filler-${i}`}>
               <td className="name empty"></td>
-              <td className="empty"></td>
-              <td className="empty"></td>
-              <td className="empty"></td>
+              <td className="sig empty"></td>
+              <td className="sig empty"></td>
+              <td className="hours empty"></td>
             </tr>
           ))}
           <tr className="total">
@@ -342,6 +363,11 @@ function DayPage({
           </tr>
         </tbody>
       </table>
+
+      <div className="sig-hint">
+        Le stagiaire signe dans chaque case correspondant à sa demi-journée de présence. La mention
+        « ABSENT » est portée par le formateur en cas d&apos;absence.
+      </div>
 
       <div className="signature-block">
         Certifié exact par l’organisme,
