@@ -30,6 +30,17 @@ interface Grid {
   rows: TraineeRow[];
 }
 
+interface SignedFile {
+  id: string;
+  sessionId: string;
+  date: string | null;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+  uploadedAt: string;
+  uploadedByPrenomNom: string | null;
+}
+
 function EmargementInner({ id }: { id: string }) {
   const params = useSearchParams();
   const token = params.get("token") ?? "";
@@ -44,6 +55,20 @@ function EmargementInner({ id }: { id: string }) {
 
   // Map des changements en attente : key "traineeId_date_slot" → status
   const [pending, setPending] = useState<Record<string, Status>>({});
+
+  // Fichiers signés déposés
+  const [files, setFiles] = useState<SignedFile[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadDate, setUploadDate] = useState<string>("");
+
+  async function refreshFiles() {
+    try {
+      const r = await fetch(`/api/formateur/sessions/${id}/attendance/files?token=${encodeURIComponent(token)}`);
+      if (!r.ok) return;
+      const d = await r.json();
+      setFiles(Array.isArray(d.files) ? d.files : []);
+    } catch {}
+  }
 
   useEffect(() => {
     if (!token) {
@@ -62,9 +87,11 @@ function EmargementInner({ id }: { id: string }) {
       .then((data) => {
         setGrid(data.grid);
         setSessionMeta(data.session);
+        return refreshFiles();
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, token]);
 
   function cellKey(traineeId: string, date: string, slot: Slot) {
@@ -94,6 +121,56 @@ function EmargementInner({ id }: { id: string }) {
       return next;
     });
     setDirty(true);
+  }
+
+  async function handleUploadFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      if (uploadDate) formData.append("date", uploadDate);
+      const res = await fetch(`/api/formateur/sessions/${id}/attendance/files?token=${encodeURIComponent(token)}`, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setFeedback({ type: "error", msg: data.error || "Échec de l'upload" });
+        setTimeout(() => setFeedback(null), 6000);
+        return;
+      }
+      setFeedback({ type: "success", msg: `Fichier "${file.name}" déposé` });
+      setTimeout(() => setFeedback(null), 4000);
+      setUploadDate("");
+      await refreshFiles();
+    } catch {
+      setFeedback({ type: "error", msg: "Erreur de connexion" });
+      setTimeout(() => setFeedback(null), 5000);
+    } finally {
+      setUploading(false);
+      // reset input value pour permettre de réuploader le même fichier
+      event.target.value = "";
+    }
+  }
+
+  async function handleDeleteFile(fileId: string, filename: string) {
+    if (!confirm(`Supprimer définitivement le fichier "${filename}" ?`)) return;
+    try {
+      const res = await fetch(`/api/formateur/sessions/${id}/attendance/files/${fileId}?token=${encodeURIComponent(token)}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        setFeedback({ type: "error", msg: "Échec de la suppression" });
+        setTimeout(() => setFeedback(null), 5000);
+        return;
+      }
+      await refreshFiles();
+    } catch {
+      setFeedback({ type: "error", msg: "Erreur de connexion" });
+      setTimeout(() => setFeedback(null), 5000);
+    }
   }
 
   async function handleSave() {
@@ -259,6 +336,114 @@ function EmargementInner({ id }: { id: string }) {
           Conseil : cliquez sur une cellule pour cycler entre <strong>—</strong> (non saisi), <strong>P</strong> (présent),{" "}
           <strong>A</strong> (absent). N&apos;oubliez pas d&apos;enregistrer en fin de séance.
         </p>
+
+        {/* === Feuilles signées (dépôt) === */}
+        <div className="mt-10 p-5 rounded-xl border" style={{ borderColor: "#e5e7eb", backgroundColor: "white" }}>
+          <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: "#1f2244" }}>
+            Feuilles signées
+          </h2>
+          <p className="text-xs mt-1 font-jetbrains" style={{ color: "#727485" }}>
+            Déposez ici les scans / photos des feuilles d&apos;émargement signées par les stagiaires
+            pour archivage Qualiopi. Formats acceptés : PDF, JPEG, PNG, HEIC, WebP (max 15 Mo).
+          </p>
+
+          {/* Upload */}
+          <div className="mt-4 p-4 rounded-lg border" style={{ borderColor: "#e5e7eb", backgroundColor: "#fafbff" }}>
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex-1 min-w-[160px]">
+                <label className="block text-xs font-medium mb-1" style={{ color: "#374151" }}>
+                  Date concernée (optionnel)
+                </label>
+                <select
+                  value={uploadDate}
+                  onChange={(e) => setUploadDate(e.target.value)}
+                  disabled={uploading}
+                  className="w-full px-3 py-2 border rounded-lg text-sm bg-white disabled:opacity-50"
+                  style={{ borderColor: "#d1d5db" }}
+                >
+                  <option value="">— Aucune date précisée —</option>
+                  {Array.from(new Set(grid.slots.map((s) => s.date))).map((d) => (
+                    <option key={d} value={d}>
+                      {new Date(d + "T00:00:00Z").toLocaleDateString("fr-FR", {
+                        weekday: "long",
+                        day: "2-digit",
+                        month: "long",
+                        year: "numeric",
+                        timeZone: "UTC",
+                      })}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex-1 min-w-[200px]">
+                <label className="block text-xs font-medium mb-1" style={{ color: "#374151" }}>
+                  Fichier à déposer
+                </label>
+                <input
+                  type="file"
+                  accept="application/pdf,image/jpeg,image/png,image/heic,image/heif,image/webp"
+                  onChange={handleUploadFile}
+                  disabled={uploading}
+                  className="block w-full text-xs file:mr-3 file:py-2 file:px-3 file:rounded-full file:border-0 file:text-sm file:font-medium file:cursor-pointer disabled:opacity-50"
+                  style={{ color: "#1f2244" }}
+                />
+              </div>
+            </div>
+            {uploading && (
+              <p className="mt-2 text-xs font-jetbrains" style={{ color: "#727485" }}>
+                Upload en cours...
+              </p>
+            )}
+          </div>
+
+          {/* Liste */}
+          <div className="mt-4">
+            {files.length === 0 ? (
+              <p className="text-sm font-jetbrains text-center py-4" style={{ color: "#9ca3af" }}>
+                Aucune feuille signée déposée pour le moment.
+              </p>
+            ) : (
+              <ul className="divide-y" style={{ borderColor: "#f3f4f6" }}>
+                {files.map((f) => (
+                  <li key={f.id} className="py-3 flex items-center gap-3 flex-wrap" style={{ borderBottom: "1px solid #f3f4f6" }}>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate" style={{ color: "#1f2244" }}>
+                        {f.filename}
+                      </div>
+                      <div className="text-xs font-jetbrains mt-0.5" style={{ color: "#727485" }}>
+                        {f.date
+                          ? new Date(f.date).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric", timeZone: "UTC" })
+                          : "Date non précisée"}
+                        {" · "}
+                        {(f.sizeBytes / 1024).toFixed(0)} Ko
+                        {f.uploadedByPrenomNom && ` · déposé par ${f.uploadedByPrenomNom}`}
+                        {" · "}
+                        {new Date(f.uploadedAt).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={`/api/formateur/sessions/${id}/attendance/files/${f.id}?token=${encodeURIComponent(token)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs px-3 py-1.5 rounded-full border cursor-pointer"
+                        style={{ borderColor: "#1f2244", color: "#1f2244" }}
+                      >
+                        Ouvrir
+                      </a>
+                      <button
+                        onClick={() => handleDeleteFile(f.id, f.filename)}
+                        className="text-xs px-3 py-1.5 rounded-full border border-red-200 text-red-600 hover:bg-red-50 cursor-pointer"
+                      >
+                        Supprimer
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
