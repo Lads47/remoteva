@@ -14,6 +14,7 @@ interface Formation {
   sellsyPipelineId: number | null;
   sellsyStepInitial: number | null;
   sellsyServiceId: number | null;
+  sellsyEstimateModelId: number | null;
   codeOpportunite: string;
   driveDossierRacineId: string | null;
   driveDossierSessionsId: string | null;
@@ -38,6 +39,7 @@ type FormState = {
   sellsyPipelineId: string;
   sellsyStepInitial: string;
   sellsyServiceId: string;
+  sellsyEstimateModelId: string;
   codeOpportunite: string;
   driveDossierRacineId: string;
   driveDossierSessionsId: string;
@@ -59,6 +61,7 @@ const EMPTY_FORM: FormState = {
   sellsyPipelineId: "",
   sellsyStepInitial: "",
   sellsyServiceId: "",
+  sellsyEstimateModelId: "",
   codeOpportunite: "",
   driveDossierRacineId: "",
   driveDossierSessionsId: "",
@@ -107,6 +110,7 @@ export default function FormationsPage() {
       sellsyPipelineId: f.sellsyPipelineId?.toString() ?? "",
       sellsyStepInitial: f.sellsyStepInitial?.toString() ?? "",
       sellsyServiceId: f.sellsyServiceId?.toString() ?? "",
+      sellsyEstimateModelId: f.sellsyEstimateModelId?.toString() ?? "",
       codeOpportunite: f.codeOpportunite,
       driveDossierRacineId: f.driveDossierRacineId ?? "",
       driveDossierSessionsId: f.driveDossierSessionsId ?? "",
@@ -132,6 +136,7 @@ export default function FormationsPage() {
       sellsyPipelineId: toIntOrNull(f.sellsyPipelineId),
       sellsyStepInitial: toIntOrNull(f.sellsyStepInitial),
       sellsyServiceId: toIntOrNull(f.sellsyServiceId),
+      sellsyEstimateModelId: toIntOrNull(f.sellsyEstimateModelId),
       codeOpportunite: f.codeOpportunite.trim(),
       driveDossierRacineId: toStrOrNull(f.driveDossierRacineId),
       driveDossierSessionsId: toStrOrNull(f.driveDossierSessionsId),
@@ -349,15 +354,25 @@ export default function FormationsPage() {
                 className="input"
               />
             </Field>
-            <Field label="Service ID (catalogue)">
+            <Field label="Service ID (catalogue Sellsy)">
               <input
                 type="text"
                 value={form.sellsyServiceId}
                 onChange={(e) => setForm({ ...form, sellsyServiceId: e.target.value })}
+                placeholder="17914075"
                 className="input"
               />
             </Field>
-            <Field label="Code opportunité">
+            <Field label="ID Modèle de devis">
+              <input
+                type="text"
+                value={form.sellsyEstimateModelId}
+                onChange={(e) => setForm({ ...form, sellsyEstimateModelId: e.target.value })}
+                placeholder="52588111"
+                className="input"
+              />
+            </Field>
+            <Field label="Code opportunité" full>
               <input
                 type="text"
                 value={form.codeOpportunite}

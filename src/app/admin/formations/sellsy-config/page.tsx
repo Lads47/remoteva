@@ -20,7 +20,6 @@ export default function SellsyConfigPage() {
   const [pipelineId, setPipelineId] = useState<number | null>(null);
   const [steps, setSteps] = useState<Step[]>([]);
   const [mapping, setMapping] = useState<Partial<Record<EvaStatus, number>>>({});
-  const [estimateModelId, setEstimateModelId] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [loadingSteps, setLoadingSteps] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -49,7 +48,6 @@ export default function SellsyConfigPage() {
         }
         setPipelineId(resolvedId);
         setMapping(configData.mapping ?? {});
-        setEstimateModelId(configData.estimateModelId ? String(configData.estimateModelId) : "");
       })
       .catch(() => setError("Erreur de chargement"))
       .finally(() => setLoading(false));
@@ -84,16 +82,10 @@ export default function SellsyConfigPage() {
     setSaving(true);
     setError("");
     try {
-      const parsedModelId = estimateModelId.trim() === "" ? null : parseInt(estimateModelId, 10);
-      if (estimateModelId.trim() !== "" && !Number.isFinite(parsedModelId)) {
-        setError("L'ID du modèle de devis doit être un nombre entier");
-        setSaving(false);
-        return;
-      }
       const res = await fetch("/api/admin/sellsy-config", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pipelineId, mapping, estimateModelId: parsedModelId }),
+        body: JSON.stringify({ pipelineId, mapping }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -223,31 +215,6 @@ export default function SellsyConfigPage() {
           )}
         </div>
       )}
-
-      {/* Modèle de devis */}
-      <div className="mb-6 p-5 rounded-xl border" style={{ borderColor: "#e5e7eb", backgroundColor: "white" }}>
-        <h2 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: "#1f2244" }}>
-          Modèle de devis Sellsy (optionnel)
-        </h2>
-        <p className="text-xs font-jetbrains mb-3" style={{ color: "#727485" }}>
-          Si tu renseignes l&apos;ID d&apos;un modèle de devis (template) Sellsy, chaque devis créé par EVA
-          héritera de sa mise en page, du libellé du service et de ses paramètres d&apos;affichage
-          (par ex. masquage de la référence du service). L&apos;objet, le contact lié et l&apos;opportunité
-          restent générés par EVA.
-        </p>
-        <input
-          type="text"
-          value={estimateModelId}
-          onChange={(e) => setEstimateModelId(e.target.value)}
-          placeholder="ex: 52588111"
-          className="w-full sm:max-w-md px-3 py-2 border rounded-lg text-sm font-jetbrains"
-          style={{ borderColor: "#d1d5db" }}
-        />
-        <p className="text-xs font-jetbrains mt-2" style={{ color: "#9ca3af" }}>
-          Laisser vide pour ne pas appliquer de modèle (Sellsy utilisera ses valeurs par défaut).
-          Pour trouver l&apos;ID : Sellsy → Catalogue → Modèles de devis → l&apos;ID est dans l&apos;URL.
-        </p>
-      </div>
 
       <div className="flex justify-end gap-2">
         <button

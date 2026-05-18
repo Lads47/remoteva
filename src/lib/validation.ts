@@ -168,6 +168,7 @@ export const createFormationSchema = z.object({
   sellsyPipelineId: z.number().int().nullable().optional(),
   sellsyStepInitial: z.number().int().nullable().optional(),
   sellsyServiceId: z.number().int().nullable().optional(),
+  sellsyEstimateModelId: z.number().int().nullable().optional(),
   codeOpportunite: z.string().trim().optional().default(""),
   driveDossierRacineId: z.string().trim().nullable().optional(),
   driveDossierSessionsId: z.string().trim().nullable().optional(),

@@ -55,23 +55,7 @@ export async function setJsonConfig(key: string, value: unknown): Promise<void> 
 export const CONFIG_KEYS = {
   SELLSY_PIPELINE_ID: "sellsy.pipeline_id",
   SELLSY_STEP_MAPPING: "sellsy.step_mapping",
-  SELLSY_ESTIMATE_MODEL_ID: "sellsy.estimate_model_id",
 } as const;
-
-export async function getSellsyEstimateModelId(): Promise<number | null> {
-  const raw = await getConfig(CONFIG_KEYS.SELLSY_ESTIMATE_MODEL_ID);
-  if (!raw) return null;
-  const n = parseInt(raw, 10);
-  return Number.isFinite(n) ? n : null;
-}
-
-export async function setSellsyEstimateModelId(id: number | null): Promise<void> {
-  if (id === null) {
-    await setConfig(CONFIG_KEYS.SELLSY_ESTIMATE_MODEL_ID, "");
-  } else {
-    await setConfig(CONFIG_KEYS.SELLSY_ESTIMATE_MODEL_ID, String(id));
-  }
-}
 
 export async function getSellsyPipelineId(): Promise<number | null> {
   const raw = await getConfig(CONFIG_KEYS.SELLSY_PIPELINE_ID);

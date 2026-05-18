@@ -12,6 +12,7 @@ export interface FormationInfo {
   sellsyPipelineId: number | null;
   sellsyStepInitial: number | null;
   sellsyServiceId: number | null;
+  sellsyEstimateModelId: number | null;
   codeOpportunite: string;
 
   driveDossierRacineId: string | null;
@@ -38,6 +39,7 @@ export interface FormationCreateInput {
   sellsyPipelineId?: number | null;
   sellsyStepInitial?: number | null;
   sellsyServiceId?: number | null;
+  sellsyEstimateModelId?: number | null;
   codeOpportunite?: string;
   driveDossierRacineId?: string | null;
   driveDossierSessionsId?: string | null;
@@ -103,6 +105,7 @@ function toInfo(f: FormationRow): FormationInfo {
     sellsyPipelineId: f.sellsyPipelineId,
     sellsyStepInitial: f.sellsyStepInitial,
     sellsyServiceId: f.sellsyServiceId,
+    sellsyEstimateModelId: f.sellsyEstimateModelId,
     codeOpportunite: f.codeOpportunite,
     driveDossierRacineId: f.driveDossierRacineId,
     driveDossierSessionsId: f.driveDossierSessionsId,

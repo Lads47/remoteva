@@ -136,6 +136,7 @@ model Formation {
   sellsyPipelineId            Int?     @map("sellsy_pipeline_id")
   sellsyStepInitial           Int?     @map("sellsy_step_initial")
   sellsyServiceId             Int?     @map("sellsy_service_id")
+  sellsyEstimateModelId       Int?     @map("sellsy_estimate_model_id")    // ID du modèle (template) de devis Sellsy
   codeOpportunite             String   @default("") @map("code_opportunite")
 
   // Google Drive (templates et arbo cible)
