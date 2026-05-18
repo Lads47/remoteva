@@ -13,7 +13,14 @@ async function authTrainerForSession(token: string | null, sessionId: string) {
   if (!trainer || !trainer.active) return null;
   const session = await prisma.session.findUnique({
     where: { id: sessionId },
-    select: { trainerId: true, dateDebut: true, dateFin: true, code: true },
+    select: {
+      trainerId: true,
+      dateDebut: true,
+      dateFin: true,
+      code: true,
+      lieu: true,
+      formation: { select: { nomLong: true, code: true } },
+    },
   });
   if (!session || session.trainerId !== trainer.id) return null;
   return { trainer, session };
@@ -36,6 +43,15 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
         code: auth.session.code,
         dateDebut: auth.session.dateDebut,
         dateFin: auth.session.dateFin,
+        lieu: auth.session.lieu,
+      },
+      formation: {
+        code: auth.session.formation.code,
+        nomLong: auth.session.formation.nomLong,
+      },
+      trainer: {
+        prenom: auth.trainer.prenom,
+        nom: auth.trainer.nom,
       },
       grid,
     });
