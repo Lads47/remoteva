@@ -155,7 +155,7 @@ export async function POST(_request: NextRequest, ctx: { params: Promise<{ id: s
 
     // === 3. Devis ===
     if (!estimateId) {
-      const subject = `${formation.nomLong} — ${trainee.prenom} ${trainee.nom} — ${trainee.session.code}`;
+      const subject = `${formation.nomLong} — ${trainee.prenom} ${trainee.nom}`;
       const estimate = await createEstimate({
         subject,
         serviceId: formation.sellsyServiceId,
