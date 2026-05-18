@@ -129,6 +129,11 @@ export default function PublicInscriptionPage({ params }: { params: Promise<{ co
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
 
+  // Lit ?session=<id> côté client (window) — disponible après hydratation.
+  // Si la session est valide et ouverte, on la pré-sélectionne au lieu de la première.
+  const preselectSessionId =
+    typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("session") : null;
+
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [financementTouched, setFinancementTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -151,7 +156,13 @@ export default function PublicInscriptionPage({ params }: { params: Promise<{ co
         setSessions(data.sessions);
         setPrerequisSchema(Array.isArray(data.prerequisSchema) ? data.prerequisSchema : []);
         if (data.sessions.length > 0) {
-          setForm((prev) => ({ ...prev, sessionId: data.sessions[0].id }));
+          // Si l'URL a un ?session=<id> et que cette session est dans la liste,
+          // on la pré-sélectionne. Sinon on prend la première par défaut.
+          const fromUrl = preselectSessionId
+            ? data.sessions.find((s: PublicSession) => s.id === preselectSessionId)
+            : null;
+          const chosen = fromUrl ?? data.sessions[0];
+          setForm((prev) => ({ ...prev, sessionId: chosen.id }));
         }
       })
       .catch((err: Error) => setLoadError(err.message))
