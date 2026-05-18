@@ -328,6 +328,13 @@ export interface CreateEstimateInput {
   relatedType: "company" | "individual";
   relatedId: number;
   opportunityId: number;
+  /**
+   * Optionnel : ID du modèle (template) de devis Sellsy à appliquer.
+   * Le modèle fournit la mise en page et les paramètres par défaut
+   * (notamment masquage de la référence du service).
+   * Les champs explicites (subject, rows, related) écrasent le modèle.
+   */
+  modelId?: number;
 }
 
 export interface SellsyEstimate {
@@ -337,24 +344,25 @@ export interface SellsyEstimate {
 }
 
 export async function createEstimate(input: CreateEstimateInput): Promise<SellsyEstimate> {
-  return sellsyFetch<SellsyEstimate>("/estimates", {
-    method: "POST",
-    body: {
-      subject: input.subject,
-      rows: [
-        {
-          type: "catalog",
-          related: { type: "service", id: input.serviceId },
-          unit_amount: String(input.unitAmountHT),
-          quantity: String(input.quantity ?? 1),
-        },
-      ],
-      related: [
-        { type: input.relatedType, id: input.relatedId },
-        { type: "opportunity", id: input.opportunityId },
-      ],
-    },
-  });
+  const body: Record<string, unknown> = {
+    subject: input.subject,
+    rows: [
+      {
+        type: "catalog",
+        related: { type: "service", id: input.serviceId },
+        unit_amount: String(input.unitAmountHT),
+        quantity: String(input.quantity ?? 1),
+      },
+    ],
+    related: [
+      { type: input.relatedType, id: input.relatedId },
+      { type: "opportunity", id: input.opportunityId },
+    ],
+  };
+  if (input.modelId) {
+    body.parent = { type: "model", id: input.modelId };
+  }
+  return sellsyFetch<SellsyEstimate>("/estimates", { method: "POST", body });
 }
 
 /**

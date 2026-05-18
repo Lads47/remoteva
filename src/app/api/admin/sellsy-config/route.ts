@@ -3,8 +3,10 @@ import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import {
   EVA_STATUSES,
+  getSellsyEstimateModelId,
   getSellsyPipelineId,
   getSellsyStepMapping,
+  setSellsyEstimateModelId,
   setSellsyPipelineId,
   setSellsyStepMapping,
 } from "@/lib/appConfig";
@@ -18,6 +20,7 @@ async function requireAuth() {
 const putSchema = z.object({
   pipelineId: z.number().int().positive().nullable(),
   mapping: z.record(z.enum(EVA_STATUSES), z.number().int().positive().nullable().optional()),
+  estimateModelId: z.number().int().positive().nullable().optional(),
 });
 
 // GET /api/admin/sellsy-config
@@ -27,7 +30,8 @@ export async function GET() {
   try {
     const pipelineId = await getSellsyPipelineId();
     const mapping = await getSellsyStepMapping();
-    return NextResponse.json({ pipelineId, mapping });
+    const estimateModelId = await getSellsyEstimateModelId();
+    return NextResponse.json({ pipelineId, mapping, estimateModelId });
   } catch (error) {
     console.error("[/api/admin/sellsy-config] GET error:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
@@ -56,6 +60,9 @@ export async function PUT(request: NextRequest) {
       if (typeof v === "number") cleanMapping[k] = v;
     }
     await setSellsyStepMapping(cleanMapping);
+    if (parsed.data.estimateModelId !== undefined) {
+      await setSellsyEstimateModelId(parsed.data.estimateModelId);
+    }
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("[/api/admin/sellsy-config] PUT error:", error);

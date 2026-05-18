@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { getTraineeWithDetails, updateTrainee, recordTraineeEvent } from "@/lib/trainee";
 import { getFormationById } from "@/lib/formation";
-import { getSellsyPipelineId, getSellsyStepMapping } from "@/lib/appConfig";
+import { getSellsyEstimateModelId, getSellsyPipelineId, getSellsyStepMapping } from "@/lib/appConfig";
 import { parseFrenchAddress } from "@/lib/address";
 import {
   createCompany,
@@ -156,6 +156,7 @@ export async function POST(_request: NextRequest, ctx: { params: Promise<{ id: s
     // === 3. Devis ===
     if (!estimateId) {
       const subject = `${formation.nomLong} — ${trainee.prenom} ${trainee.nom}`;
+      const modelId = await getSellsyEstimateModelId();
       const estimate = await createEstimate({
         subject,
         serviceId: formation.sellsyServiceId,
@@ -163,6 +164,7 @@ export async function POST(_request: NextRequest, ctx: { params: Promise<{ id: s
         relatedType,
         relatedId,
         opportunityId,
+        modelId: modelId ?? undefined,
       });
       estimateId = estimate.id;
       await updateTrainee(trainee.id, { sellsyEstimateId: estimateId });
@@ -170,6 +172,7 @@ export async function POST(_request: NextRequest, ctx: { params: Promise<{ id: s
         type: "estimate_created",
         sellsyEstimateId: estimateId,
         subject,
+        modelId: modelId ?? null,
       });
     }
 
