@@ -40,3 +40,17 @@ export const EVA_STATUS_LABELS: Record<EvaStatus, string> = {
 };
 
 export type SellsyStepMapping = Partial<Record<EvaStatus, number>>;
+
+// Palette par statut (background + foreground), utilisée pour le dropdown chip.
+export const EVA_STATUS_COLORS: Record<EvaStatus, { bg: string; fg: string }> = {
+  inscrit:            { bg: "#e0e7ff", fg: "#3730a3" }, // indigo
+  devis_envoye:       { bg: "#dbeafe", fg: "#1e40af" }, // bleu
+  devis_signe:        { bg: "#cffafe", fg: "#155e75" }, // cyan
+  convention_envoyee: { bg: "#fef3c7", fg: "#92400e" }, // ambre
+  convention_signee:  { bg: "#fed7aa", fg: "#9a3412" }, // orange
+  valide:             { bg: "#dcfce7", fg: "#166534" }, // vert
+  convoque:           { bg: "#e9d5ff", fg: "#6b21a8" }, // violet
+  en_formation:       { bg: "#bbf7d0", fg: "#14532d" }, // vert foncé
+  termine:            { bg: "#d1d5db", fg: "#374151" }, // gris
+  abandonne:          { bg: "#fee2e2", fg: "#991b1b" }, // rouge
+};
