@@ -172,17 +172,20 @@ model Session {
   status           String   @default("planned")                              // planned|open|full|closed|cancelled
   driveFolderId    String?  @map("drive_folder_id")                          // Dossier session sur Drive
   driveSuiviFileId String?  @map("drive_suivi_file_id")                      // Sheet de suivi (legacy)
+  trainerId        String?  @map("trainer_id")                                // Formateur assigné (optionnel)
   notes            String   @default("")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt      @map("updated_at")
 
   formation        Formation @relation(fields: [formationId], references: [id], onDelete: Restrict)
+  trainer          Trainer?  @relation(fields: [trainerId], references: [id], onDelete: SetNull)
   trainees         Trainee[]
 
   @@map("formation_sessions")
   @@index([formationId])
   @@index([dateDebut])
   @@index([status])
+  @@index([trainerId])
 }
 
 // Trainee = stagiaire inscrit à une session
@@ -292,6 +295,24 @@ model TraineeEvent {
 
   @@map("trainee_events")
   @@index([traineeId, createdAt])
+}
+
+// Formateur (intermittent ou interne qui anime une session de formation)
+model Trainer {
+  id          String   @id @default(cuid())
+  nom         String
+  prenom      String
+  email       String   @unique
+  telephone   String   @default("")
+  magicToken  String   @unique @map("magic_token")
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  sessions    Session[]
+
+  @@map("trainers")
+  @@index([magicToken])
+  @@index([active])
 }
 
 // === Configuration globale (clé/valeur) ===

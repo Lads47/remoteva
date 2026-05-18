@@ -192,6 +192,7 @@ export const createSessionSchema = z.object({
   lieu: z.string().trim().optional().default(""),
   horaires: z.string().trim().optional().default(""),
   status: sessionStatusSchema.optional(),
+  trainerId: z.string().trim().nullable().optional(),
   notes: z.string().trim().optional().default(""),
 });
 
@@ -263,6 +264,22 @@ export const publicInscriptionSchema = z
     }
   });
 
+// Trainers (formateurs)
+export const createTrainerSchema = z.object({
+  nom: z.string().trim().min(1, "Nom requis"),
+  prenom: z.string().trim().min(1, "Prénom requis"),
+  email: emailSchema,
+  telephone: z.string().trim().optional().default(""),
+});
+
+export const updateTrainerSchema = z.object({
+  nom: z.string().trim().min(1).optional(),
+  prenom: z.string().trim().min(1).optional(),
+  email: emailSchema.optional(),
+  telephone: z.string().trim().optional(),
+  active: z.boolean().optional(),
+});
+
 // Admin update d'un stagiaire (correction de saisie principalement).
 // Pas d'édition de la session ni du type d'inscription après création
 // (ces champs sont liés aux ressources Sellsy déjà créées).
@@ -307,6 +324,7 @@ export const updateSessionSchema = z.object({
   status: sessionStatusSchema.optional(),
   driveFolderId: z.string().trim().nullable().optional(),
   driveSuiviFileId: z.string().trim().nullable().optional(),
+  trainerId: z.string().trim().nullable().optional(),
   notes: z.string().trim().optional(),
 });
 

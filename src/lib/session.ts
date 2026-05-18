@@ -14,6 +14,8 @@ export interface SessionInfo {
   status: string;
   driveFolderId: string | null;
   driveSuiviFileId: string | null;
+  trainerId: string | null;
+  trainerNomComplet: string | null;          // "Prénom NOM" dénormalisé pour affichage
   notes: string;
   traineeCount: number;
   createdAt: Date;
@@ -29,6 +31,7 @@ export interface SessionCreateInput {
   lieu?: string;
   horaires?: string;
   status?: string;
+  trainerId?: string | null;
   notes?: string;
 }
 
@@ -42,6 +45,7 @@ export interface SessionUpdateInput {
   status?: string;
   driveFolderId?: string | null;
   driveSuiviFileId?: string | null;
+  trainerId?: string | null;
   notes?: string;
 }
 
@@ -49,6 +53,7 @@ export async function getAllSessions(): Promise<SessionInfo[]> {
   const list = await prisma.session.findMany({
     include: {
       formation: { select: { code: true, nomLong: true } },
+      trainer: { select: { id: true, prenom: true, nom: true } },
       _count: { select: { trainees: true } },
     },
     orderBy: { dateDebut: "desc" },
@@ -61,6 +66,7 @@ export async function getSessionsByFormation(formationId: string): Promise<Sessi
     where: { formationId },
     include: {
       formation: { select: { code: true, nomLong: true } },
+      trainer: { select: { id: true, prenom: true, nom: true } },
       _count: { select: { trainees: true } },
     },
     orderBy: { dateDebut: "desc" },
@@ -73,6 +79,7 @@ export async function getSessionById(id: string): Promise<SessionInfo | null> {
     where: { id },
     include: {
       formation: { select: { code: true, nomLong: true } },
+      trainer: { select: { id: true, prenom: true, nom: true } },
       _count: { select: { trainees: true } },
     },
   });
@@ -118,10 +125,12 @@ export async function createSession(input: SessionCreateInput): Promise<SessionI
       lieu: input.lieu ?? "",
       horaires: input.horaires ?? "",
       status: input.status ?? "planned",
+      trainerId: input.trainerId ?? null,
       notes: input.notes ?? "",
     },
     include: {
       formation: { select: { code: true, nomLong: true } },
+      trainer: { select: { id: true, prenom: true, nom: true } },
       _count: { select: { trainees: true } },
     },
   });
@@ -139,6 +148,7 @@ export async function updateSession(id: string, input: SessionUpdateInput): Prom
   if (input.status !== undefined) data.status = input.status;
   if (input.driveFolderId !== undefined) data.driveFolderId = input.driveFolderId;
   if (input.driveSuiviFileId !== undefined) data.driveSuiviFileId = input.driveSuiviFileId;
+  if (input.trainerId !== undefined) data.trainerId = input.trainerId;
   if (input.notes !== undefined) data.notes = input.notes;
 
   const s = await prisma.session.update({
@@ -146,6 +156,7 @@ export async function updateSession(id: string, input: SessionUpdateInput): Prom
     data,
     include: {
       formation: { select: { code: true, nomLong: true } },
+      trainer: { select: { id: true, prenom: true, nom: true } },
       _count: { select: { trainees: true } },
     },
   });
@@ -158,6 +169,7 @@ export async function deleteSession(id: string): Promise<void> {
 
 type SessionRow = Awaited<ReturnType<typeof prisma.session.findUniqueOrThrow>> & {
   formation: { code: string; nomLong: string };
+  trainer: { id: string; prenom: string; nom: string } | null;
   _count: { trainees: number };
 };
 
@@ -176,6 +188,8 @@ function toInfo(s: SessionRow): SessionInfo {
     status: s.status,
     driveFolderId: s.driveFolderId,
     driveSuiviFileId: s.driveSuiviFileId,
+    trainerId: s.trainerId,
+    trainerNomComplet: s.trainer ? `${s.trainer.prenom} ${s.trainer.nom}` : null,
     notes: s.notes,
     traineeCount: s._count.trainees,
     createdAt: s.createdAt,

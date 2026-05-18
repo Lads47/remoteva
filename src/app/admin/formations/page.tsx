@@ -222,6 +222,13 @@ export default function FormationsPage() {
         </div>
         <div className="flex gap-2 flex-wrap">
           <Link
+            href="/admin/formations/trainers"
+            className="px-4 py-2 rounded-full text-sm font-medium border transition-colors cursor-pointer"
+            style={{ borderColor: "#1f2244", color: "#1f2244" }}
+          >
+            👤 Formateurs
+          </Link>
+          <Link
             href="/admin/formations/sellsy-config"
             className="px-4 py-2 rounded-full text-sm font-medium border transition-colors cursor-pointer"
             style={{ borderColor: "#1f2244", color: "#1f2244" }}

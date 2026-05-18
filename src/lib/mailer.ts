@@ -315,6 +315,70 @@ Les Ateliers du Stream`;
 }
 
 /**
+ * Mail de bienvenue envoyé à un formateur avec son magic-link d'accès
+ * à l'espace formateur.
+ */
+export async function sendTrainerWelcomeEmail(params: {
+  to: string;
+  prenom: string;
+  nom: string;
+  magicLink: string;
+}): Promise<SendEmailResult> {
+  const replyTo = process.env.ADMIN_NOTIFY_EMAIL;
+  const safe = {
+    prenom: escapeHtml(params.prenom),
+    magicLink: escapeHtml(params.magicLink),
+  };
+
+  const html = `<!DOCTYPE html>
+<html lang="fr">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #1f2244;">
+  <h1 style="font-size: 22px; margin: 0 0 16px;">Bienvenue dans votre espace formateur</h1>
+  <p>Bonjour ${safe.prenom},</p>
+  <p>Voici votre lien personnel d'accès à l'espace formateur des <strong>Ateliers du Stream</strong>.
+  Vous y trouverez les sessions de formation qui vous sont assignées, avec la liste des stagiaires
+  inscrits et leurs réponses aux questionnaires de pré-requis.</p>
+
+  <p style="margin: 24px 0; text-align: center;">
+    <a href="${safe.magicLink}" style="display: inline-block; padding: 12px 22px; background: #1f2244; color: white; text-decoration: none; border-radius: 999px; font-weight: 600;">
+      Accéder à mon espace
+    </a>
+  </p>
+
+  <p style="background: #fef3c7; padding: 12px 16px; border-radius: 8px; border-left: 4px solid #f59e0b; font-size: 13px;">
+    <strong>Conservez précieusement ce lien</strong> — c'est votre clé d'accès personnelle.
+    Si vous l'égarez, contactez-nous pour qu'on vous en génère un nouveau.
+  </p>
+
+  <p>Bien cordialement,<br/>Noémie Marphay<br/><em>Les Ateliers du Stream</em></p>
+</body>
+</html>`;
+
+  const text = `Bonjour ${params.prenom},
+
+Bienvenue dans votre espace formateur des Ateliers du Stream.
+
+Voici votre lien personnel d'accès :
+${params.magicLink}
+
+Vous y trouverez les sessions de formation qui vous sont assignées, avec la liste des stagiaires inscrits et leurs réponses aux questionnaires de pré-requis.
+
+Conservez précieusement ce lien — c'est votre clé d'accès personnelle. Si vous l'égarez, contactez-nous pour qu'on vous en génère un nouveau.
+
+Bien cordialement,
+Noémie Marphay
+Les Ateliers du Stream`;
+
+  return sendEmail({
+    to: params.to,
+    subject: "Bienvenue dans votre espace formateur — Les Ateliers du Stream",
+    html,
+    text,
+    replyTo,
+  });
+}
+
+/**
  * Mail interne envoyé à Noémie pour l'alerter d'une nouvelle inscription.
  */
 export async function sendInscriptionAdminNotif(params: {

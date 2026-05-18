@@ -17,6 +17,8 @@ interface Session {
   horaires: string;
   status: string;
   driveFolderId: string | null;
+  trainerId: string | null;
+  trainerNomComplet: string | null;
   notes: string;
   traineeCount: number;
 }
@@ -27,6 +29,13 @@ interface Formation {
   nomLong: string;
   active: boolean;
   dureeJours: number;
+}
+
+interface TrainerOption {
+  id: string;
+  prenom: string;
+  nom: string;
+  active: boolean;
 }
 
 function addDays(yyyyMmDd: string, days: number): string {
@@ -89,6 +98,7 @@ type FormState = {
   lieu: string;
   horaires: string;
   status: string;
+  trainerId: string;
   notes: string;
 };
 
@@ -105,6 +115,7 @@ function emptyForm(formationId = ""): FormState {
     lieu: DEFAULT_LIEU,
     horaires: DEFAULT_HORAIRES,
     status: "planned",
+    trainerId: "",
     notes: "",
   };
 }
@@ -116,6 +127,7 @@ function SessionsPageInner() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [formations, setFormations] = useState<Formation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [trainers, setTrainers] = useState<TrainerOption[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm(filterFormationId));
@@ -124,7 +136,9 @@ function SessionsPageInner() {
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
   useEffect(() => {
-    Promise.all([fetchSessions(filterFormationId), fetchFormations()]).finally(() => setLoading(false));
+    Promise.all([fetchSessions(filterFormationId), fetchFormations(), fetchTrainers()]).finally(() =>
+      setLoading(false)
+    );
   }, [filterFormationId]);
 
   async function fetchSessions(formationId?: string) {
@@ -150,6 +164,16 @@ function SessionsPageInner() {
     }
   }
 
+  async function fetchTrainers() {
+    try {
+      const res = await fetch("/api/admin/trainers");
+      const data = await res.json();
+      if (Array.isArray(data.trainers)) setTrainers(data.trainers);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
   function toFormState(s: Session): FormState {
     return {
       formationId: s.formationId,
@@ -160,6 +184,7 @@ function SessionsPageInner() {
       lieu: s.lieu,
       horaires: s.horaires,
       status: s.status,
+      trainerId: s.trainerId ?? "",
       notes: s.notes,
     };
   }
@@ -178,6 +203,7 @@ function SessionsPageInner() {
         lieu: form.lieu.trim(),
         horaires: form.horaires.trim(),
         status: form.status,
+        trainerId: form.trainerId === "" ? null : form.trainerId,
         notes: form.notes.trim(),
       };
       const method = editingId ? "PUT" : "POST";
@@ -191,6 +217,7 @@ function SessionsPageInner() {
             lieu: payload.lieu,
             horaires: payload.horaires,
             status: payload.status,
+            trainerId: payload.trainerId,
             notes: payload.notes,
           }
         : payload;
@@ -432,6 +459,23 @@ function SessionsPageInner() {
                 ))}
               </select>
             </Field>
+            <Field label="Formateur" full>
+              <select
+                value={form.trainerId}
+                onChange={(e) => setForm({ ...form, trainerId: e.target.value })}
+                className="input"
+              >
+                <option value="">— Aucun formateur assigné —</option>
+                {trainers
+                  .filter((t) => t.active || t.id === form.trainerId)
+                  .map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.prenom} {t.nom}
+                      {!t.active ? " (désactivé)" : ""}
+                    </option>
+                  ))}
+              </select>
+            </Field>
             <Field label="Lieu" full>
               <input
                 type="text"
@@ -540,6 +584,12 @@ function SessionsPageInner() {
                   {s.horaires && ` · ${s.horaires}`}
                   {" · "}
                   {s.traineeCount}/{s.capacite} stagiaire{s.traineeCount > 1 ? "s" : ""}
+                  {" · "}
+                  {s.trainerNomComplet ? (
+                    <span style={{ color: "#1f2244" }}>Formateur : {s.trainerNomComplet}</span>
+                  ) : (
+                    <span style={{ color: "#9ca3af" }}>Pas de formateur</span>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-2 ml-4">
