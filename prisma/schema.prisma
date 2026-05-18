@@ -256,6 +256,7 @@ model Trainee {
   session                  Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   documents                TraineeDocument[]
   events                   TraineeEvent[]
+  attendances              Attendance[]
 
   @@map("trainees")
   @@index([sessionId])
@@ -280,6 +281,26 @@ model TraineeDocument {
   @@map("trainee_documents")
   @@index([traineeId])
   @@index([type])
+}
+
+// Émargement : présence d'un stagiaire pour une demi-journée donnée d'une session
+model Attendance {
+  id          String   @id @default(cuid())
+  traineeId   String   @map("trainee_id")
+  date        DateTime                                                      // Date à 00:00 UTC du jour
+  slot        String                                                        // "morning" | "afternoon"
+  status      String                                                        // "present" | "absent"
+  notes       String   @default("")
+  signedById  String?  @map("signed_by_id")                                 // FK Trainer (qui a saisi)
+  signedAt    DateTime @default(now()) @map("signed_at")
+
+  trainee     Trainee  @relation(fields: [traineeId], references: [id], onDelete: Cascade)
+  signedBy    Trainer? @relation(fields: [signedById], references: [id], onDelete: SetNull)
+
+  @@unique([traineeId, date, slot])
+  @@map("attendances")
+  @@index([traineeId])
+  @@index([date])
 }
 
 // Journal d'événements pour audit Qualiopi (timeline du stagiaire)
@@ -308,7 +329,8 @@ model Trainer {
   active      Boolean  @default(true)
   createdAt   DateTime @default(now()) @map("created_at")
 
-  sessions    Session[]
+  sessions          Session[]
+  attendancesSigned Attendance[]
 
   @@map("trainers")
   @@index([magicToken])

@@ -135,21 +135,30 @@ function FormateurSessionInner({ id }: { id: string }) {
         </Link>
 
         {/* Header */}
-        <div className="mt-3">
-          <span
-            className="px-2 py-0.5 rounded text-xs font-jetbrains"
-            style={{ backgroundColor: "#1f2244", color: "white" }}
+        <div className="mt-3 flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <span
+              className="px-2 py-0.5 rounded text-xs font-jetbrains"
+              style={{ backgroundColor: "#1f2244", color: "white" }}
+            >
+              {session.code}
+            </span>
+            <h1 className="mt-2 text-3xl font-bold" style={{ color: "#1f2244" }}>
+              {formation.nomLong}
+            </h1>
+            <p className="mt-1 text-sm font-jetbrains" style={{ color: "#727485" }}>
+              Du {fmtDate(session.dateDebut)} au {fmtDate(session.dateFin)}
+              {session.lieu && ` · ${session.lieu}`}
+              {session.horaires && ` · ${session.horaires}`}
+            </p>
+          </div>
+          <Link
+            href={`/formateur/sessions/${id}/emargement?token=${encodeURIComponent(token)}`}
+            className="px-4 py-2 rounded-full text-sm font-medium text-white cursor-pointer mt-2"
+            style={{ backgroundColor: "#1f2244" }}
           >
-            {session.code}
-          </span>
-          <h1 className="mt-2 text-3xl font-bold" style={{ color: "#1f2244" }}>
-            {formation.nomLong}
-          </h1>
-          <p className="mt-1 text-sm font-jetbrains" style={{ color: "#727485" }}>
-            Du {fmtDate(session.dateDebut)} au {fmtDate(session.dateFin)}
-            {session.lieu && ` · ${session.lieu}`}
-            {session.horaires && ` · ${session.horaires}`}
-          </p>
+            ✓ Émargement
+          </Link>
         </div>
 
         {/* Stagiaires */}
