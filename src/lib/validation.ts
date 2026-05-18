@@ -291,6 +291,11 @@ export const adminUpdateTraineeSchema = z.object({
   attentes: z.string().trim().optional(),
 });
 
+// Transition de statut d'un stagiaire (Kanban EVA + sync Sellsy)
+export const traineeStatusTransitionSchema = z.object({
+  status: z.enum(VALID_TRAINEE_STATUSES),
+});
+
 export const updateSessionSchema = z.object({
   code: z.string().trim().min(1).optional(),
   dateDebut: dateString.optional(),
