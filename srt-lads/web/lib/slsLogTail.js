@@ -7,14 +7,15 @@
 // Évènements parsés :
 //   - "CSLSListener::handler, new client[<ip>:<port>], fd=<fd>"
 //   - "CSLSListener::handler, [<ip>:<port>], sid '<streamid>'"
-//   - "CSLSListener::handler, new pub=<addr>, key_stream_name=<streamid>"
-//   - "CSLSListener::handler, new player[<ip>:<port>], key_stream_name=<streamid>"
-//   - "CSLSPublisher::uninit, removed publisher from m_map_publisher"
-//   - "CSLSPlayer::uninit, ..."  (déconnexion player)
-//   - "CSLSSrt::libsrt_close, fd=<fd>"
-//   - "CSLSSrt::libsrt_neterrno, err=6003" (timeout)
+//   - "CSLSListener::handler, new pub=0x<addr>, key_stream_name=<streamid>"
+//   - "CSLSListener::handler, new player[0x<addr>]=[<ip>:<port>], key_stream_name=..."
+//   - "[0x<addr>]CSLSPublisher::uninit, removed publisher from m_map_data"
+//   - "[0x<addr>]CSLSPlayer::uninit, ..."  (déconnexion player)
 //
-// État maintenu : Map<fd, connection> + émetteur EventEmitter pour broadcast.
+// État maintenu : Map<fd, connection> + index Map<addr, fd>.
+// SLS écrit les "uninit" sans le fd dans la ligne — on doit donc relier par
+// l'adresse mémoire de l'objet Publisher/Player.
+//
 // Limitations connues (documentées dans PHASE2_PROGRESS) :
 //   - Pas de bitrate / RTT / pertes (non exposés par SLS v1.4.9)
 //   - Détection basée sur les logs : précision ~100ms, dépend du buffer log
@@ -22,7 +23,6 @@
 'use strict';
 
 const fs = require('fs');
-const path = require('path');
 const { EventEmitter } = require('events');
 const readline = require('readline');
 
@@ -34,11 +34,13 @@ const events = new EventEmitter();
 
 // Map fd → connection
 const connections = new Map();
-// Map clientKey "ip:port" → pré-info (le log SLS arrive par fragments, on assemble)
+// Map addr (hex string sans 0x) → fd, pour retrouver une connection depuis
+// une ligne "[0xADDR]CSLSPublisher::uninit" qui n'a pas le fd.
+const addrToFd = new Map();
+// Map clientKey "ip:port" → pré-info (le log SLS arrive par fragments)
 const pending = new Map();
 
 function now() { return new Date().toISOString(); }
-function age(ms) { return Math.max(0, Date.now() - ms); }
 
 function parseStreamId(sid) {
   // Format attendu : "<domain>/<app>/<stream>" (3 segments)
@@ -69,53 +71,60 @@ const PATTERNS = [
       if (p) p.sid = sid;
     },
   },
-  // new pub=ADDR, key_stream_name=xxx
-  // Restreint la capture à [a-z0-9-_/] (cf validation streamId côté projects.js)
-  // — évite de capturer le point final ajouté par SLS en fin de ligne.
+  // new pub=0xADDR, key_stream_name=xxx
   {
-    re: /new pub=0x[0-9a-f]+,\s*key_stream_name=([a-zA-Z0-9\-_/]+)/,
-    fn: (m, ts, line) => addConnection('publisher', m[1], ts, line),
+    re: /new pub=0x([0-9a-f]+),\s*key_stream_name=([a-zA-Z0-9\-_/]+)/,
+    fn: (m, ts) => addConnection('publisher', m[1], m[2], ts),
   },
   // new player[0xADDR]=[ip:port], key_stream_name=publish/live/xxx
-  // NB: SLS v1.4.9 logue le key_stream_name du publisher correspondant (préfixe
+  // SLS v1.4.9 logue le key_stream_name du publisher correspondant (préfixe
   // publish/). On normalise en play/ pour cohérence côté UI (rôle = player).
   {
-    re: /new player\[0x[0-9a-f]+\]=\[[0-9.:a-fA-F]+:\d+\],\s*key_stream_name=([a-zA-Z0-9\-_/]+)/,
-    fn: (m, ts, line) => {
-      const sid = m[1].replace(/^publish\//, 'play/');
-      addConnection('player', sid, ts, line);
+    re: /new player\[0x([0-9a-f]+)\]=\[[0-9.:a-fA-F]+:\d+\],\s*key_stream_name=([a-zA-Z0-9\-_/]+)/,
+    fn: (m, ts) => {
+      const sid = m[2].replace(/^publish\//, 'play/');
+      addConnection('player', m[1], sid, ts);
     },
   },
-  // libsrt_close, fd=NNN
+  // [0xADDR]CSLSPublisher::uninit, removed publisher from m_map_data
+  // (Plusieurs lignes uninit peuvent suivre — m_map_data / m_map_publisher —
+  //  notre removeByAddr est idempotent.)
+  {
+    re: /\[0x([0-9a-f]+)\]CSLSPublisher::uninit/,
+    fn: (m, ts) => removeByAddr(m[1], ts, 'publisher-uninit'),
+  },
+  // [0xADDR]CSLSPlayer::uninit
+  {
+    re: /\[0x([0-9a-f]+)\]CSLSPlayer::uninit/,
+    fn: (m, ts) => removeByAddr(m[1], ts, 'player-uninit'),
+  },
+  // Filet de sécurité : si on rate l'uninit, le close socket nettoie quand même
+  // (fonctionnait avant le fix d'adresse pour les cas simples).
   {
     re: /libsrt_close,\s*fd=(\d+)/,
-    fn: (m, ts) => removeByFd(parseInt(m[1], 10), ts, 'closed'),
-  },
-  // libsrt_neterrno, err=6003 (timeout) — on ne remove pas sur cette ligne, la close suit
-  {
-    re: /libsrt_neterrno,\s*err=(\d+)/,
-    fn: (m) => { /* noted; close suivra */ },
+    fn: (m, ts) => removeByFd(parseInt(m[1], 10), ts, 'socket-closed'),
   },
 ];
 
-function addConnection(role, streamid, ts, line) {
+function addConnection(role, addr, streamid, ts) {
   // Récupère la pré-info (fd/ip/port) la plus récente avec ce sid
   let pre = null;
   for (const [k, v] of pending) {
     if (v.sid === streamid) { pre = v; pending.delete(k); break; }
   }
-  // Fallback : prend la dernière pré-info sans sid (cas rare)
   if (!pre) {
+    // Fallback : pré-info la plus récente sans sid
     let latest = null;
-    for (const [k, v] of pending) { if (!latest || v.ts > latest.ts) { latest = v; } }
+    for (const [, v] of pending) { if (!latest || v.ts > latest.ts) { latest = v; } }
     if (latest) { pre = latest; pending.delete(latest.ip + ':' + latest.port); }
   }
   if (!pre) {
-    logger.warn('SLS log : add sans pre-info', { role, streamid });
+    logger.warn('SLS log : add sans pre-info', { role, streamid, addr });
     return;
   }
   const conn = {
     fd: pre.fd,
+    addr, // adresse mémoire SLS (sans le 0x)
     role,
     streamId: streamid,
     parsedSid: parseStreamId(streamid),
@@ -125,6 +134,7 @@ function addConnection(role, streamid, ts, line) {
     lastEventAt: ts,
   };
   connections.set(conn.fd, conn);
+  addrToFd.set(addr, conn.fd);
   events.emit('connection-added', conn);
   events.emit('change');
 }
@@ -133,16 +143,21 @@ function removeByFd(fd, ts, reason) {
   const conn = connections.get(fd);
   if (!conn) return;
   connections.delete(fd);
+  if (conn.addr) addrToFd.delete(conn.addr);
   events.emit('connection-removed', { ...conn, endedAt: ts, reason });
   events.emit('change');
 }
 
+function removeByAddr(addr, ts, reason) {
+  const fd = addrToFd.get(addr);
+  if (fd === undefined) return; // déjà retiré ou jamais ajouté
+  removeByFd(fd, ts, reason);
+}
+
 function processLine(line) {
-  // Timestamp est en début de ligne : "2026-05-17 13:24:01:123 SLS INFO: ..."
   const tsMatch = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}):(\d{3})/);
   let ts = now();
   if (tsMatch) {
-    // SLS utilise "YYYY-MM-DD HH:MM:SS:MMM", on convertit en ISO local
     const iso = tsMatch[1].replace(' ', 'T') + '.' + tsMatch[2];
     ts = new Date(iso).toISOString();
   }
@@ -159,8 +174,6 @@ function start(logFile) {
   const file = logFile || DEFAULT_LOG;
   tailStartedAt = Date.now();
 
-  // On utilise un child_process tail -F pour suivre les rotations.
-  // Si tail n'est pas dispo (dev Windows), fallback : poll fs.watchFile.
   const isWindows = process.platform === 'win32';
   if (isWindows || !fs.existsSync(file)) {
     logger.warn('SLS log indisponible, monitoring désactivé', { file, isWindows });
@@ -174,7 +187,6 @@ function start(logFile) {
   tailProc.on('exit', (code) => {
     logger.warn('SLS tail exited', { code });
     tailProc = null;
-    // Tente un redémarrage après 5s
     setTimeout(() => start(file), 5000);
   });
   logger.info('SLS log tail démarré', { file });
@@ -211,7 +223,6 @@ function getStats() {
   };
 }
 
-// Health : VERT si publisher actif récent, ORANGE si rien depuis >60s, GRIS si offline
 function healthLevel() {
   const stats = getStats();
   if (!stats.server.tailRunning) return { level: 'unknown', label: 'Monitoring indisponible' };
