@@ -36,8 +36,6 @@ type FormState = {
   prixHT: string;
   dureeJours: string;
   active: boolean;
-  sellsyPipelineId: string;
-  sellsyStepInitial: string;
   sellsyServiceId: string;
   sellsyEstimateModelId: string;
   codeOpportunite: string;
@@ -58,8 +56,6 @@ const EMPTY_FORM: FormState = {
   prixHT: "",
   dureeJours: "1",
   active: true,
-  sellsyPipelineId: "",
-  sellsyStepInitial: "",
   sellsyServiceId: "",
   sellsyEstimateModelId: "",
   codeOpportunite: "",
@@ -107,8 +103,6 @@ export default function FormationsPage() {
       prixHT: f.prixHT.toString(),
       dureeJours: f.dureeJours.toString(),
       active: f.active,
-      sellsyPipelineId: f.sellsyPipelineId?.toString() ?? "",
-      sellsyStepInitial: f.sellsyStepInitial?.toString() ?? "",
       sellsyServiceId: f.sellsyServiceId?.toString() ?? "",
       sellsyEstimateModelId: f.sellsyEstimateModelId?.toString() ?? "",
       codeOpportunite: f.codeOpportunite,
@@ -133,8 +127,6 @@ export default function FormationsPage() {
       prixHT: parseFloat(f.prixHT) || 0,
       dureeJours: parseInt(f.dureeJours, 10) || 1,
       active: f.active,
-      sellsyPipelineId: toIntOrNull(f.sellsyPipelineId),
-      sellsyStepInitial: toIntOrNull(f.sellsyStepInitial),
       sellsyServiceId: toIntOrNull(f.sellsyServiceId),
       sellsyEstimateModelId: toIntOrNull(f.sellsyEstimateModelId),
       codeOpportunite: f.codeOpportunite.trim(),
@@ -337,23 +329,7 @@ export default function FormationsPage() {
             </Field>
           </Section>
 
-          <Section title="Configuration Sellsy" hint="IDs Sellsy pour la création d'opportunités et de devis">
-            <Field label="Pipeline ID">
-              <input
-                type="text"
-                value={form.sellsyPipelineId}
-                onChange={(e) => setForm({ ...form, sellsyPipelineId: e.target.value })}
-                className="input"
-              />
-            </Field>
-            <Field label="Step initial">
-              <input
-                type="text"
-                value={form.sellsyStepInitial}
-                onChange={(e) => setForm({ ...form, sellsyStepInitial: e.target.value })}
-                className="input"
-              />
-            </Field>
+          <Section title="Configuration Sellsy" hint="Pipeline + step mapping sont gérés globalement dans « Config Sellsy ». Ici on configure ce qui change par formation : service, modèle de devis, code opportunité.">
             <Field label="Service ID (catalogue Sellsy)">
               <input
                 type="text"
@@ -523,7 +499,7 @@ export default function FormationsPage() {
                   {f.dureeJours > 1 ? "s" : ""}
                 </div>
                 <div className="text-xs mt-1 flex gap-3 font-jetbrains" style={{ color: "#9ca3af" }}>
-                  <span>Sellsy: {f.sellsyPipelineId ? "ok" : "à configurer"}</span>
+                  <span>Sellsy: {f.sellsyServiceId ? "ok" : "à configurer"}</span>
                   <span>Drive: {f.driveDossierRacineId ? "ok" : "à configurer"}</span>
                 </div>
               </div>
