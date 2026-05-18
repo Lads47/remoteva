@@ -366,17 +366,49 @@ export default function PublicInscriptionPage({ params }: { params: Promise<{ co
 
                 {/* Identité */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <Field label="Nom" error={fieldErrors.nom} required>
-                    <input type="text" value={form.nom} onChange={(e) => setForm({ ...form, nom: e.target.value })} className="input" required />
-                  </Field>
                   <Field label="Prénom" error={fieldErrors.prenom} required>
-                    <input type="text" value={form.prenom} onChange={(e) => setForm({ ...form, prenom: e.target.value })} className="input" required />
+                    <input
+                      type="text"
+                      autoComplete="given-name"
+                      value={form.prenom}
+                      onChange={(e) => setForm({ ...form, prenom: e.target.value })}
+                      placeholder="Marie"
+                      className="input"
+                      required
+                    />
+                  </Field>
+                  <Field label="Nom de famille" error={fieldErrors.nom} required>
+                    <input
+                      type="text"
+                      autoComplete="family-name"
+                      value={form.nom}
+                      onChange={(e) => setForm({ ...form, nom: e.target.value })}
+                      placeholder="Dupont"
+                      className="input"
+                      required
+                    />
                   </Field>
                   <Field label="Adresse e-mail" error={fieldErrors.email} required>
-                    <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="input" required />
+                    <input
+                      type="email"
+                      autoComplete="email"
+                      value={form.email}
+                      onChange={(e) => setForm({ ...form, email: e.target.value })}
+                      placeholder="marie.dupont@exemple.fr"
+                      className="input"
+                      required
+                    />
                   </Field>
                   <Field label="Téléphone" error={fieldErrors.telephone} required>
-                    <input type="tel" value={form.telephone} onChange={(e) => setForm({ ...form, telephone: e.target.value })} className="input" required />
+                    <input
+                      type="tel"
+                      autoComplete="tel"
+                      value={form.telephone}
+                      onChange={(e) => setForm({ ...form, telephone: e.target.value })}
+                      placeholder="06 12 34 56 78"
+                      className="input"
+                      required
+                    />
                   </Field>
                 </div>
 
