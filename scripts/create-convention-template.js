@@ -60,7 +60,6 @@ const NORMAL = "NORMAL_TEXT";
 const segments = [
   ["Convention de formation professionnelle\n", TITLE],
   ["Articles L. 6353-1 et L. 6353-2 du Code du travail\n", NORMAL],
-  ["Référence : {{SESSION_CODE}}\n", NORMAL],
   ["\n", NORMAL],
 
   ["Entre les soussignés\n", HEAD],
@@ -100,7 +99,6 @@ const segments = [
   ["Le bénéficiaire entend faire participer le stagiaire désigné à l'article 2 à l'action de formation suivante, organisée par Les Ateliers du Stream.\n", NORMAL],
   ["\n", NORMAL],
   ["Intitulé : {{FORMATION}}\n", NORMAL],
-  ["Référence interne : {{FORMATION_CODE}}\n", NORMAL],
   ["Nature : action d'adaptation et de développement des compétences des salariés (formation en présentiel)\n", NORMAL],
   ["Durée : {{FORMATION_DUREE_JOURS}} jour(s), soit {{FORMATION_DUREE_HEURES}} heures\n", NORMAL],
   ["Effectif de la session : 1 à {{SESSION_CAPACITE}} stagiaires\n", NORMAL],
@@ -181,7 +179,7 @@ const segments = [
   ["\n", NORMAL],
 
   ["Pour le bénéficiaire,\t\t\t\tPour Les Ateliers du Stream — Web Video Production\n", NORMAL],
-  ["{{CONTACT_ADMIN}}\t\t\t\t\tNoémie Marphay\n", NORMAL],
+  ["{{CONTACT_ADMIN}}\t\t\t\tNoémie Marphay\n", NORMAL],
   ["Lu et approuvé avec signature et cachet\t\tLu et approuvé avec signature et cachet\n", NORMAL],
 ];
 

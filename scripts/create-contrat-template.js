@@ -60,7 +60,6 @@ const segments = [
   ["Contrat de formation professionnelle\n", TITLE],
   ["Articles L. 6353-3 à L. 6353-7 du Code du travail\n", NORMAL],
   ["Ce contrat doit être conclu avant toute inscription définitive et tout règlement de frais (article L. 6353-3).\n", NORMAL],
-  ["Référence : {{SESSION_CODE}}\n", NORMAL],
   ["\n", NORMAL],
 
   ["Entre les soussignés\n", HEAD],
@@ -171,7 +170,7 @@ const segments = [
   ["\n", NORMAL],
 
   ["Pour le stagiaire,\t\t\t\tPour Les Ateliers du Stream — Web Video Production\n", NORMAL],
-  ["{{NOM_COMPLET}}\t\t\t\t\tNoémie Marphay, responsable pédagogique\n", NORMAL],
+  ["{{NOM_COMPLET}}\t\t\t\tNoémie Marphay, responsable pédagogique\n", NORMAL],
   ["Lu et approuvé avec signature\t\t\tLu et approuvé avec signature et cachet\n", NORMAL],
 ];
 
