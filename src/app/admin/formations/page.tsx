@@ -519,6 +519,13 @@ export default function FormationsPage() {
                   Pré-requis
                 </Link>
                 <Link
+                  href={`/admin/formations/${f.id}/evaluation-grid`}
+                  className="text-xs px-3 py-1.5 rounded-full border cursor-pointer"
+                  style={{ borderColor: "#1f2244", color: "#1f2244" }}
+                >
+                  Grille éval
+                </Link>
+                <Link
                   href={`/admin/formations/sessions?formationId=${f.id}`}
                   className="text-xs px-3 py-1.5 rounded-full border cursor-pointer"
                   style={{ borderColor: "#1f2244", color: "#1f2244" }}

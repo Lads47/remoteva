@@ -154,6 +154,7 @@ model Formation {
   updatedAt                   DateTime @updatedAt      @map("updated_at")
 
   sessions                    Session[]
+  evaluationExercises         EvaluationExercise[]
 
   @@map("formations")
   @@index([active])
@@ -258,6 +259,7 @@ model Trainee {
   documents                TraineeDocument[]
   events                   TraineeEvent[]
   attendances              Attendance[]
+  exerciseEvaluations      TraineeExerciseEvaluation[]
 
   @@map("trainees")
   @@index([sessionId])
@@ -360,6 +362,7 @@ model Trainer {
   sessions             Session[]
   attendancesSigned    Attendance[]
   attendanceFilesUploaded AttendanceFile[]
+  evaluationsAuthored  TraineeExerciseEvaluation[]
 
   @@map("trainers")
   @@index([magicToken])
@@ -392,4 +395,96 @@ model AccessLink {
   createdAt   DateTime @default(now()) @map("created_at")
 
   @@map("access_links")
+}
+
+// === GRILLES D'ÉVALUATION PRATIQUE (Qualiopi) ===
+//
+// Hiérarchie : Formation > Exercices > Critères
+// Le formateur évalue chaque stagiaire sur chaque exercice avec une note
+// (acquis / en_cours / non_acquis) par critère + observations globales.
+// Une fiche PDF de synthèse est archivée dans 03_EVALUATIONS sur Drive.
+
+// Exercice pratique défini au niveau de la formation
+// (ex: "Exercice 1 : Captation multicaméra live")
+model EvaluationExercise {
+  id          String   @id @default(cuid())
+  formationId String   @map("formation_id")
+  ordre       Int      @default(1)                                // Ordre d'affichage (lex tri)
+  titre       String                                              // Intitulé de l'exercice
+  description String   @default("")                               // Objectif / énoncé / contexte
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt      @map("updated_at")
+
+  formation   Formation             @relation(fields: [formationId], references: [id], onDelete: Cascade)
+  criteria    EvaluationCriterion[]
+  evaluations TraineeExerciseEvaluation[]
+
+  @@map("evaluation_exercises")
+  @@index([formationId, ordre])
+  @@index([active])
+}
+
+// Critère d'évaluation à l'intérieur d'un exercice
+// (ex: "Maîtrise des transitions vidéo", "Gestion du son")
+model EvaluationCriterion {
+  id          String   @id @default(cuid())
+  exerciseId  String   @map("exercise_id")
+  ordre       Int      @default(1)
+  libelle     String                                              // Intitulé du critère
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt      @map("updated_at")
+
+  exercise    EvaluationExercise      @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  scores      TraineeCriterionScore[]
+
+  @@map("evaluation_criteria")
+  @@index([exerciseId, ordre])
+}
+
+// Évaluation d'un stagiaire pour un exercice donné (= une fiche d'évaluation)
+// `globalNote` est la synthèse formateur (acquis / en_cours / non_acquis).
+// Une fiche par (stagiaire, exercice) — unique.
+model TraineeExerciseEvaluation {
+  id            String    @id @default(cuid())
+  traineeId     String    @map("trainee_id")
+  exerciseId    String    @map("exercise_id")
+  evaluatorId   String?   @map("evaluator_id")                    // Formateur qui a évalué
+  globalNote    String    @default("") @map("global_note")        // "acquis" | "en_cours" | "non_acquis" | ""
+  observations  String    @default("")                            // Commentaire libre formateur
+  evaluatedAt   DateTime  @default(now()) @map("evaluated_at")
+  updatedAt     DateTime  @updatedAt      @map("updated_at")
+
+  // Sync Drive (PDF synthèse)
+  driveFileId    String?   @map("drive_file_id")
+  driveWebUrl    String?   @map("drive_web_url")
+  driveSyncedAt  DateTime? @map("drive_synced_at")
+  driveSyncError String?   @map("drive_sync_error")
+
+  trainee       Trainee                @relation(fields: [traineeId], references: [id], onDelete: Cascade)
+  exercise      EvaluationExercise     @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  evaluator     Trainer?               @relation(fields: [evaluatorId], references: [id], onDelete: SetNull)
+  scores        TraineeCriterionScore[]
+
+  @@unique([traineeId, exerciseId])
+  @@map("trainee_exercise_evaluations")
+  @@index([traineeId])
+  @@index([exerciseId])
+}
+
+// Note d'un stagiaire sur un critère donné, dans le cadre d'une évaluation d'exercice.
+// Valeurs autorisées pour `score` : "acquis" | "en_cours" | "non_acquis" | "" (vide = non noté)
+model TraineeCriterionScore {
+  id           String   @id @default(cuid())
+  evaluationId String   @map("evaluation_id")
+  criterionId  String   @map("criterion_id")
+  score        String   @default("")                              // 3-niveau Qualiopi
+  comment      String   @default("")
+
+  evaluation   TraineeExerciseEvaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+  criterion    EvaluationCriterion       @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+
+  @@unique([evaluationId, criterionId])
+  @@map("trainee_criterion_scores")
+  @@index([criterionId])
 }
