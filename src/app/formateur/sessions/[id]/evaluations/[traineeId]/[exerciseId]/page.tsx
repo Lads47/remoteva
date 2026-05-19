@@ -35,6 +35,21 @@ const SCORE_OPTIONS: { value: Score; label: string; bg: string; color: string }[
   { value: "non_acquis", label: "Non acquis", bg: "#fee2e2", color: "#991b1b" },
 ];
 
+// Suggère une note globale d'après les notes des critères. Règle « weakest
+// link » : la note globale prend la moins bonne note parmi les critères.
+//   - Au moins un critère "non_acquis" → "non_acquis"
+//   - Sinon, au moins un "en_cours"      → "en_cours"
+//   - Sinon, tous "acquis"               → "acquis"
+// Renvoie null si au moins un critère n'a pas été noté (suggestion masquée
+// tant que la grille n'est pas complète).
+function suggestGlobalNote(criteria: { score: Score }[]): Score | null {
+  if (criteria.length === 0) return null;
+  if (criteria.some((c) => c.score === "")) return null;
+  if (criteria.some((c) => c.score === "non_acquis")) return "non_acquis";
+  if (criteria.some((c) => c.score === "en_cours")) return "en_cours";
+  return "acquis";
+}
+
 function EvaluationFormInner({
   sessionId,
   traineeId,
@@ -161,10 +176,6 @@ function EvaluationFormInner({
     }
   }
 
-  // Auto-fill globalNote si tous les critères sont notés et homogènes ou si on
-  // souhaite proposer une suggestion. Pour l'instant : on laisse le formateur
-  // poser la note de synthèse.
-
   if (loading) {
     return <div className="text-center py-12 font-jetbrains text-sm" style={{ color: "#727485" }}>Chargement...</div>;
   }
@@ -186,7 +197,7 @@ function EvaluationFormInner({
   const scoredCount = data.criteria.filter((c) => c.score !== "").length;
 
   return (
-    <div className="max-w-3xl">
+    <div>
       <div className="mb-6">
         <Link
           href={`/formateur/sessions/${sessionId}/evaluations?token=${encodeURIComponent(token)}`}
@@ -286,7 +297,7 @@ function EvaluationFormInner({
         <label className="block text-xs font-jetbrains mb-2" style={{ color: "#727485" }}>
           Note globale du formateur sur l&apos;exercice
         </label>
-        <div className="flex gap-2 flex-wrap mb-4">
+        <div className="flex gap-2 flex-wrap mb-2">
           {SCORE_OPTIONS.map((opt) => {
             const selected = data.globalNote === opt.value;
             return (
@@ -308,6 +319,29 @@ function EvaluationFormInner({
             );
           })}
         </div>
+        {(() => {
+          const suggested = suggestGlobalNote(data.criteria);
+          if (!suggested) return null;
+          if (data.globalNote === suggested) return null;
+          const opt = SCORE_OPTIONS.find((o) => o.value === suggested);
+          if (!opt) return null;
+          return (
+            <div className="mb-4 flex items-center gap-2 flex-wrap text-xs font-jetbrains" style={{ color: "#727485" }}>
+              <span>Suggestion d&apos;après les critères :</span>
+              <button
+                onClick={() =>
+                  setData((prev) => (prev ? { ...prev, globalNote: suggested } : prev))
+                }
+                className="px-3 py-1 rounded-full cursor-pointer border transition-all hover:opacity-80"
+                style={{ backgroundColor: opt.bg, color: opt.color, borderColor: opt.color }}
+                title="Cliquer pour appliquer cette suggestion"
+              >
+                {opt.label}
+              </button>
+              <span style={{ color: "#9ca3af" }}>(règle : la note globale prend la moins bonne note parmi les critères)</span>
+            </div>
+          );
+        })()}
         <label className="block text-xs font-jetbrains mb-2" style={{ color: "#727485" }}>
           Observations du formateur (visibles dans le PDF de synthèse)
         </label>
@@ -414,8 +448,12 @@ export default function Page({
 }) {
   const { id, traineeId, exerciseId } = use(params);
   return (
-    <Suspense fallback={<div className="py-12 text-center font-jetbrains text-sm" style={{ color: "#727485" }}>Chargement...</div>}>
-      <EvaluationFormInner sessionId={id} traineeId={traineeId} exerciseId={exerciseId} />
-    </Suspense>
+    <div className="min-h-screen py-10 px-4" style={{ backgroundColor: "#f8fafc" }}>
+      <div className="max-w-3xl mx-auto">
+        <Suspense fallback={<div className="py-12 text-center font-jetbrains text-sm" style={{ color: "#727485" }}>Chargement...</div>}>
+          <EvaluationFormInner sessionId={id} traineeId={traineeId} exerciseId={exerciseId} />
+        </Suspense>
+      </div>
+    </div>
   );
 }

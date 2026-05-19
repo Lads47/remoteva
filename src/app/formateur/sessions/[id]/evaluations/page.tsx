@@ -436,8 +436,12 @@ function TraineeGlobalActions({
 export default function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   return (
-    <Suspense fallback={<div className="py-12 text-center font-jetbrains text-sm" style={{ color: "#727485" }}>Chargement...</div>}>
-      <EvaluationsMatrixInner id={id} />
-    </Suspense>
+    <div className="min-h-screen py-10 px-4" style={{ backgroundColor: "#f8fafc" }}>
+      <div className="max-w-6xl mx-auto">
+        <Suspense fallback={<div className="py-12 text-center font-jetbrains text-sm" style={{ color: "#727485" }}>Chargement...</div>}>
+          <EvaluationsMatrixInner id={id} />
+        </Suspense>
+      </div>
+    </div>
   );
 }
