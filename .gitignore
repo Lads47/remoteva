@@ -51,3 +51,7 @@ next-env.d.ts
 # Service Account Google (clé privée, NE JAMAIS commit)
 evaremote-drive-*.json
 *-service-account*.json
+
+# Scans bruts (cachets, signatures...) — la version exploitable se trouve dans public/
+Scan*.pdf
+Scan*.png
