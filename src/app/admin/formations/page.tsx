@@ -78,9 +78,16 @@ export default function FormationsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+  // Templates Drive par défaut globaux : on les charge pour pouvoir afficher
+  // « hérite du défaut global » sur les champs vides de la modale.
+  const [globalTemplates, setGlobalTemplates] = useState<{ convention?: string; contrat?: string; convocation?: string }>({});
 
   useEffect(() => {
     fetchFormations();
+    fetch("/api/admin/drive-config")
+      .then((r) => r.json())
+      .then((d) => setGlobalTemplates(d.templates ?? {}))
+      .catch(() => {});
   }, []);
 
   async function fetchFormations() {
@@ -234,6 +241,13 @@ export default function FormationsPage() {
             style={{ borderColor: "#1f2244", color: "#1f2244" }}
           >
             ⚙ Config Sellsy
+          </Link>
+          <Link
+            href="/admin/formations/drive-config"
+            className="px-4 py-2 rounded-full text-sm font-medium border transition-colors cursor-pointer"
+            style={{ borderColor: "#1f2244", color: "#1f2244" }}
+          >
+            📄 Templates Drive
           </Link>
           <Link
             href="/admin/formations/sessions"
@@ -403,6 +417,7 @@ export default function FormationsPage() {
                 onChange={(e) => setForm({ ...form, driveTemplateConventionId: e.target.value })}
                 className="input font-jetbrains text-xs"
               />
+              <FallbackHint local={form.driveTemplateConventionId} global={globalTemplates.convention} />
             </Field>
             <Field label="Template contrat (Doc)">
               <input
@@ -411,6 +426,7 @@ export default function FormationsPage() {
                 onChange={(e) => setForm({ ...form, driveTemplateContratId: e.target.value })}
                 className="input font-jetbrains text-xs"
               />
+              <FallbackHint local={form.driveTemplateContratId} global={globalTemplates.contrat} />
             </Field>
             <Field label="Template convocation (Doc)">
               <input
@@ -419,6 +435,7 @@ export default function FormationsPage() {
                 onChange={(e) => setForm({ ...form, driveTemplateConvocationId: e.target.value })}
                 className="input font-jetbrains text-xs"
               />
+              <FallbackHint local={form.driveTemplateConvocationId} global={globalTemplates.convocation} />
             </Field>
             <Field label="Template émargement (Doc)">
               <input
@@ -650,5 +667,25 @@ function Field({
       </label>
       {children}
     </div>
+  );
+}
+
+// Affiche un petit indicateur sous un champ de template :
+//   - si vide  + global défini  → "hérite du défaut global (ID...)"
+//   - si rempli                 → vide (rien à dire)
+//   - si vide  + pas de global  → "aucun template — la génération échouera"
+function FallbackHint({ local, global }: { local: string; global: string | undefined }) {
+  if (local && local.trim()) return null;
+  if (global) {
+    return (
+      <p className="mt-1 text-[10px] font-jetbrains" style={{ color: "#166534" }}>
+        ↳ Hérite du défaut global : <code>{global}</code>
+      </p>
+    );
+  }
+  return (
+    <p className="mt-1 text-[10px] font-jetbrains" style={{ color: "#991b1b" }}>
+      ⚠ Aucun template défini (ni ici, ni en global). La génération échouera.
+    </p>
   );
 }

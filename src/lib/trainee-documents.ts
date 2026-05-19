@@ -13,6 +13,7 @@
 // La liste des variables disponibles est exportée pour pouvoir l'afficher
 // côté admin (page de configuration de la formation) — voir DOCUMENT_VARIABLES.
 
+import { getDriveDefaultTemplates } from "./appConfig";
 import prisma from "./db";
 import { provisionSessionDriveFolder } from "./drive-provisioning";
 import { replaceTextInDoc } from "./google-docs";
@@ -117,18 +118,33 @@ export interface GenerateDocumentResult {
 }
 export type GenerateDocumentError = { ok: false; error: string };
 
-function getTemplateIdForType(
+/**
+ * Résout l'ID du template à utiliser pour un type donné.
+ * Priorité : template configuré sur la formation > template global par défaut
+ * (AppConfig) > null. Permet de définir un template partagé pour toutes les
+ * formations tout en gardant la possibilité d'override par-formation.
+ */
+async function resolveTemplateId(
   type: DocumentType,
   formation: {
     driveTemplateConventionId: string | null;
     driveTemplateContratId: string | null;
     driveTemplateConvocationId: string | null;
   }
-): string | null {
-  if (type === "convention") return formation.driveTemplateConventionId;
-  if (type === "contrat") return formation.driveTemplateContratId;
-  if (type === "convocation") return formation.driveTemplateConvocationId;
-  return null;
+): Promise<string | null> {
+  const formationTemplate =
+    type === "convention"
+      ? formation.driveTemplateConventionId
+      : type === "contrat"
+      ? formation.driveTemplateContratId
+      : type === "convocation"
+      ? formation.driveTemplateConvocationId
+      : null;
+  if (formationTemplate) return formationTemplate;
+
+  // Fallback : template global par défaut depuis AppConfig
+  const defaults = await getDriveDefaultTemplates();
+  return defaults[type] ?? null;
 }
 
 /**
@@ -155,11 +171,11 @@ export async function generateTraineeDocument(
   if (!trainee) return { ok: false, error: "Stagiaire introuvable" };
 
   const formation = trainee.session.formation;
-  const templateId = getTemplateIdForType(type, formation);
+  const templateId = await resolveTemplateId(type, formation);
   if (!templateId) {
     return {
       ok: false,
-      error: `Pas de template ${DOCUMENT_TYPE_LABELS[type]} configuré sur la formation. À renseigner dans /admin/formations.`,
+      error: `Pas de template ${DOCUMENT_TYPE_LABELS[type]} configuré (ni sur la formation, ni en template global par défaut). À renseigner dans /admin/formations/drive-config (global) ou en éditant la formation.`,
     };
   }
 

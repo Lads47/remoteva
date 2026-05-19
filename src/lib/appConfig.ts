@@ -50,12 +50,21 @@ export async function setJsonConfig(key: string, value: unknown): Promise<void> 
   await setConfig(key, JSON.stringify(value));
 }
 
-// === Clés de config connues (Sellsy) ===
+// === Clés de config connues (Sellsy + Drive) ===
 
 export const CONFIG_KEYS = {
   SELLSY_PIPELINE_ID: "sellsy.pipeline_id",
   SELLSY_STEP_MAPPING: "sellsy.step_mapping",
+  DRIVE_DEFAULT_TEMPLATES: "drive.default_templates",
 } as const;
+
+// Templates Drive par défaut, utilisés quand une formation n'a pas son propre
+// template configuré. Stockés en un seul JSON dans AppConfig.
+export interface DriveDefaultTemplates {
+  convention?: string;
+  contrat?: string;
+  convocation?: string;
+}
 
 export async function getSellsyPipelineId(): Promise<number | null> {
   const raw = await getConfig(CONFIG_KEYS.SELLSY_PIPELINE_ID);
@@ -74,4 +83,24 @@ export async function getSellsyStepMapping(): Promise<SellsyStepMapping> {
 
 export async function setSellsyStepMapping(mapping: SellsyStepMapping): Promise<void> {
   await setJsonConfig(CONFIG_KEYS.SELLSY_STEP_MAPPING, mapping);
+}
+
+// === Templates Drive par défaut ===
+
+/**
+ * Retourne le mapping `{ convention, contrat, convocation }` des IDs de
+ * templates Drive utilisés par défaut quand une formation n'a pas son propre
+ * template configuré. Renvoie un objet vide si rien n'a jamais été défini.
+ */
+export async function getDriveDefaultTemplates(): Promise<DriveDefaultTemplates> {
+  return (await getJsonConfig<DriveDefaultTemplates>(CONFIG_KEYS.DRIVE_DEFAULT_TEMPLATES)) ?? {};
+}
+
+export async function setDriveDefaultTemplates(templates: DriveDefaultTemplates): Promise<void> {
+  // Nettoyage : on persiste uniquement les entrées non vides
+  const cleaned: DriveDefaultTemplates = {};
+  if (templates.convention?.trim()) cleaned.convention = templates.convention.trim();
+  if (templates.contrat?.trim()) cleaned.contrat = templates.contrat.trim();
+  if (templates.convocation?.trim()) cleaned.convocation = templates.convocation.trim();
+  await setJsonConfig(CONFIG_KEYS.DRIVE_DEFAULT_TEMPLATES, cleaned);
 }

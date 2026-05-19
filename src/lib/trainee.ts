@@ -1,3 +1,4 @@
+import { getDriveDefaultTemplates } from "./appConfig";
 import prisma from "./db";
 
 export interface TraineeInfo {
@@ -119,6 +120,8 @@ export async function getTraineeWithDetails(id: string): Promise<TraineeWithDeta
     },
   });
   if (!t) return null;
+  // Disponibilité d'un template = formation-specific OU fallback global défini
+  const globalTemplates = await getDriveDefaultTemplates();
   return {
     ...toInfo(t),
     session: {
@@ -135,9 +138,12 @@ export async function getTraineeWithDetails(id: string): Promise<TraineeWithDeta
       code: t.session.formation.code,
       nomLong: t.session.formation.nomLong,
       configForm: t.session.formation.configForm,
-      hasTemplateConvention: Boolean(t.session.formation.driveTemplateConventionId),
-      hasTemplateContrat: Boolean(t.session.formation.driveTemplateContratId),
-      hasTemplateConvocation: Boolean(t.session.formation.driveTemplateConvocationId),
+      hasTemplateConvention:
+        Boolean(t.session.formation.driveTemplateConventionId) || Boolean(globalTemplates.convention),
+      hasTemplateContrat:
+        Boolean(t.session.formation.driveTemplateContratId) || Boolean(globalTemplates.contrat),
+      hasTemplateConvocation:
+        Boolean(t.session.formation.driveTemplateConvocationId) || Boolean(globalTemplates.convocation),
     },
     events: t.events.map((e) => ({
       id: e.id,
