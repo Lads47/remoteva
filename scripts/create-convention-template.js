@@ -70,8 +70,8 @@ const segments = [
   ["Siège social : 39 bis rue Robert Creuzet, 47200 MARMANDE\n", NORMAL],
   ["SIRET : 81950223800036 — APE : 59.11B\n", NORMAL],
   ["Numéro de déclaration d'activité (NDA) : 75470196847, enregistré auprès du préfet de la région Nouvelle-Aquitaine.\n", NORMAL],
-  ["Représenté par : Jérôme GARIN\n", NORMAL],
-  ["Contact pédagogique : Noémie Marphay — formation@lesateliersdustream.fr — 06.46.65.65.77\n", NORMAL],
+  ["Représenté par : Noémie Marphay, responsable pédagogique\n", NORMAL],
+  ["Contact : formation@lesateliersdustream.fr — 06.46.65.65.77\n", NORMAL],
   ["Ci-après dénommé « l'organisme de formation »,\n", NORMAL],
   ["\n", NORMAL],
   ["et\n", NORMAL],
@@ -131,7 +131,7 @@ const segments = [
   ["Modalités d'évaluation : exercices pratiques évalués par le formateur tout au long de la session selon l'échelle Acquis / En cours d'acquisition / Non acquis. Une fiche de synthèse est remise à chaque stagiaire en fin de formation. Une évaluation à chaud est également proposée.\n", NORMAL],
   ["\n", NORMAL],
 
-  ["Accessibilité — Référent handicap : L'organisme de formation s'engage à étudier et mettre en œuvre les adaptations nécessaires pour l'accueil de personnes en situation de handicap. Référent handicap : Jérôme Garin (formation@lesateliersdustream.fr — 06.46.65.65.77). Pour toute demande spécifique, contactez l'organisme en amont de la formation.\n", NORMAL],
+  ["Accessibilité — Référent handicap : L'organisme de formation s'engage à étudier et mettre en œuvre les adaptations nécessaires pour l'accueil de personnes en situation de handicap. Référent handicap : Noémie Marphay (formation@lesateliersdustream.fr — 06.46.65.65.77). Pour toute demande spécifique, contactez l'organisme en amont de la formation.\n", NORMAL],
   ["\n", NORMAL],
 
   ["Article 2 — Engagement de participation\n", HEAD],
@@ -181,7 +181,7 @@ const segments = [
   ["\n", NORMAL],
 
   ["Pour le bénéficiaire,\t\t\t\tPour Les Ateliers du Stream — Web Video Production\n", NORMAL],
-  ["{{CONTACT_ADMIN}}\t\t\t\t\tJérôme GARIN\n", NORMAL],
+  ["{{CONTACT_ADMIN}}\t\t\t\t\tNoémie Marphay\n", NORMAL],
   ["Lu et approuvé avec signature et cachet\t\tLu et approuvé avec signature et cachet\n", NORMAL],
 ];
 
