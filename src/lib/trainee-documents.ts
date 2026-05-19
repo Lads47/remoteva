@@ -445,7 +445,9 @@ export async function generateAndMailContract(traineeId: string): Promise<Genera
     }
   }
 
-  // 4. Envoi du mail
+  // 4. Envoi du mail (le lien Drive n'est volontairement pas mis dans le mail :
+  // on n'offre pas de signature électronique, et certains clients mails
+  // l'auraient affiché comme une PJ fantôme à côté du PDF.)
   const mailRes = await sendContractToStagiaire({
     to: trainee.email,
     prenom: trainee.prenom,
@@ -457,7 +459,6 @@ export async function generateAndMailContract(traineeId: string): Promise<Genera
     documentType: docType,
     contractPdfBuffer,
     contractPdfFilename,
-    contractDriveUrl: gen.driveWebUrl || undefined,
     cgvBuffer,
     cgvFilename,
     riBuffer,

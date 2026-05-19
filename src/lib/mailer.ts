@@ -577,7 +577,6 @@ export async function sendContractToStagiaire(params: {
   documentType: "convention" | "contrat";
   contractPdfBuffer: Buffer;
   contractPdfFilename: string;
-  contractDriveUrl?: string;     // Lien Drive pour signature électronique
   cgvBuffer?: Buffer;
   cgvFilename?: string;
   riBuffer?: Buffer;
@@ -593,16 +592,14 @@ export async function sendContractToStagiaire(params: {
   };
   const dateDebut = fmtDateFr(params.sessionDateDebut);
   const dateFin = fmtDateFr(params.sessionDateFin);
-  const docLabel = params.documentType === "convention" ? "convention" : "contrat";
-  const docLabelCap = params.documentType === "convention" ? "Convention" : "Contrat";
 
-  const driveLinkHtml = params.contractDriveUrl
-    ? `<p style="background: #e0f2fe; padding: 12px 16px; border-radius: 8px; border-left: 4px solid #0284c7;">
-         <strong>Signature électronique disponible :</strong><br/>
-         Vous pouvez aussi signer directement en ligne via Google Docs :
-         <a href="${params.contractDriveUrl}" target="_blank">ouvrir le document</a>.
-       </p>`
-    : "";
+  // Accord genre : "convention" est féminin, "contrat" est masculin.
+  const isContrat = params.documentType === "contrat";
+  const docLabel = isContrat ? "contrat" : "convention";
+  const docLabelCap = isContrat ? "Contrat" : "Convention";
+  const article = isContrat ? "le" : "la";       // "le contrat" / "la convention"
+  const articleCap = isContrat ? "Le" : "La";
+  const signed = isContrat ? "signé" : "signée";
 
   const html = `<!DOCTYPE html>
 <html lang="fr">
@@ -610,11 +607,11 @@ export async function sendContractToStagiaire(params: {
   <h1 style="font-size: 22px; margin: 0 0 16px;">Votre ${docLabel} de formation</h1>
   <p>Bonjour ${safe.prenom},</p>
   <p>Suite à la signature du devis pour la formation <strong>${safe.formation}</strong>,
-  vous trouverez ci-joint votre <strong>${docLabel} de formation</strong> (déjà signée côté Les Ateliers du Stream)
+  vous trouverez ci-joint votre <strong>${docLabel} de formation</strong> (déjà ${signed} côté Les Ateliers du Stream)
   ainsi que les pièces jointes obligatoires :</p>
 
   <ul style="padding-left: 20px;">
-    <li>${docLabelCap} de formation professionnelle (à retourner signée)</li>
+    <li>${docLabelCap} de formation professionnelle (à retourner ${signed})</li>
     <li>CGV (Conditions Générales de Vente)</li>
     <li>Règlement Intérieur de l'organisme</li>
   </ul>
@@ -624,12 +621,10 @@ export async function sendContractToStagiaire(params: {
     <tr><td style="padding: 8px 12px; color: #727485;">Lieu</td><td style="padding: 8px 12px;">${safe.lieu}</td></tr>
   </table>
 
-  ${driveLinkHtml}
-
   <p><strong>Prochaines étapes :</strong></p>
   <ol style="padding-left: 20px;">
-    <li>Lisez attentivement la ${docLabel}, les CGV et le règlement intérieur.</li>
-    <li>Retournez la ${docLabel} signée par retour de mail.</li>
+    <li>Lisez attentivement ${article} ${docLabel}, les CGV et le règlement intérieur.</li>
+    <li>Retournez ${article} ${docLabel} ${signed} par retour de mail (ou par courrier).</li>
     <li>Vous recevrez ensuite votre convocation et le programme détaillé environ 15 jours avant le début de la formation.</li>
   </ol>
 
@@ -641,17 +636,18 @@ export async function sendContractToStagiaire(params: {
   </p>
 </body>
 </html>`;
+  void articleCap; // réservé si besoin de capitaliser dans une future variante
 
   const text = `Bonjour ${params.prenom},
 
-Suite à la signature du devis pour la formation ${params.formationNomLong}, vous trouverez ci-joint votre ${docLabel} de formation (signée côté Les Ateliers du Stream) ainsi que les CGV et le règlement intérieur.
+Suite à la signature du devis pour la formation ${params.formationNomLong}, vous trouverez ci-joint votre ${docLabel} de formation (déjà ${signed} côté Les Ateliers du Stream) ainsi que les CGV et le règlement intérieur.
 
 Session : du ${dateDebut} au ${dateFin}
 Lieu : ${params.sessionLieu || "Lieu à préciser"}
 
-${params.contractDriveUrl ? `Signature électronique en ligne : ${params.contractDriveUrl}\n\n` : ""}Prochaines étapes :
-1. Lisez attentivement la ${docLabel}, les CGV et le règlement intérieur.
-2. Retournez la ${docLabel} signée par retour de mail.
+Prochaines étapes :
+1. Lisez attentivement ${article} ${docLabel}, les CGV et le règlement intérieur.
+2. Retournez ${article} ${docLabel} ${signed} par retour de mail (ou par courrier).
 3. Vous recevrez ensuite votre convocation et le programme détaillé ~15 jours avant le début.
 
 Pour toute question, répondez à ce mail.
