@@ -356,6 +356,96 @@ export async function getFileAsPdf(fileId: string): Promise<{ buffer: Buffer; na
     return { buffer: Buffer.from(arrayBuffer), name: baseName };
   }
 
+  // Cas Microsoft Word (.docx, .doc) ou OpenDocument (.odt) :
+  // Drive ne sait pas les exporter directement en PDF. Solution :
+  //   1. Télécharger le fichier
+  //   2. Le re-uploader avec mimeType cible = Google Doc (Drive convertit)
+  //   3. Exporter le Google Doc temporaire en PDF
+  //   4. Supprimer le doc temporaire
+  const convertibleToGoogleDoc = new Set([
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+    "application/msword",                                                       // .doc
+    "application/vnd.oasis.opendocument.text",                                  // .odt
+    "text/plain",
+    "text/html",
+    "text/rtf",
+    "application/rtf",
+  ]);
+  if (convertibleToGoogleDoc.has(meta.mimeType)) {
+    // 1. Télécharge le contenu original
+    const dlRes = await fetch(
+      `${DRIVE_API}/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (!dlRes.ok) {
+      throw new Error(`Drive download .docx failed (HTTP ${dlRes.status})`);
+    }
+    const srcBuffer = Buffer.from(await dlRes.arrayBuffer());
+
+    // 2. Récupère le parent pour y mettre le fichier temporaire (sinon Drive
+    //    le place dans "Mon Drive" du SA, sans visibilité).
+    const parentsRes = await fetch(
+      `${DRIVE_API}/files/${encodeURIComponent(fileId)}?fields=parents&supportsAllDrives=true`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    const parentsMeta = (await parentsRes.json()) as { parents?: string[] };
+    const parent = parentsMeta.parents?.[0];
+
+    // 3. Upload comme Google Doc (le mimeType cible déclenche la conversion)
+    const boundary = `----eva-conv-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const tmpMetadata: Record<string, unknown> = {
+      name: `[tmp-conversion] ${meta.name}`,
+      mimeType: "application/vnd.google-apps.document",
+    };
+    if (parent) tmpMetadata.parents = [parent];
+
+    const preamble = Buffer.from(
+      `--${boundary}\r\n` +
+        `Content-Type: application/json; charset=UTF-8\r\n\r\n` +
+        JSON.stringify(tmpMetadata) +
+        `\r\n--${boundary}\r\n` +
+        `Content-Type: ${meta.mimeType}\r\n\r\n`,
+      "utf8"
+    );
+    const closing = Buffer.from(`\r\n--${boundary}--`, "utf8");
+    const body = Buffer.concat([preamble, srcBuffer, closing]);
+
+    const uploadUrl = new URL(`${DRIVE_UPLOAD}/files`);
+    uploadUrl.searchParams.set("uploadType", "multipart");
+    uploadUrl.searchParams.set("supportsAllDrives", "true");
+    uploadUrl.searchParams.set("fields", "id");
+
+    const upRes = await fetch(uploadUrl.toString(), {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": `multipart/related; boundary=${boundary}`,
+        "Content-Length": String(body.length),
+      },
+      body: body as unknown as BodyInit,
+    });
+    if (!upRes.ok) {
+      throw new Error(`Drive upload conversion failed (HTTP ${upRes.status}): ${(await upRes.text()).slice(0, 200)}`);
+    }
+    const tmpFile = (await upRes.json()) as { id: string };
+
+    try {
+      // 4. Exporte le Google Doc temporaire en PDF
+      const exportRes = await fetch(
+        `${DRIVE_API}/files/${encodeURIComponent(tmpFile.id)}/export?mimeType=application/pdf`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!exportRes.ok) {
+        throw new Error(`Drive export converted PDF failed (HTTP ${exportRes.status})`);
+      }
+      const pdfArray = await exportRes.arrayBuffer();
+      return { buffer: Buffer.from(pdfArray), name: baseName };
+    } finally {
+      // 5. Nettoyage : trash le doc temporaire dans tous les cas
+      await trashFile(tmpFile.id);
+    }
+  }
+
   throw new Error(`Type non supporté pour conversion PDF : ${meta.mimeType}`);
 }
 
