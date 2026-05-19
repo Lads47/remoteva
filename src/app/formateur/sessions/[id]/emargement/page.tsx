@@ -39,6 +39,10 @@ interface SignedFile {
   sizeBytes: number;
   uploadedAt: string;
   uploadedByPrenomNom: string | null;
+  driveFileId: string | null;
+  driveWebUrl: string | null;
+  driveSyncedAt: string | null;
+  driveSyncError: string | null;
 }
 
 function EmargementInner({ id }: { id: string }) {
@@ -152,6 +156,27 @@ function EmargementInner({ id }: { id: string }) {
       setUploading(false);
       // reset input value pour permettre de réuploader le même fichier
       event.target.value = "";
+    }
+  }
+
+  async function handleResyncDrive(fileId: string) {
+    try {
+      const res = await fetch(`/api/formateur/sessions/${id}/attendance/files/${fileId}/resync-drive?token=${encodeURIComponent(token)}`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setFeedback({ type: "error", msg: data.error || "Échec re-sync Drive" });
+        setTimeout(() => setFeedback(null), 6000);
+        await refreshFiles();
+        return;
+      }
+      setFeedback({ type: "success", msg: "Fichier synchronisé sur Drive ✓" });
+      setTimeout(() => setFeedback(null), 4000);
+      await refreshFiles();
+    } catch {
+      setFeedback({ type: "error", msg: "Erreur de connexion" });
+      setTimeout(() => setFeedback(null), 5000);
     }
   }
 
@@ -407,8 +432,25 @@ function EmargementInner({ id }: { id: string }) {
                 {files.map((f) => (
                   <li key={f.id} className="py-3 flex items-center gap-3 flex-wrap" style={{ borderBottom: "1px solid #f3f4f6" }}>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate" style={{ color: "#1f2244" }}>
-                        {f.filename}
+                      <div className="text-sm font-medium truncate flex items-center gap-2 flex-wrap" style={{ color: "#1f2244" }}>
+                        <span>{f.filename}</span>
+                        {f.driveFileId ? (
+                          <span
+                            className="text-[10px] font-jetbrains px-1.5 py-0.5 rounded-full"
+                            style={{ backgroundColor: "#dcfce7", color: "#166534" }}
+                            title={f.driveSyncedAt ? `Synchronisé le ${new Date(f.driveSyncedAt).toLocaleString("fr-FR")}` : "Synchronisé sur Drive"}
+                          >
+                            ✓ Drive
+                          </span>
+                        ) : (
+                          <span
+                            className="text-[10px] font-jetbrains px-1.5 py-0.5 rounded-full"
+                            style={{ backgroundColor: "#fef3c7", color: "#92400e" }}
+                            title={f.driveSyncError ?? "Pas encore synchronisé"}
+                          >
+                            ⚠ Drive non sync
+                          </span>
+                        )}
                       </div>
                       <div className="text-xs font-jetbrains mt-0.5" style={{ color: "#727485" }}>
                         {f.date
@@ -420,8 +462,25 @@ function EmargementInner({ id }: { id: string }) {
                         {" · "}
                         {new Date(f.uploadedAt).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}
                       </div>
+                      {f.driveSyncError && !f.driveFileId && (
+                        <div className="text-xs font-jetbrains mt-1" style={{ color: "#991b1b" }} title={f.driveSyncError}>
+                          Erreur Drive : {f.driveSyncError.slice(0, 100)}{f.driveSyncError.length > 100 ? "…" : ""}
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
+                      {f.driveWebUrl && (
+                        <a
+                          href={f.driveWebUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs px-3 py-1.5 rounded-full border cursor-pointer"
+                          style={{ borderColor: "#166534", color: "#166534" }}
+                          title="Ouvrir dans Google Drive"
+                        >
+                          Drive ↗
+                        </a>
+                      )}
                       <a
                         href={`/api/formateur/sessions/${id}/attendance/files/${f.id}?token=${encodeURIComponent(token)}`}
                         target="_blank"
@@ -431,6 +490,16 @@ function EmargementInner({ id }: { id: string }) {
                       >
                         Ouvrir
                       </a>
+                      {!f.driveFileId && (
+                        <button
+                          onClick={() => handleResyncDrive(f.id)}
+                          className="text-xs px-3 py-1.5 rounded-full cursor-pointer"
+                          style={{ backgroundColor: "#7dcef5", color: "#1f2244" }}
+                          title="Retenter l'upload sur Google Drive"
+                        >
+                          Re-sync Drive
+                        </button>
+                      )}
                       <button
                         onClick={() => handleDeleteFile(f.id, f.filename)}
                         className="text-xs px-3 py-1.5 rounded-full border border-red-200 text-red-600 hover:bg-red-50 cursor-pointer"

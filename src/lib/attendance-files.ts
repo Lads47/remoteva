@@ -5,6 +5,12 @@ import { randomUUID } from "crypto";
 import { mkdir, writeFile, unlink, readFile, stat } from "fs/promises";
 import path from "path";
 import prisma from "./db";
+import { findOrCreateFolder, isDriveConfigured, trashFile, uploadFile } from "./google-drive";
+
+// Nom du sous-dossier Drive où archiver les feuilles signées d'une session.
+// Doit matcher la convention historique des Workflows n8n (cf. structure
+// "FORMATION/<session>/02_SUIVI_ET_INCIDENTS/").
+const DRIVE_SUIVI_FOLDER_NAME = "02_SUIVI_ET_INCIDENTS";
 
 // Racine de stockage des feuilles signées (sur le volume persistant)
 const STORAGE_ROOT = path.join(process.cwd(), "data", "attendance-files");
@@ -29,7 +35,15 @@ export interface AttendanceFileInfo {
   sizeBytes: number;
   uploadedAt: Date;
   uploadedByPrenomNom: string | null;
+  driveFileId: string | null;
+  driveWebUrl: string | null;
+  driveSyncedAt: Date | null;
+  driveSyncError: string | null;
 }
+
+export type DriveSyncResult =
+  | { ok: true; fileId: string; webUrl: string | null }
+  | { ok: false; error: string };
 
 async function ensureStorageRoot(): Promise<void> {
   await mkdir(STORAGE_ROOT, { recursive: true });
@@ -91,7 +105,15 @@ export async function saveAttendanceFile(input: {
     include: { uploadedBy: { select: { prenom: true, nom: true } } },
   });
 
-  return toInfo(created);
+  // Sync Drive best-effort en parallèle. On ne bloque pas la réponse :
+  // on attend juste l'update du record en BDD pour que la réponse contienne
+  // l'état final (succès ou erreur).
+  await syncAttendanceFileToDrive(created.id);
+  const refreshed = await prisma.attendanceFile.findUniqueOrThrow({
+    where: { id: created.id },
+    include: { uploadedBy: { select: { prenom: true, nom: true } } },
+  });
+  return toInfo(refreshed);
 }
 
 export async function listAttendanceFiles(sessionId: string): Promise<AttendanceFileInfo[]> {
@@ -128,6 +150,10 @@ export async function deleteAttendanceFile(id: string): Promise<boolean> {
   } catch {
     // fichier disque déjà absent — on supprime quand même la ligne
   }
+  // Best-effort : déplace aussi le fichier Drive dans la corbeille
+  if (row.driveFileId) {
+    await trashFile(row.driveFileId);
+  }
   await prisma.attendanceFile.delete({ where: { id } });
   return true;
 }
@@ -146,5 +172,74 @@ function toInfo(r: Row): AttendanceFileInfo {
     sizeBytes: r.sizeBytes,
     uploadedAt: r.uploadedAt,
     uploadedByPrenomNom: r.uploadedBy ? `${r.uploadedBy.prenom} ${r.uploadedBy.nom}` : null,
+    driveFileId: r.driveFileId,
+    driveWebUrl: r.driveWebUrl,
+    driveSyncedAt: r.driveSyncedAt,
+    driveSyncError: r.driveSyncError,
   };
+}
+
+/**
+ * Tente d'uploader un fichier sur Drive dans le sous-dossier
+ * `02_SUIVI_ET_INCIDENTS` de la session. Met à jour le record en BDD avec
+ * driveFileId/driveWebUrl (succès) ou driveSyncError (échec).
+ *
+ * Best-effort : ne throw jamais. Retourne un DriveSyncResult pour info.
+ */
+export async function syncAttendanceFileToDrive(attendanceFileId: string): Promise<DriveSyncResult> {
+  if (!isDriveConfigured()) {
+    const error = "Drive non configuré (GOOGLE_SERVICE_ACCOUNT_KEY_B64 absent)";
+    await prisma.attendanceFile.update({
+      where: { id: attendanceFileId },
+      data: { driveSyncError: error },
+    });
+    return { ok: false, error };
+  }
+
+  const row = await prisma.attendanceFile.findUnique({
+    where: { id: attendanceFileId },
+    include: { session: { select: { driveFolderId: true } } },
+  });
+  if (!row) return { ok: false, error: "Fichier introuvable" };
+  if (!row.session.driveFolderId) {
+    const error = "Session sans driveFolderId configuré";
+    await prisma.attendanceFile.update({
+      where: { id: attendanceFileId },
+      data: { driveSyncError: error },
+    });
+    return { ok: false, error };
+  }
+
+  try {
+    // 1. Trouve ou crée le sous-dossier suivi/incidents
+    const folder = await findOrCreateFolder(row.session.driveFolderId, DRIVE_SUIVI_FOLDER_NAME);
+    // 2. Lit le buffer local et upload
+    const localPath = path.join(STORAGE_ROOT, row.storagePath);
+    const buffer = await readFile(localPath);
+    const driveFile = await uploadFile({
+      parentId: folder.id,
+      filename: row.filename,
+      mimeType: row.mimeType,
+      buffer,
+    });
+    // 3. Update record
+    await prisma.attendanceFile.update({
+      where: { id: attendanceFileId },
+      data: {
+        driveFileId: driveFile.id,
+        driveWebUrl: driveFile.webViewLink ?? null,
+        driveSyncedAt: new Date(),
+        driveSyncError: null,
+      },
+    });
+    return { ok: true, fileId: driveFile.id, webUrl: driveFile.webViewLink ?? null };
+  } catch (err) {
+    const error = err instanceof Error ? err.message : "Erreur inconnue";
+    console.warn(`[attendance-files] sync Drive échouée pour ${attendanceFileId}:`, error);
+    await prisma.attendanceFile.update({
+      where: { id: attendanceFileId },
+      data: { driveSyncError: error.slice(0, 500) },
+    });
+    return { ok: false, error };
+  }
 }

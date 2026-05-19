@@ -297,6 +297,12 @@ model AttendanceFile {
   uploadedById String?  @map("uploaded_by_id")                              // Trainer qui a déposé
   uploadedAt   DateTime @default(now()) @map("uploaded_at")
 
+  // Sync Drive (best-effort)
+  driveFileId    String?  @map("drive_file_id")
+  driveWebUrl    String?  @map("drive_web_url")
+  driveSyncedAt  DateTime? @map("drive_synced_at")
+  driveSyncError String?   @map("drive_sync_error")                         // Message d'erreur si dernière sync KO
+
   session      Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   uploadedBy   Trainer? @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
 
