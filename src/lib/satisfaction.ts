@@ -17,6 +17,7 @@ import prisma from "./db";
 // === Types question ===
 
 export type QuestionType =
+  | "section_header" // pas une question : titre de section avec description
   | "likert_5"     // 1=Très insatisfait, 5=Très satisfait (radio buttons)
   | "scale_nps"    // 0–10 NPS
   | "text"         // 1 ligne
@@ -27,45 +28,43 @@ export type QuestionType =
 export interface SatisfactionQuestion {
   name: string;            // identifiant interne stable (snake_case)
   type: QuestionType;
-  label: string;           // libellé visible
-  required: boolean;
+  label: string;           // libellé visible (titre de section pour section_header)
+  description?: string;    // texte d'aide / contexte (sections + questions)
+  required: boolean;       // toujours false pour section_header
   options?: string[];      // pour single_choice
   leftLabel?: string;      // pour scale_nps / likert_5 (libellés des extrêmes)
   rightLabel?: string;
   placeholder?: string;
 }
 
+// Utilitaire : filtre les vraies questions (exclut les section headers)
+export function isAnswerable(q: SatisfactionQuestion): boolean {
+  return q.type !== "section_header";
+}
+
 // === Questions standard Qualiopi par défaut ===
 
 export const DEFAULT_QUESTIONS: SatisfactionQuestion[] = [
+  // === Section 1 : Évaluation globale ===
+  {
+    name: "section_globale",
+    type: "section_header",
+    label: "Évaluation globale",
+    description: "Votre perception générale de la formation.",
+    required: false,
+  },
   {
     name: "satisfaction_globale",
     type: "likert_5",
-    label: "Quel est votre niveau de satisfaction global vis-à-vis de la formation ?",
+    label: "Comment évaluez-vous globalement cette formation ?",
     required: true,
     leftLabel: "Très insatisfait",
     rightLabel: "Très satisfait",
   },
   {
-    name: "qualite_animation",
+    name: "attentes",
     type: "likert_5",
-    label: "Comment évaluez-vous la qualité de l'animation par le formateur ?",
-    required: true,
-    leftLabel: "Très insuffisante",
-    rightLabel: "Excellente",
-  },
-  {
-    name: "qualite_supports",
-    type: "likert_5",
-    label: "Qualité des supports pédagogiques et exercices ?",
-    required: true,
-    leftLabel: "Très insuffisante",
-    rightLabel: "Excellente",
-  },
-  {
-    name: "pertinence_contenu",
-    type: "likert_5",
-    label: "Le contenu de la formation correspondait-il à vos attentes et besoins ?",
+    label: "Cette formation a-t-elle répondu à vos attentes ?",
     required: true,
     leftLabel: "Pas du tout",
     rightLabel: "Totalement",
@@ -78,18 +77,131 @@ export const DEFAULT_QUESTIONS: SatisfactionQuestion[] = [
     leftLabel: "Pas du tout",
     rightLabel: "Totalement",
   },
+
+  // === Section 2 : Contenu de la formation ===
   {
-    name: "qualite_organisation",
+    name: "section_contenu",
+    type: "section_header",
+    label: "Contenu de la formation",
+    description: "Pertinence et clarté de ce qui vous a été enseigné.",
+    required: false,
+  },
+  {
+    name: "clarte_contenu",
     type: "likert_5",
-    label: "Qualité de l'organisation matérielle (lieu, accueil, matériel) ?",
+    label: "Le contenu était-il clair et compréhensible ?",
+    required: true,
+    leftLabel: "Pas du tout",
+    rightLabel: "Totalement",
+  },
+  {
+    name: "pertinence_sujets",
+    type: "single_choice",
+    label: "Les sujets abordés étaient-ils pertinents par rapport à votre activité ?",
+    required: true,
+    options: ["Oui, totalement", "En partie", "Pas vraiment"],
+  },
+  {
+    name: "sujets_manquants",
+    type: "textarea",
+    label: "Y a-t-il des sujets que vous auriez aimé voir abordés mais qui ne l'ont pas été ?",
+    required: false,
+    placeholder: "Vos suggestions de contenu (optionnel)…",
+  },
+
+  // === Section 3 : Qualité de l'enseignement ===
+  {
+    name: "section_enseignement",
+    type: "section_header",
+    label: "Qualité de l'enseignement",
+    description: "Compétence et disponibilité du formateur.",
+    required: false,
+  },
+  {
+    name: "competence_formateur",
+    type: "likert_5",
+    label: "Comment évaluez-vous la compétence pédagogique et technique du formateur ?",
     required: true,
     leftLabel: "Très insuffisante",
     rightLabel: "Excellente",
   },
   {
+    name: "disponibilite_formateur",
+    type: "likert_5",
+    label: "Le formateur était-il disponible pour répondre à vos questions ?",
+    required: true,
+    leftLabel: "Pas du tout",
+    rightLabel: "Totalement",
+  },
+  {
+    name: "qualite_animation",
+    type: "likert_5",
+    label: "Comment évaluez-vous la qualité de l'animation et le rythme de la formation ?",
+    required: true,
+    leftLabel: "Très insuffisante",
+    rightLabel: "Excellente",
+  },
+
+  // === Section 4 : Aspects pratiques et matériels ===
+  {
+    name: "section_pratique",
+    type: "section_header",
+    label: "Aspects pratiques",
+    description: "Exercices, supports, matériel et organisation matérielle.",
+    required: false,
+  },
+  {
+    name: "utilite_exercices",
+    type: "likert_5",
+    label: "Les exercices pratiques étaient-ils utiles pour comprendre et maîtriser les concepts ?",
+    required: true,
+    leftLabel: "Pas du tout",
+    rightLabel: "Très utiles",
+  },
+  {
+    name: "qualite_supports",
+    type: "likert_5",
+    label: "Qualité des supports pédagogiques (programme, documents, ressources) ?",
+    required: true,
+    leftLabel: "Très insuffisante",
+    rightLabel: "Excellente",
+  },
+  {
+    name: "qualite_organisation",
+    type: "likert_5",
+    label: "Qualité de l'organisation matérielle (lieu, accueil, équipement mis à disposition) ?",
+    required: true,
+    leftLabel: "Très insuffisante",
+    rightLabel: "Excellente",
+  },
+  {
+    name: "difficultes_techniques",
+    type: "single_choice",
+    label: "Avez-vous rencontré des difficultés techniques pendant la formation ?",
+    required: true,
+    options: ["Non", "Oui, une fois", "Oui, plusieurs fois"],
+  },
+  {
+    name: "accessibilite_psh",
+    type: "single_choice",
+    label: "Si vous êtes en situation de handicap : l'adaptation matérielle et pédagogique a-t-elle répondu à vos besoins ?",
+    required: false,
+    options: ["Non concerné", "Oui, totalement", "Oui, en partie", "Non, insuffisamment"],
+  },
+
+  // === Section 5 : Satisfaction et recommandation ===
+  {
+    name: "section_recommandation",
+    type: "section_header",
+    label: "Satisfaction et recommandation",
+    description: "Votre regard final et vos suggestions.",
+    required: false,
+  },
+  {
     name: "recommandation_nps",
     type: "scale_nps",
-    label: "Sur une échelle de 0 à 10, recommanderiez-vous cette formation à un collègue ?",
+    label: "Sur une échelle de 0 à 10, recommanderiez-vous cette formation à un collègue ou un ami ?",
+    description: "Note Qualiopi 'Net Promoter Score' : 0 = pas du tout, 10 = je recommande vivement.",
     required: true,
     leftLabel: "Pas du tout",
     rightLabel: "Très probablement",
@@ -104,14 +216,14 @@ export const DEFAULT_QUESTIONS: SatisfactionQuestion[] = [
   {
     name: "axes_amelioration",
     type: "textarea",
-    label: "Quels axes d'amélioration suggérez-vous ?",
+    label: "Quelles suggestions d'amélioration proposez-vous ?",
     required: false,
     placeholder: "Ce qui pourrait être amélioré, ce qui a manqué…",
   },
   {
     name: "remarques_libres",
     type: "textarea",
-    label: "Autres remarques",
+    label: "Autres remarques (optionnel)",
     required: false,
   },
 ];
@@ -301,8 +413,9 @@ export async function submitSurvey(input: SubmitInput): Promise<{ ok: true } | {
     return { ok: false, error: "Snapshot questions invalide" };
   }
 
-  // Validation : required fields
+  // Validation : required fields (skip les section_header)
   for (const q of questions) {
+    if (q.type === "section_header") continue;
     if (q.required) {
       const v = input.answers[q.name];
       if (v === undefined || v === null || String(v).trim() === "") {
@@ -395,8 +508,13 @@ export async function buildSessionSynthesis(sessionId: string): Promise<Satisfac
     questions = DEFAULT_QUESTIONS;
   }
 
-  // Calculer les stats par question
+  // Calculer les stats par question — les section_header sont passés tels
+  // quels (pas de stats à calculer) pour préserver la structure visuelle
+  // dans la synthèse.
   const stats = questions.map((q) => {
+    if (q.type === "section_header") {
+      return { question: q };
+    }
     const values: string[] = [];
     for (const r of submitted) {
       const a = r.answers.find((x) => x.questionName === q.name);

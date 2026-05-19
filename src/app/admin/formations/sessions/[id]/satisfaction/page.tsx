@@ -7,6 +7,7 @@ interface Question {
   name: string;
   type: string;
   label: string;
+  description?: string;
 }
 interface Stat {
   question: Question;
@@ -160,6 +161,16 @@ function Stat({ label, value, color }: { label: string; value: string; color?: s
 
 function QuestionStatCard({ stat }: { stat: Stat }) {
   const q = stat.question;
+  if (q.type === "section_header") {
+    return (
+      <div className="pt-3 pb-1 border-b" style={{ borderColor: "#e5e7eb" }}>
+        <h3 className="text-base font-bold" style={{ color: "#1f2244" }}>{q.label}</h3>
+        {q.description && (
+          <p className="text-xs font-jetbrains mt-1" style={{ color: "#727485" }}>{q.description}</p>
+        )}
+      </div>
+    );
+  }
   return (
     <div className="p-4 rounded-xl border" style={{ borderColor: "#e5e7eb", backgroundColor: "white" }}>
       <h3 className="font-medium mb-2" style={{ color: "#1f2244" }}>{q.label}</h3>

@@ -207,6 +207,20 @@ function drawNpsBlock(doc: PDFKit.PDFDocument, stat: StatLike): void {
 function drawQuestionStat(doc: PDFKit.PDFDocument, stat: StatLike): void {
   const x = 50;
   const width = 495;
+
+  // Section header : titre groupe, pas de stats
+  if (stat.question.type === "section_header") {
+    doc.moveDown(0.4);
+    doc.font("Helvetica-Bold").fontSize(12).fillColor(COLOR_TITLE).text(stat.question.label, x, doc.y, { width });
+    doc.x = x;
+    doc.moveDown(0.4);
+    doc.save();
+    doc.strokeColor(COLOR_BORDER).lineWidth(0.5).moveTo(x, doc.y).lineTo(x + width, doc.y).stroke();
+    doc.restore();
+    doc.moveDown(0.4);
+    return;
+  }
+
   doc.font("Helvetica-Bold").fontSize(10).fillColor(COLOR_TITLE).text(stat.question.label, x, doc.y, { width });
   doc.x = x;
   doc.moveDown(0.2);

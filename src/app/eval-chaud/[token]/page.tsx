@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from "react";
 
 type QuestionType =
+  | "section_header"
   | "likert_5"
   | "scale_nps"
   | "text"
@@ -14,6 +15,7 @@ interface Question {
   name: string;
   type: QuestionType;
   label: string;
+  description?: string;
   required: boolean;
   options?: string[];
   leftLabel?: string;
@@ -63,8 +65,9 @@ export default function PublicSurveyPage({ params }: { params: Promise<{ token: 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!survey || submitting) return;
-    // Validation
+    // Validation : on saute les section_header
     for (const q of survey.questions) {
+      if (q.type === "section_header") continue;
       if (q.required && (!answers[q.name] || answers[q.name].trim() === "")) {
         setError(`Question requise non répondue : ${q.label}`);
         return;
@@ -132,15 +135,26 @@ export default function PublicSurveyPage({ params }: { params: Promise<{ token: 
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-6">
-                {survey.questions.map((q, idx) => (
-                  <QuestionField
-                    key={q.name}
-                    question={q}
-                    index={idx + 1}
-                    value={answers[q.name] || ""}
-                    onChange={(v) => setAnswers({ ...answers, [q.name]: v })}
-                  />
-                ))}
+                {(() => {
+                  // Numérote les vraies questions (saute les section_header) pour
+                  // que la numérotation visuelle reste continue à travers les sections.
+                  let questionIndex = 0;
+                  return survey.questions.map((q) => {
+                    if (q.type === "section_header") {
+                      return <SectionHeader key={q.name} title={q.label} description={q.description} />;
+                    }
+                    questionIndex++;
+                    return (
+                      <QuestionField
+                        key={q.name}
+                        question={q}
+                        index={questionIndex}
+                        value={answers[q.name] || ""}
+                        onChange={(v) => setAnswers({ ...answers, [q.name]: v })}
+                      />
+                    );
+                  });
+                })()}
 
                 {error && (
                   <div className="p-3 rounded text-sm font-jetbrains bg-red-50 text-red-800">{error}</div>
@@ -168,6 +182,21 @@ export default function PublicSurveyPage({ params }: { params: Promise<{ token: 
   );
 }
 
+function SectionHeader({ title, description }: { title: string; description?: string }) {
+  return (
+    <div className="pt-4 pb-1 border-b" style={{ borderColor: "#e5e7eb" }}>
+      <h2 className="text-lg font-bold" style={{ color: "#1f2244" }}>
+        {title}
+      </h2>
+      {description && (
+        <p className="text-xs font-jetbrains mt-1" style={{ color: "#727485" }}>
+          {description}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function QuestionField({
   question,
   index,
@@ -181,10 +210,15 @@ function QuestionField({
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium mb-2" style={{ color: "#1f2244" }}>
+      <label className="block text-sm font-medium mb-1" style={{ color: "#1f2244" }}>
         <span style={{ color: "#9ca3af" }}>{index}.</span> {question.label}
         {question.required && <span style={{ color: "#ef4444" }}> *</span>}
       </label>
+      {question.description && (
+        <p className="text-xs font-jetbrains mb-2" style={{ color: "#9ca3af" }}>
+          {question.description}
+        </p>
+      )}
 
       {question.type === "likert_5" && (
         <LikertField
