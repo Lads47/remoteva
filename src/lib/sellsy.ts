@@ -308,6 +308,13 @@ export async function createOpportunity(input: CreateOpportunityInput): Promise<
   });
 }
 
+/**
+ * Récupère une opportunité par id (pour vérifier son step actuel après webhook).
+ */
+export async function getOpportunity(opportunityId: number): Promise<SellsyOpportunity & { step?: { id: number } }> {
+  return sellsyFetch<SellsyOpportunity & { step?: { id: number } }>(`/opportunities/${opportunityId}`);
+}
+
 export async function updateOpportunityStep(opportunityId: number, stepId: number): Promise<void> {
   // Sellsy v2 attend un PUT sur l'opportunité (le PATCH exige un paramètre `only`
   // peu pratique pour notre cas). Le body est `{ step: <id> }` — juste l'ID,
