@@ -564,6 +564,7 @@ function drawRecapTable(
     drawScoreChip(doc, x + padding + colOrdre + colTitre, y + padding, row.globalNote, colNote - padding);
     doc.y = y + rowHeight;
   }
+  doc.x = x;
 }
 
 // Petites pastilles colorées (utilisées sur la page de bilan global).
@@ -593,6 +594,7 @@ function drawCountChips(
     cursorX += w + 6;
   }
   doc.y = y + doc.currentLineHeight() + padY * 2 + 4;
+  doc.x = startX;
 }
 
 // =====================================================================
@@ -649,6 +651,10 @@ function drawInfoBox(
     cursorY += Math.max(lineHeight, valueHeight) + 2;
   }
   doc.y = startY + estimatedHeight + 12;
+  // Replace le curseur X à la marge gauche : sans ça, les text() suivants
+  // (titres de section, label "Note globale...") héritent du X de la dernière
+  // valeur du bloc info (~190) et se retrouvent décalés à droite.
+  doc.x = x;
 }
 
 function drawCriteriaTable(
@@ -721,6 +727,8 @@ function drawCriteriaTable(
     drawScoreChip(doc, x + padding + colOrdre + colCriterion, y + padding, row.score, colScore - padding);
     doc.y = y + rowHeight;
   }
+  // Idem : reset X à la marge gauche pour la suite du document.
+  doc.x = x;
 }
 
 function drawScoreChip(
