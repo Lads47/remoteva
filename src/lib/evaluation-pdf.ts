@@ -476,14 +476,15 @@ function drawExerciseSection(doc: PDFKit.PDFDocument, input: ExerciseSectionInpu
 
   doc.moveDown(0.6);
 
-  // Synthèse globale (uniquement si renseignée)
+  // Note globale du formateur (uniquement si renseignée).
+  // Wording aligné sur l'UI (page d'évaluation, bloc 'Synthèse de l'exercice').
   const hasGlobalNote = !!(evaluation.globalNote && evaluation.globalNote in SCORE_COLORS);
   if (hasGlobalNote) {
     doc
       .font("Helvetica-Bold")
       .fontSize(11)
       .fillColor(COLOR_TITLE)
-      .text("Note de synthèse du formateur");
+      .text("Note globale du formateur sur l'exercice");
     doc.moveDown(0.2);
     drawGlobalScoreLine(doc, evaluation.globalNote);
     doc.moveDown(0.5);
@@ -528,7 +529,7 @@ function drawRecapTable(
   doc.font("Helvetica-Bold").fontSize(8).fillColor(COLOR_MUTED);
   doc.text("Exercice", x + padding, headerY + 7, { width: colOrdre });
   doc.text("Intitulé", x + padding + colOrdre, headerY + 7, { width: colTitre });
-  doc.text("Synthèse", x + padding + colOrdre + colTitre, headerY + 7, { width: colNote });
+  doc.text("Note globale", x + padding + colOrdre + colTitre, headerY + 7, { width: colNote });
   doc.y = headerY + 22;
 
   for (const row of rows) {
