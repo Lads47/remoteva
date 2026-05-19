@@ -136,6 +136,7 @@ export interface CriterionWithScore {
 }
 
 export interface EvaluationDetail {
+  evaluationId: string | null;   // null si pas encore sauvegardée
   trainee: { id: string; prenom: string; nom: string };
   exercise: { id: string; ordre: number; titre: string; description: string };
   criteria: CriterionWithScore[];
@@ -193,6 +194,7 @@ export async function getEvaluationDetail(
   }
 
   return {
+    evaluationId: evaluation?.id ?? null,
     trainee: { id: trainee.id, prenom: trainee.prenom, nom: trainee.nom },
     exercise: {
       id: exercise.id,

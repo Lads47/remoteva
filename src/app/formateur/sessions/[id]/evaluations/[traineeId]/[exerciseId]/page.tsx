@@ -15,6 +15,7 @@ interface Criterion {
 }
 
 interface EvaluationDetail {
+  evaluationId: string | null;
   trainee: { id: string; prenom: string; nom: string };
   exercise: { id: string; ordre: number; titre: string; description: string };
   criteria: Criterion[];
@@ -22,6 +23,10 @@ interface EvaluationDetail {
   observations: string;
   evaluatedAt: string | null;
   evaluatorName: string | null;
+  driveFileId: string | null;
+  driveWebUrl: string | null;
+  driveSyncedAt: string | null;
+  driveSyncError: string | null;
 }
 
 const SCORE_OPTIONS: { value: Score; label: string; bg: string; color: string }[] = [
@@ -47,6 +52,7 @@ function EvaluationFormInner({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
   useEffect(() => {
@@ -80,10 +86,10 @@ function EvaluationFormInner({
     });
   }
 
-  async function save({ andReturn }: { andReturn: boolean }) {
+  async function save({ andReturn, silent = false }: { andReturn: boolean; silent?: boolean }) {
     if (!data || saving) return;
     setSaving(true);
-    setFeedback(null);
+    if (!silent) setFeedback(null);
     try {
       const r = await fetch(
         `/api/formateur/sessions/${sessionId}/evaluations/${traineeId}/${exerciseId}?token=${encodeURIComponent(token)}`,
@@ -103,23 +109,55 @@ function EvaluationFormInner({
       );
       if (!r.ok) {
         const d = await r.json().catch(() => null);
-        setFeedback({ type: "error", msg: d?.error || "Échec de la sauvegarde" });
+        if (!silent) setFeedback({ type: "error", msg: d?.error || "Échec de la sauvegarde" });
         return;
       }
       const d = await r.json();
       if (d.evaluation) setData(d.evaluation);
-      setFeedback({ type: "success", msg: "Évaluation enregistrée" });
-      if (andReturn) {
-        setTimeout(() => {
-          router.push(`/formateur/sessions/${sessionId}/evaluations?token=${encodeURIComponent(token)}`);
-        }, 600);
-      } else {
-        setTimeout(() => setFeedback(null), 3000);
+      if (!silent) {
+        setFeedback({ type: "success", msg: "Évaluation enregistrée" });
+        if (andReturn) {
+          setTimeout(() => {
+            router.push(`/formateur/sessions/${sessionId}/evaluations?token=${encodeURIComponent(token)}`);
+          }, 600);
+        } else {
+          setTimeout(() => setFeedback(null), 3000);
+        }
       }
+    } catch {
+      if (!silent) setFeedback({ type: "error", msg: "Erreur réseau" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function syncToDrive() {
+    if (!data || syncing) return;
+    setSyncing(true);
+    setFeedback(null);
+    try {
+      // On sauve d'abord pour que le PDF contienne les dernières modifs locales
+      await save({ andReturn: false, silent: true });
+      const r = await fetch(
+        `/api/formateur/sessions/${sessionId}/evaluations/${traineeId}/${exerciseId}/export-pdf?token=${encodeURIComponent(token)}`,
+        { method: "POST" }
+      );
+      const d = await r.json().catch(() => null);
+      if (!r.ok || !d?.success) {
+        setFeedback({ type: "error", msg: d?.error || "Échec de la sync Drive" });
+        return;
+      }
+      setFeedback({ type: "success", msg: "PDF archivé dans Drive (03_EVALUATIONS)" });
+      // Refresh complet pour récupérer driveFileId / driveWebUrl
+      const fresh = await fetch(
+        `/api/formateur/sessions/${sessionId}/evaluations/${traineeId}/${exerciseId}?token=${encodeURIComponent(token)}`
+      );
+      if (fresh.ok) setData(await fresh.json());
     } catch {
       setFeedback({ type: "error", msg: "Erreur réseau" });
     } finally {
-      setSaving(false);
+      setSyncing(false);
+      setTimeout(() => setFeedback(null), 6000);
     }
   }
 
@@ -281,6 +319,62 @@ function EvaluationFormInner({
           className="w-full text-sm font-jetbrains px-3 py-2 rounded border resize-y"
           style={{ borderColor: "#e5e7eb", color: "#1f2244" }}
         />
+      </div>
+
+      {/* Bloc archivage PDF / Drive */}
+      <div className="mb-6 p-4 rounded-xl border" style={{ borderColor: "#e5e7eb", backgroundColor: "#fafbff" }}>
+        <h2 className="text-sm font-semibold uppercase tracking-wide mb-2" style={{ color: "#1f2244" }}>
+          PDF de synthèse & archivage Drive
+        </h2>
+        <p className="text-xs font-jetbrains mb-3" style={{ color: "#727485" }}>
+          Le PDF reprend la grille complète + tes observations. Il est rangé dans
+          {" "}<code>03_EVALUATIONS / {data.trainee.prenom} {data.trainee.nom}</code> sur le Drive de la session.
+          {" "}Tu peux le régénérer à tout moment : la version précédente part à la corbeille.
+        </p>
+        <div className="flex gap-2 items-center flex-wrap">
+          {data.driveFileId ? (
+            <span className="text-xs font-jetbrains px-2 py-1 rounded bg-green-50 text-green-800">
+              ✓ Drive · synchronisé {data.driveSyncedAt ? `(${new Date(data.driveSyncedAt).toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })})` : ""}
+            </span>
+          ) : (
+            <span className="text-xs font-jetbrains px-2 py-1 rounded bg-amber-50 text-amber-800">
+              ⚠ Pas encore archivé
+            </span>
+          )}
+          {data.driveWebUrl && (
+            <a
+              href={data.driveWebUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs px-3 py-1.5 rounded-full border cursor-pointer"
+              style={{ borderColor: "#1f2244", color: "#1f2244" }}
+            >
+              Ouvrir dans Drive ↗
+            </a>
+          )}
+          <a
+            href={`/api/formateur/sessions/${sessionId}/evaluations/${traineeId}/${exerciseId}/export-pdf?token=${encodeURIComponent(token)}`}
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs px-3 py-1.5 rounded-full border cursor-pointer"
+            style={{ borderColor: "#1f2244", color: "#1f2244" }}
+          >
+            Aperçu PDF
+          </a>
+          <button
+            onClick={syncToDrive}
+            disabled={syncing || saving}
+            className="text-xs px-3 py-1.5 rounded-full cursor-pointer disabled:opacity-50"
+            style={{ backgroundColor: "#7dcef5", color: "#1f2244" }}
+          >
+            {syncing ? "Génération..." : data.driveFileId ? "Re-générer & archiver" : "Générer & archiver"}
+          </button>
+        </div>
+        {data.driveSyncError && (
+          <p className="mt-2 text-xs font-jetbrains" style={{ color: "#991b1b" }}>
+            Dernière erreur Drive : {data.driveSyncError}
+          </p>
+        )}
       </div>
 
       {/* Actions */}
