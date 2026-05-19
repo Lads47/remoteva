@@ -19,9 +19,9 @@ import { provisionSessionDriveFolder } from "./drive-provisioning";
 import { replaceTextInDoc } from "./google-docs";
 import {
   copyDriveFile,
-  downloadDriveFile,
   exportDriveDocAsPdf,
   findOrCreateFolder,
+  getFileAsPdf,
   isDriveConfigured,
   uploadFile,
 } from "./google-drive";
@@ -428,20 +428,20 @@ export async function generateAndMailContract(traineeId: string): Promise<Genera
   let riFilename: string | undefined;
   if (attachmentsConfig.cgv) {
     try {
-      const cgv = await downloadDriveFile(attachmentsConfig.cgv);
+      const cgv = await getFileAsPdf(attachmentsConfig.cgv);
       cgvBuffer = cgv.buffer;
-      cgvFilename = cgv.name.endsWith(".pdf") ? cgv.name : `${cgv.name}.pdf`;
+      cgvFilename = cgv.name;
     } catch (err) {
-      console.warn("[generateAndMailContract] CGV download échoué:", err);
+      console.warn("[generateAndMailContract] CGV récupération PDF échouée:", err);
     }
   }
   if (attachmentsConfig.ri) {
     try {
-      const ri = await downloadDriveFile(attachmentsConfig.ri);
+      const ri = await getFileAsPdf(attachmentsConfig.ri);
       riBuffer = ri.buffer;
-      riFilename = ri.name.endsWith(".pdf") ? ri.name : `${ri.name}.pdf`;
+      riFilename = ri.name;
     } catch (err) {
-      console.warn("[generateAndMailContract] RI download échoué:", err);
+      console.warn("[generateAndMailContract] RI récupération PDF échouée:", err);
     }
   }
 
@@ -534,11 +534,11 @@ export async function generateAndMailConvocation(traineeId: string): Promise<Gen
   let riFilename: string | undefined;
   if (attachmentsConfig.ri) {
     try {
-      const ri = await downloadDriveFile(attachmentsConfig.ri);
+      const ri = await getFileAsPdf(attachmentsConfig.ri);
       riBuffer = ri.buffer;
-      riFilename = ri.name.endsWith(".pdf") ? ri.name : `${ri.name}.pdf`;
+      riFilename = ri.name;
     } catch (err) {
-      console.warn("[generateAndMailConvocation] RI download échoué:", err);
+      console.warn("[generateAndMailConvocation] RI récupération PDF échouée:", err);
     }
   }
 

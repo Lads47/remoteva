@@ -305,6 +305,61 @@ export async function downloadDriveFile(fileId: string): Promise<{ buffer: Buffe
 }
 
 /**
+ * Récupère un fichier Drive sous forme de PDF, peu importe son format natif :
+ *   - application/pdf       → download direct (alt=media)
+ *   - Google Doc/Sheet/Slide → export en PDF
+ *   - autre                  → erreur explicite
+ *
+ * Utilisé pour les pièces jointes mails (CGV, RI...) où on veut un PDF
+ * indépendamment de la façon dont le user a stocké le doc dans Drive.
+ */
+export async function getFileAsPdf(fileId: string): Promise<{ buffer: Buffer; name: string }> {
+  const token = await getAccessToken();
+  const metaRes = await fetch(
+    `${DRIVE_API}/files/${encodeURIComponent(fileId)}?fields=name,mimeType&supportsAllDrives=true`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!metaRes.ok) {
+    throw new Error(`Drive get metadata failed (HTTP ${metaRes.status}): ${(await metaRes.text()).slice(0, 200)}`);
+  }
+  const meta = (await metaRes.json()) as { name: string; mimeType: string };
+
+  const baseName = meta.name.endsWith(".pdf") ? meta.name : `${meta.name}.pdf`;
+
+  if (meta.mimeType === "application/pdf") {
+    const dlRes = await fetch(
+      `${DRIVE_API}/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (!dlRes.ok) {
+      throw new Error(`Drive download failed (HTTP ${dlRes.status}): ${(await dlRes.text()).slice(0, 200)}`);
+    }
+    const arrayBuffer = await dlRes.arrayBuffer();
+    return { buffer: Buffer.from(arrayBuffer), name: baseName };
+  }
+
+  const exportableTypes = new Set([
+    "application/vnd.google-apps.document",
+    "application/vnd.google-apps.spreadsheet",
+    "application/vnd.google-apps.presentation",
+    "application/vnd.google-apps.drawing",
+  ]);
+  if (exportableTypes.has(meta.mimeType)) {
+    const exportRes = await fetch(
+      `${DRIVE_API}/files/${encodeURIComponent(fileId)}/export?mimeType=application/pdf`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (!exportRes.ok) {
+      throw new Error(`Drive export PDF failed (HTTP ${exportRes.status}): ${(await exportRes.text()).slice(0, 200)}`);
+    }
+    const arrayBuffer = await exportRes.arrayBuffer();
+    return { buffer: Buffer.from(arrayBuffer), name: baseName };
+  }
+
+  throw new Error(`Type non supporté pour conversion PDF : ${meta.mimeType}`);
+}
+
+/**
  * Exporte un Google Doc en PDF via l'API d'export Drive.
  * Pour les types natifs Google (Doc, Sheet, Slides) seulement.
  */
