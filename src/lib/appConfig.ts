@@ -56,6 +56,7 @@ export const CONFIG_KEYS = {
   SELLSY_PIPELINE_ID: "sellsy.pipeline_id",
   SELLSY_STEP_MAPPING: "sellsy.step_mapping",
   DRIVE_DEFAULT_TEMPLATES: "drive.default_templates",
+  DRIVE_ATTACHMENTS: "drive.attachments",
 } as const;
 
 // Templates Drive par défaut, utilisés quand une formation n'a pas son propre
@@ -64,6 +65,14 @@ export interface DriveDefaultTemplates {
   convention?: string;
   contrat?: string;
   convocation?: string;
+}
+
+// IDs Drive des PDF joints automatiquement à certains mails (CGV, RI...).
+// Ces PDF sont déjà finalisés (pas générés dynamiquement) : on les télécharge
+// tels quels et on les attache au mail.
+export interface DriveAttachments {
+  cgv?: string;          // ID du fichier PDF des CGV (Conditions Générales de Vente)
+  ri?: string;           // ID du fichier PDF du Règlement Intérieur de l'OF
 }
 
 export async function getSellsyPipelineId(): Promise<number | null> {
@@ -103,4 +112,17 @@ export async function setDriveDefaultTemplates(templates: DriveDefaultTemplates)
   if (templates.contrat?.trim()) cleaned.contrat = templates.contrat.trim();
   if (templates.convocation?.trim()) cleaned.convocation = templates.convocation.trim();
   await setJsonConfig(CONFIG_KEYS.DRIVE_DEFAULT_TEMPLATES, cleaned);
+}
+
+// === Pièces jointes Drive (CGV, RI...) ===
+
+export async function getDriveAttachments(): Promise<DriveAttachments> {
+  return (await getJsonConfig<DriveAttachments>(CONFIG_KEYS.DRIVE_ATTACHMENTS)) ?? {};
+}
+
+export async function setDriveAttachments(attachments: DriveAttachments): Promise<void> {
+  const cleaned: DriveAttachments = {};
+  if (attachments.cgv?.trim()) cleaned.cgv = attachments.cgv.trim();
+  if (attachments.ri?.trim()) cleaned.ri = attachments.ri.trim();
+  await setJsonConfig(CONFIG_KEYS.DRIVE_ATTACHMENTS, cleaned);
 }

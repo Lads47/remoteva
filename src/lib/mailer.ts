@@ -461,3 +461,132 @@ Voir la fiche : ${fichSessionUrl}`;
     replyTo: params.email,
   });
 }
+
+/**
+ * Envoi convention/contrat de formation au stagiaire après signature du devis.
+ * Joint en PDF :
+ *   1. La convention (entreprise) ou le contrat (particulier) générée
+ *   2. Les CGV de l'organisme
+ *   3. Le Règlement Intérieur
+ * Les CGV/RI sont fournies sous forme de buffer (téléchargées au préalable
+ * depuis Drive par l'appelant).
+ */
+export async function sendContractToStagiaire(params: {
+  to: string;
+  prenom: string;
+  nom: string;
+  formationNomLong: string;
+  sessionDateDebut: Date | string;
+  sessionDateFin: Date | string;
+  sessionLieu: string;
+  documentType: "convention" | "contrat";
+  contractPdfBuffer: Buffer;
+  contractPdfFilename: string;
+  contractDriveUrl?: string;     // Lien Drive pour signature électronique
+  cgvBuffer?: Buffer;
+  cgvFilename?: string;
+  riBuffer?: Buffer;
+  riFilename?: string;
+  replyTo?: string;
+}): Promise<SendEmailResult> {
+  const replyTo = params.replyTo || process.env.ADMIN_NOTIFY_EMAIL;
+  const safe = {
+    prenom: escapeHtml(params.prenom),
+    nom: escapeHtml(params.nom),
+    formation: escapeHtml(params.formationNomLong),
+    lieu: escapeHtml(params.sessionLieu || "Lieu à préciser"),
+  };
+  const dateDebut = fmtDateFr(params.sessionDateDebut);
+  const dateFin = fmtDateFr(params.sessionDateFin);
+  const docLabel = params.documentType === "convention" ? "convention" : "contrat";
+  const docLabelCap = params.documentType === "convention" ? "Convention" : "Contrat";
+
+  const driveLinkHtml = params.contractDriveUrl
+    ? `<p style="background: #e0f2fe; padding: 12px 16px; border-radius: 8px; border-left: 4px solid #0284c7;">
+         <strong>Signature électronique disponible :</strong><br/>
+         Vous pouvez aussi signer directement en ligne via Google Docs :
+         <a href="${params.contractDriveUrl}" target="_blank">ouvrir le document</a>.
+       </p>`
+    : "";
+
+  const html = `<!DOCTYPE html>
+<html lang="fr">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #1f2244;">
+  <h1 style="font-size: 22px; margin: 0 0 16px;">Votre ${docLabel} de formation</h1>
+  <p>Bonjour ${safe.prenom},</p>
+  <p>Suite à la signature du devis pour la formation <strong>${safe.formation}</strong>,
+  vous trouverez ci-joint votre <strong>${docLabel} de formation</strong> (déjà signée côté Les Ateliers du Stream)
+  ainsi que les pièces jointes obligatoires :</p>
+
+  <ul style="padding-left: 20px;">
+    <li>${docLabelCap} de formation professionnelle (à retourner signée)</li>
+    <li>CGV (Conditions Générales de Vente)</li>
+    <li>Règlement Intérieur de l'organisme</li>
+  </ul>
+
+  <table style="border-collapse: collapse; margin: 16px 0; background: #f8fafc; border-radius: 8px; padding: 12px; width: 100%;">
+    <tr><td style="padding: 8px 12px; color: #727485;">Session</td><td style="padding: 8px 12px;"><strong>Du ${dateDebut} au ${dateFin}</strong></td></tr>
+    <tr><td style="padding: 8px 12px; color: #727485;">Lieu</td><td style="padding: 8px 12px;">${safe.lieu}</td></tr>
+  </table>
+
+  ${driveLinkHtml}
+
+  <p><strong>Prochaines étapes :</strong></p>
+  <ol style="padding-left: 20px;">
+    <li>Lisez attentivement la ${docLabel}, les CGV et le règlement intérieur.</li>
+    <li>Retournez la ${docLabel} signée par retour de mail.</li>
+    <li>Vous recevrez ensuite votre convocation et le programme détaillé environ 15 jours avant le début de la formation.</li>
+  </ol>
+
+  <p>Pour toute question, vous pouvez simplement répondre à ce mail.</p>
+  <p>Bien cordialement,<br/>Noémie Marphay<br/><em>Les Ateliers du Stream</em></p>
+  <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;"/>
+  <p style="font-size: 11px; color: #9ca3af;">
+    Les Ateliers du Stream — NDA N°75470196847. Organisme de formation référencé Qualiopi.
+  </p>
+</body>
+</html>`;
+
+  const text = `Bonjour ${params.prenom},
+
+Suite à la signature du devis pour la formation ${params.formationNomLong}, vous trouverez ci-joint votre ${docLabel} de formation (signée côté Les Ateliers du Stream) ainsi que les CGV et le règlement intérieur.
+
+Session : du ${dateDebut} au ${dateFin}
+Lieu : ${params.sessionLieu || "Lieu à préciser"}
+
+${params.contractDriveUrl ? `Signature électronique en ligne : ${params.contractDriveUrl}\n\n` : ""}Prochaines étapes :
+1. Lisez attentivement la ${docLabel}, les CGV et le règlement intérieur.
+2. Retournez la ${docLabel} signée par retour de mail.
+3. Vous recevrez ensuite votre convocation et le programme détaillé ~15 jours avant le début.
+
+Pour toute question, répondez à ce mail.
+
+Bien cordialement,
+Noémie Marphay
+Les Ateliers du Stream`;
+
+  const attachments: EmailAttachment[] = [
+    { filename: params.contractPdfFilename, content: params.contractPdfBuffer.toString("base64") },
+  ];
+  if (params.cgvBuffer) {
+    attachments.push({
+      filename: params.cgvFilename || "CGV.pdf",
+      content: params.cgvBuffer.toString("base64"),
+    });
+  }
+  if (params.riBuffer) {
+    attachments.push({
+      filename: params.riFilename || "Reglement-Interieur.pdf",
+      content: params.riBuffer.toString("base64"),
+    });
+  }
+
+  return sendEmail({
+    to: params.to,
+    subject: `${docLabelCap} de formation — ${params.formationNomLong}`,
+    html,
+    text,
+    replyTo,
+    attachments,
+  });
+}

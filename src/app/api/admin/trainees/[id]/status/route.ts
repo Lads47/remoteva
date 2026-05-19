@@ -4,6 +4,7 @@ import { getTraineeById, recordTraineeEvent, updateTrainee, type TraineeUpdateIn
 import { traineeStatusTransitionSchema } from "@/lib/validation";
 import { getSellsyStepMapping, type EvaStatus } from "@/lib/appConfig";
 import { updateOpportunityStep } from "@/lib/sellsy";
+import { generateAndMailContract } from "@/lib/trainee-documents";
 
 async function requireAuth() {
   const session = await getSession();
@@ -91,7 +92,37 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
       }
     }
 
-    return NextResponse.json({ trainee, sellsySynced, sellsyError });
+    // Trigger : à la signature du devis, génère automatiquement la
+    // convention (entreprise) ou le contrat (particulier) et l'envoie par
+    // mail avec CGV + RI en PJ. Best-effort : on log si ça échoue, sans
+    // bloquer la transition de statut elle-même.
+    let contractTriggered: { documentType?: string; driveWebUrl?: string | null; emailSent?: boolean; error?: string } | null = null;
+    if (newStatus === "devis_signe" && existing.status !== "devis_signe") {
+      try {
+        const res = await generateAndMailContract(id);
+        if (res.ok) {
+          contractTriggered = {
+            documentType: res.documentType,
+            driveWebUrl: res.driveWebUrl,
+            emailSent: res.emailSent,
+          };
+        } else {
+          contractTriggered = { error: res.error };
+          await recordTraineeEvent(
+            id,
+            "doc_generated",
+            `Auto-trigger ${newStatus} : ${res.error}`,
+            { status: newStatus, autoTrigger: "convention_contrat", error: res.error }
+          );
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Erreur inconnue";
+        console.warn("[status] generateAndMailContract a throw:", err);
+        contractTriggered = { error: msg };
+      }
+    }
+
+    return NextResponse.json({ trainee, sellsySynced, sellsyError, contractTriggered });
   } catch (error) {
     console.error("[/api/admin/trainees/[id]/status] POST error:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });

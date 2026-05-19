@@ -9,8 +9,14 @@ interface Templates {
   convocation?: string;
 }
 
+interface Attachments {
+  cgv?: string;
+  ri?: string;
+}
+
 export default function DriveConfigPage() {
   const [templates, setTemplates] = useState<Templates>({});
+  const [attachments, setAttachments] = useState<Attachments>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -21,7 +27,10 @@ export default function DriveConfigPage() {
       .then((r) => r.json())
       .then((d) => {
         if (d.error) setError(d.error);
-        else setTemplates(d.templates ?? {});
+        else {
+          setTemplates(d.templates ?? {});
+          setAttachments(d.attachments ?? {});
+        }
       })
       .catch(() => setError("Erreur de chargement"))
       .finally(() => setLoading(false));
@@ -34,7 +43,7 @@ export default function DriveConfigPage() {
       const res = await fetch("/api/admin/drive-config", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ templates }),
+        body: JSON.stringify({ templates, attachments }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -42,7 +51,8 @@ export default function DriveConfigPage() {
         return;
       }
       setTemplates(data.templates ?? {});
-      setFeedback({ type: "success", msg: "Templates Drive par défaut enregistrés" });
+      setAttachments(data.attachments ?? {});
+      setFeedback({ type: "success", msg: "Configuration Drive enregistrée" });
       setTimeout(() => setFeedback(null), 4000);
     } catch {
       setError("Erreur de connexion");
@@ -106,6 +116,28 @@ export default function DriveConfigPage() {
           onChange={(v) => setTemplates({ ...templates, convocation: v })}
           help="ID Google Doc utilisé par défaut pour générer les convocations."
         />
+
+        <div className="border-t pt-4 mt-2" style={{ borderColor: "#e5e7eb" }}>
+          <h2 className="text-sm font-semibold uppercase tracking-wide mb-1" style={{ color: "#1f2244" }}>
+            Pièces jointes mails (PDF déjà finalisés)
+          </h2>
+          <p className="text-xs font-jetbrains mb-3" style={{ color: "#727485" }}>
+            IDs Drive de PDF déjà rédigés (pas des templates à substituer). Ces fichiers sont joints automatiquement aux mails de convention/contrat et de convocation.
+          </p>
+        </div>
+        <TemplateField
+          label="CGV — Conditions Générales de Vente (PDF)"
+          value={attachments.cgv ?? ""}
+          onChange={(v) => setAttachments({ ...attachments, cgv: v })}
+          help="ID du PDF des CGV, joint au mail de convention/contrat."
+        />
+        <TemplateField
+          label="Règlement Intérieur (PDF)"
+          value={attachments.ri ?? ""}
+          onChange={(v) => setAttachments({ ...attachments, ri: v })}
+          help="ID du PDF du Règlement Intérieur, joint au mail de convention/contrat et à la convocation."
+        />
+
         <div className="pt-2 flex gap-2">
           <button
             onClick={handleSave}

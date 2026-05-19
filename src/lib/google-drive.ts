@@ -277,6 +277,60 @@ export async function copyDriveFile(input: {
 }
 
 /**
+ * Télécharge le contenu brut d'un fichier Drive (PDF natif, image, etc.).
+ * Pour un Google Doc, utiliser exportDriveDocAsPdf à la place.
+ */
+export async function downloadDriveFile(fileId: string): Promise<{ buffer: Buffer; mimeType: string; name: string }> {
+  const token = await getAccessToken();
+  // 1. Récupère les métadonnées (nom + mimeType)
+  const metaRes = await fetch(
+    `${DRIVE_API}/files/${encodeURIComponent(fileId)}?fields=name,mimeType&supportsAllDrives=true`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!metaRes.ok) {
+    throw new Error(`Drive get metadata failed (HTTP ${metaRes.status}): ${(await metaRes.text()).slice(0, 200)}`);
+  }
+  const meta = (await metaRes.json()) as { name: string; mimeType: string };
+
+  // 2. Télécharge le contenu via alt=media
+  const dlRes = await fetch(
+    `${DRIVE_API}/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!dlRes.ok) {
+    throw new Error(`Drive download failed (HTTP ${dlRes.status}): ${(await dlRes.text()).slice(0, 200)}`);
+  }
+  const arrayBuffer = await dlRes.arrayBuffer();
+  return { buffer: Buffer.from(arrayBuffer), mimeType: meta.mimeType, name: meta.name };
+}
+
+/**
+ * Exporte un Google Doc en PDF via l'API d'export Drive.
+ * Pour les types natifs Google (Doc, Sheet, Slides) seulement.
+ */
+export async function exportDriveDocAsPdf(fileId: string): Promise<{ buffer: Buffer; name: string }> {
+  const token = await getAccessToken();
+  const metaRes = await fetch(
+    `${DRIVE_API}/files/${encodeURIComponent(fileId)}?fields=name&supportsAllDrives=true`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!metaRes.ok) {
+    throw new Error(`Drive get metadata failed (HTTP ${metaRes.status}): ${(await metaRes.text()).slice(0, 200)}`);
+  }
+  const meta = (await metaRes.json()) as { name: string };
+
+  const exportRes = await fetch(
+    `${DRIVE_API}/files/${encodeURIComponent(fileId)}/export?mimeType=application/pdf`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!exportRes.ok) {
+    throw new Error(`Drive export PDF failed (HTTP ${exportRes.status}): ${(await exportRes.text()).slice(0, 200)}`);
+  }
+  const arrayBuffer = await exportRes.arrayBuffer();
+  return { buffer: Buffer.from(arrayBuffer), name: meta.name };
+}
+
+/**
  * Supprime (déplace dans la corbeille) un fichier Drive.
  * Best-effort : ne throw pas si le fichier est déjà introuvable.
  */

@@ -13,16 +13,20 @@
 // La liste des variables disponibles est exportée pour pouvoir l'afficher
 // côté admin (page de configuration de la formation) — voir DOCUMENT_VARIABLES.
 
-import { getDriveDefaultTemplates } from "./appConfig";
+import { getDriveAttachments, getDriveDefaultTemplates } from "./appConfig";
 import prisma from "./db";
 import { provisionSessionDriveFolder } from "./drive-provisioning";
 import { replaceTextInDoc } from "./google-docs";
 import {
   copyDriveFile,
+  downloadDriveFile,
+  exportDriveDocAsPdf,
   findOrCreateFolder,
   isDriveConfigured,
   uploadFile,
 } from "./google-drive";
+import { sendContractToStagiaire } from "./mailer";
+import { recordTraineeEvent } from "./trainee";
 
 const INSCRIPTIONS_FOLDER_NAME = "01_INSCRIPTIONS_CONVENTIONS";
 
@@ -364,4 +368,122 @@ export async function archiveTraineeFile(input: ArchiveTraineeFileInput): Promis
     console.warn(`[archiveTraineeFile] échec ${input.type} traineeId=${input.traineeId}:`, error);
     return { ok: false, error };
   }
+}
+
+// =========================================================================
+// Orchestration : génère la convention/contrat + envoie mail avec CGV + RI
+// =========================================================================
+
+export type GenerateAndMailResult =
+  | { ok: true; documentType: DocumentType; driveFileId: string; driveWebUrl: string | null; emailSent: boolean; emailError: string | null }
+  | { ok: false; error: string };
+
+/**
+ * Workflow : à la signature du devis, on déclenche :
+ *   1. Génération de la convention (entreprise) ou du contrat (particulier)
+ *   2. Export en PDF du Google Doc généré
+ *   3. Téléchargement des CGV et RI depuis Drive (selon IDs configurés)
+ *   4. Envoi du mail au stagiaire avec les 3 PJ
+ *
+ * Best-effort sur chaque étape : si CGV ou RI manquent, le mail part quand
+ * même avec ce qu'on a. Si la génération échoue, on retourne une erreur.
+ *
+ * Le type de document est choisi automatiquement selon `trainee.inscriptionType`.
+ */
+export async function generateAndMailContract(traineeId: string): Promise<GenerateAndMailResult> {
+  const trainee = await prisma.trainee.findUnique({
+    where: { id: traineeId },
+    include: {
+      session: { include: { formation: true } },
+    },
+  });
+  if (!trainee) return { ok: false, error: "Stagiaire introuvable" };
+
+  const docType: DocumentType = trainee.inscriptionType === "entreprise" ? "convention" : "contrat";
+
+  // 1. Génère le document via le pipeline standard (copie template + substitue
+  //    variables + archive dans Drive + crée TraineeDocument).
+  const gen = await generateTraineeDocument(traineeId, docType);
+  if (!gen.ok) {
+    return { ok: false, error: `Génération ${docType} échouée : ${gen.error}` };
+  }
+
+  // 2. Export en PDF du Doc généré
+  let contractPdfBuffer: Buffer;
+  let contractPdfFilename: string;
+  try {
+    const exported = await exportDriveDocAsPdf(gen.driveFileId);
+    contractPdfBuffer = exported.buffer;
+    contractPdfFilename = `${exported.name}.pdf`;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Erreur inconnue";
+    return { ok: false, error: `Export PDF échoué : ${msg}` };
+  }
+
+  // 3. Téléchargement CGV + RI (best-effort)
+  const attachmentsConfig = await getDriveAttachments();
+  let cgvBuffer: Buffer | undefined;
+  let cgvFilename: string | undefined;
+  let riBuffer: Buffer | undefined;
+  let riFilename: string | undefined;
+  if (attachmentsConfig.cgv) {
+    try {
+      const cgv = await downloadDriveFile(attachmentsConfig.cgv);
+      cgvBuffer = cgv.buffer;
+      cgvFilename = cgv.name.endsWith(".pdf") ? cgv.name : `${cgv.name}.pdf`;
+    } catch (err) {
+      console.warn("[generateAndMailContract] CGV download échoué:", err);
+    }
+  }
+  if (attachmentsConfig.ri) {
+    try {
+      const ri = await downloadDriveFile(attachmentsConfig.ri);
+      riBuffer = ri.buffer;
+      riFilename = ri.name.endsWith(".pdf") ? ri.name : `${ri.name}.pdf`;
+    } catch (err) {
+      console.warn("[generateAndMailContract] RI download échoué:", err);
+    }
+  }
+
+  // 4. Envoi du mail
+  const mailRes = await sendContractToStagiaire({
+    to: trainee.email,
+    prenom: trainee.prenom,
+    nom: trainee.nom,
+    formationNomLong: trainee.session.formation.nomLong,
+    sessionDateDebut: trainee.session.dateDebut,
+    sessionDateFin: trainee.session.dateFin,
+    sessionLieu: trainee.session.lieu,
+    documentType: docType,
+    contractPdfBuffer,
+    contractPdfFilename,
+    contractDriveUrl: gen.driveWebUrl || undefined,
+    cgvBuffer,
+    cgvFilename,
+    riBuffer,
+    riFilename,
+  });
+
+  await recordTraineeEvent(
+    traineeId,
+    mailRes.success ? "email_sent" : "email_failed",
+    mailRes.success
+      ? `Mail ${docType} envoyé au stagiaire (${trainee.email}) avec ${[contractPdfFilename, cgvFilename, riFilename].filter(Boolean).length} PJ`
+      : `Échec mail ${docType} : ${mailRes.error}`,
+    {
+      type: docType,
+      to: trainee.email,
+      messageId: mailRes.messageId,
+      attachments: { contract: true, cgv: !!cgvBuffer, ri: !!riBuffer },
+    }
+  );
+
+  return {
+    ok: true,
+    documentType: docType,
+    driveFileId: gen.driveFileId,
+    driveWebUrl: gen.driveWebUrl,
+    emailSent: mailRes.success,
+    emailError: mailRes.error || null,
+  };
 }

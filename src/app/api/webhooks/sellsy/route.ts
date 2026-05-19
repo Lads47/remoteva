@@ -23,6 +23,7 @@ import prisma from "@/lib/db";
 import { getSellsyStepMapping, type EvaStatus } from "@/lib/appConfig";
 import { getOpportunity } from "@/lib/sellsy";
 import { recordTraineeEvent } from "@/lib/trainee";
+import { generateAndMailContract } from "@/lib/trainee-documents";
 
 // Inverse le mapping EvaStatus → stepId en un mapping stepId → EvaStatus
 function invertStepMapping(mapping: Partial<Record<EvaStatus, number>>): Map<number, EvaStatus> {
@@ -176,10 +177,27 @@ export async function POST(request: NextRequest) {
     `[sellsy-webhook] trainee ${trainee.id} : ${trainee.status} → ${newEvaStatus} (step ${currentStepId})`
   );
 
+  // Trigger : si le nouveau statut est devis_signe, génère convention/contrat
+  // et envoie le mail avec CGV + RI. Best-effort, ne bloque pas le 200.
+  let contractTriggered: unknown = null;
+  if (newEvaStatus === "devis_signe") {
+    try {
+      const res = await generateAndMailContract(trainee.id);
+      contractTriggered = res.ok
+        ? { documentType: res.documentType, emailSent: res.emailSent }
+        : { error: res.error };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Erreur inconnue";
+      console.warn("[sellsy-webhook] generateAndMailContract a throw:", err);
+      contractTriggered = { error: msg };
+    }
+  }
+
   return NextResponse.json({
     received: true,
     updated: true,
     trainee: { id: trainee.id, from: trainee.status, to: newEvaStatus, stepId: currentStepId },
+    contractTriggered,
   });
 }
 
