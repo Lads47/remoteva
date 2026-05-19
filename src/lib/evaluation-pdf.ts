@@ -1,9 +1,9 @@
-// Génération du PDF de synthèse d'une évaluation pratique (Qualiopi).
+// Génération du PDF de synthèse d'une évaluation pratique.
 //
-// Le PDF est destiné à l'audit : il rappelle l'identité du stagiaire, le
-// contexte formation/session, l'énoncé de l'exercice, la grille des critères
-// avec les scores saisis, la note de synthèse et les observations du
-// formateur.
+// Le PDF rappelle l'identité du stagiaire, le contexte formation/session,
+// l'énoncé de l'exercice, la grille des critères avec les scores saisis, la
+// note de synthèse et les observations du formateur. Il est destiné à
+// l'archivage et aux audits.
 //
 // Implémentation via `pdfkit` (pure JS, pas de navigateur headless), pour
 // rester compatible Docker slim sans dépendances système.
@@ -11,6 +11,13 @@
 import PDFDocument from "pdfkit";
 import prisma from "./db";
 import { SCORE_LABELS, type ScoreValue } from "./evaluation-grids";
+
+// Identité organisme de formation — doit rester aligné avec le footer de la
+// feuille d'émargement (src/app/formateur/sessions/[id]/emargement/print/page.tsx).
+const FOOTER_LINE_1 =
+  "Les Ateliers du Stream - Siège : 39 bis rue Robert Creuzet 47200 MARMANDE - Siret : 81950223800036 - APE : 59.11B - formation@lesateliersdustream.fr";
+const FOOTER_LINE_2 =
+  "Tel : 06.46.65.65.77 – Organisme de formation professionnelle continue - NDA N°75470196847";
 
 // Palette cohérente avec l'UI web (couleurs Tailwind matchées en hex)
 const COLOR_TITLE = "#1f2244";
@@ -85,12 +92,13 @@ export async function buildEvaluationPdf(evaluationId: string): Promise<PdfBundl
   // ===== Génération du PDF =====
   const doc = new PDFDocument({
     size: "A4",
-    margins: { top: 50, bottom: 50, left: 50, right: 50 },
+    margins: { top: 50, bottom: 85, left: 50, right: 50 }, // bottom élargi pour le footer multi-lignes
     info: {
       Title: `Évaluation pratique — ${exercise.titre} — ${fullName}`,
       Author: "Les Ateliers du Stream",
       Subject: `Fiche d'évaluation pratique — ${formation.nomLong}`,
     },
+    bufferPages: true, // pour pouvoir dessiner le footer sur toutes les pages à la fin
   });
   const chunks: Buffer[] = [];
   doc.on("data", (c: Buffer) => chunks.push(c));
@@ -107,7 +115,7 @@ export async function buildEvaluationPdf(evaluationId: string): Promise<PdfBundl
     .font("Helvetica")
     .fontSize(9)
     .fillColor(COLOR_MUTED)
-    .text("Les Ateliers du Stream — Organisme de formation Qualiopi", { align: "left" });
+    .text("Les Ateliers du Stream", { align: "left" });
 
   doc.moveDown(0.7);
 
@@ -206,21 +214,13 @@ export async function buildEvaluationPdf(evaluationId: string): Promise<PdfBundl
       { align: "justify" }
     );
 
-  // -- Pied de page --
-  const bottomY = doc.page.height - 80;
-  doc.save();
-  doc.strokeColor(COLOR_BORDER).lineWidth(0.5).moveTo(50, bottomY).lineTo(545, bottomY).stroke();
-  doc
-    .font("Helvetica")
-    .fontSize(8)
-    .fillColor(COLOR_MUTED)
-    .text(
-      `Document généré le ${fmtDateTime(new Date())} — Les Ateliers du Stream — Qualiopi`,
-      50,
-      bottomY + 8,
-      { width: 495, align: "center" }
-    );
-  doc.restore();
+  // -- Pied de page sur toutes les pages --
+  // Identique au footer de la feuille d'émargement (SIRET, APE, NDA, contact).
+  const pageRange = doc.bufferedPageRange();
+  for (let i = pageRange.start; i < pageRange.start + pageRange.count; i++) {
+    doc.switchToPage(i);
+    drawFooter(doc);
+  }
 
   doc.end();
   await done;
@@ -410,4 +410,27 @@ function drawGlobalScoreLine(doc: PDFKit.PDFDocument, score: string): void {
   drawScoreChip(doc, startX, y, score, 200);
   // Avance la position Y au-dessous du chip
   doc.y = y + 22;
+}
+
+// Pied de page identique à la feuille d'émargement signée. Trois lignes :
+// adresse + SIRET + APE / contact + NDA / horodatage de génération.
+function drawFooter(doc: PDFKit.PDFDocument): void {
+  const leftX = 50;
+  const rightX = doc.page.width - 50;
+  const width = rightX - leftX;
+  const baseY = doc.page.height - 60;
+
+  doc.save();
+  doc.strokeColor(COLOR_BORDER).lineWidth(0.5).moveTo(leftX, baseY).lineTo(rightX, baseY).stroke();
+  doc.font("Helvetica").fontSize(7).fillColor(COLOR_TITLE);
+  doc.text(FOOTER_LINE_1, leftX, baseY + 6, { width, align: "center" });
+  doc.text(FOOTER_LINE_2, leftX, baseY + 16, { width, align: "center" });
+  doc
+    .fontSize(6)
+    .fillColor(COLOR_MUTED)
+    .text(`Document généré le ${fmtDateTime(new Date())}`, leftX, baseY + 30, {
+      width,
+      align: "center",
+    });
+  doc.restore();
 }
