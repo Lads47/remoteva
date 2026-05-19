@@ -67,10 +67,30 @@ function parseSellsyPayload(rawBody: string): ParsedPayload {
   const raw: Record<string, string> = {};
   params.forEach((v, k) => { raw[k] = v; });
 
-  // Sellsy v1 utilisait `notif` + `relatedid` + `relatedtype`. v2 peut
-  // utiliser `event` ou `object_type` + `object_id`. On essaie plusieurs
-  // variantes pour être robuste.
-  const event = raw.event || raw.notif || raw.eventType;
+  // Format observé en prod : Sellsy envoie le body form-urlencoded avec une
+  // seule clé `notif` dont la valeur est un JSON stringifié contenant
+  // l'événement. Ex :
+  //   notif={"eventType":"oplog","timestamp":"...","event":"step",
+  //          "relatedid":"11087507","relatedtype":"opportunity",...}
+  // On essaie de le parser pour extraire relatedid + relatedtype.
+  if (raw.notif) {
+    try {
+      const inner = JSON.parse(raw.notif) as Record<string, unknown>;
+      const event = typeof inner.event === "string" ? inner.event : undefined;
+      const objectType = typeof inner.relatedtype === "string" ? inner.relatedtype : "";
+      const objectIdStr =
+        typeof inner.relatedid === "string" || typeof inner.relatedid === "number"
+          ? String(inner.relatedid)
+          : undefined;
+      const objectId = objectIdStr ? Number(objectIdStr) : undefined;
+      return { event, objectType, objectId, raw };
+    } catch (err) {
+      console.warn("[sellsy-webhook] notif n'est pas du JSON valide:", err);
+    }
+  }
+
+  // Fallback : essais sur d'autres conventions de nommage (v2, tests manuels).
+  const event = raw.event || raw.eventType;
   const objectType =
     raw.object_type || raw.relatedtype || raw.objectType || "";
   const objectIdStr = raw.object_id || raw.relatedid || raw.objectId || raw.id;
