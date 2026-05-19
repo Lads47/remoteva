@@ -283,8 +283,11 @@ function EvaluationsMatrixInner({ id }: { id: string }) {
           <tbody>
             {data.trainees.map((tr) => (
               <tr key={tr.id} className="border-t" style={{ borderColor: "#e5e7eb" }}>
-                <td className="px-3 py-2 font-medium" style={{ color: "#1f2244" }}>
-                  {tr.prenom} {tr.nom}
+                <td className="px-3 py-2" style={{ color: "#1f2244" }}>
+                  <div className="font-medium">
+                    {tr.prenom} {tr.nom}
+                  </div>
+                  <TraineeGlobalActions sessionId={id} traineeId={tr.id} token={token} />
                 </td>
                 {data.exercises.map((ex) => {
                   const cell = cellMap.get(`${tr.id}::${ex.id}`);
@@ -342,6 +345,90 @@ function Header({ sessionId, token }: { sessionId: string; token: string }) {
       <h1 className="text-3xl font-bold mt-2" style={{ color: "#1f2244" }}>
         Évaluations pratiques
       </h1>
+    </div>
+  );
+}
+
+// Boutons d'actions globales par stagiaire (sur la matrice) : aperçu du PDF
+// global et archivage dans 03_EVALUATIONS/<Stagiaire>/ sur Drive.
+function TraineeGlobalActions({
+  sessionId,
+  traineeId,
+  token,
+}: {
+  sessionId: string;
+  traineeId: string;
+  token: string;
+}) {
+  const [syncing, setSyncing] = useState(false);
+  const [status, setStatus] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+  const [driveUrl, setDriveUrl] = useState<string | null>(null);
+
+  async function syncGlobal() {
+    if (syncing) return;
+    setSyncing(true);
+    setStatus(null);
+    try {
+      const r = await fetch(
+        `/api/formateur/sessions/${sessionId}/evaluations/${traineeId}/global-pdf?token=${encodeURIComponent(token)}`,
+        { method: "POST" }
+      );
+      const d = await r.json().catch(() => null);
+      if (!r.ok || !d?.success) {
+        setStatus({ type: "error", msg: d?.error || "Échec de l'archivage" });
+        return;
+      }
+      setDriveUrl(d.driveWebUrl ?? null);
+      setStatus({ type: "success", msg: "Synthèse archivée dans Drive" });
+    } catch {
+      setStatus({ type: "error", msg: "Erreur réseau" });
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setStatus(null), 6000);
+    }
+  }
+
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+      <a
+        href={`/api/formateur/sessions/${sessionId}/evaluations/${traineeId}/global-pdf?token=${encodeURIComponent(token)}`}
+        target="_blank"
+        rel="noreferrer"
+        className="text-[10px] font-jetbrains px-2 py-0.5 rounded-full border cursor-pointer hover:bg-gray-50"
+        style={{ borderColor: "#e5e7eb", color: "#1f2244" }}
+        title="Aperçu PDF complet de tous les exercices de ce stagiaire"
+      >
+        📄 Synthèse PDF
+      </a>
+      <button
+        onClick={syncGlobal}
+        disabled={syncing}
+        className="text-[10px] font-jetbrains px-2 py-0.5 rounded-full cursor-pointer disabled:opacity-50"
+        style={{ backgroundColor: "#7dcef5", color: "#1f2244" }}
+        title="Génère et archive le PDF dans 03_EVALUATIONS sur Drive"
+      >
+        {syncing ? "..." : "↑ Drive"}
+      </button>
+      {driveUrl && (
+        <a
+          href={driveUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="text-[10px] font-jetbrains px-2 py-0.5 rounded-full border cursor-pointer"
+          style={{ borderColor: "#166534", color: "#166534", backgroundColor: "#dcfce7" }}
+        >
+          ✓ Drive ↗
+        </a>
+      )}
+      {status && (
+        <span
+          className={`text-[10px] font-jetbrains px-2 py-0.5 rounded ${
+            status.type === "success" ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"
+          }`}
+        >
+          {status.msg}
+        </span>
+      )}
     </div>
   );
 }

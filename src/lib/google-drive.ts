@@ -163,6 +163,31 @@ export async function findOrCreateFolder(parentId: string, name: string): Promis
 }
 
 /**
+ * Cherche un fichier (non-dossier) portant `name` dans `parentId`.
+ * Renvoie `null` si rien trouvé.
+ */
+export async function findFile(parentId: string, name: string): Promise<DriveFile | null> {
+  const token = await getAccessToken();
+  const safeName = name.replace(/'/g, "\\'");
+  const q = `'${parentId}' in parents and name = '${safeName}' and mimeType != '${FOLDER_MIME}' and trashed = false`;
+  const url = new URL(`${DRIVE_API}/files`);
+  url.searchParams.set("q", q);
+  url.searchParams.set("fields", "files(id,name,webViewLink,mimeType)");
+  url.searchParams.set("supportsAllDrives", "true");
+  url.searchParams.set("includeItemsFromAllDrives", "true");
+  url.searchParams.set("corpora", "allDrives");
+  url.searchParams.set("pageSize", "10");
+
+  const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(`Drive findFile failed (HTTP ${res.status}): ${t.slice(0, 300)}`);
+  }
+  const data = (await res.json()) as DriveListResponse;
+  return data.files[0] ?? null;
+}
+
+/**
  * Upload un fichier dans le dossier Drive `parentId` via l'API multipart.
  * Retourne le DriveFile avec son id et son webViewLink.
  */

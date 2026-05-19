@@ -1,9 +1,12 @@
 // Génération du PDF de synthèse d'une évaluation pratique.
 //
-// Le PDF rappelle l'identité du stagiaire, le contexte formation/session,
-// l'énoncé de l'exercice, la grille des critères avec les scores saisis, la
-// note de synthèse et les observations du formateur. Il est destiné à
-// l'archivage et aux audits.
+// Deux modes :
+//   - buildEvaluationPdf(evaluationId) : un PDF pour une évaluation (un
+//     stagiaire × un exercice). Utilisé pour l'archivage Drive par exercice.
+//   - buildGlobalEvaluationPdf(traineeId) : un PDF agrégé contenant TOUS les
+//     exercices de la formation pour un stagiaire donné, avec une page de
+//     synthèse en tête et une section par exercice. Utilisé pour générer un
+//     livrable unique par stagiaire en fin de session.
 //
 // Implémentation via `pdfkit` (pure JS, pas de navigateur headless), pour
 // rester compatible Docker slim sans dépendances système.
@@ -69,10 +72,9 @@ export interface PdfBundle {
   traineeFullName: string;   // ex : "Marie Dupont" (utilisé pour le sous-dossier Drive)
 }
 
-/**
- * Charge toutes les données nécessaires depuis la BDD et génère le PDF.
- * Throws si l'évaluation ou la session sont introuvables.
- */
+// =====================================================================
+// PDF d'une évaluation unique (1 stagiaire × 1 exercice)
+// =====================================================================
 export async function buildEvaluationPdf(evaluationId: string): Promise<PdfBundle> {
   const evaluation = await prisma.traineeExerciseEvaluation.findUnique({
     where: { id: evaluationId },
@@ -89,82 +91,29 @@ export async function buildEvaluationPdf(evaluationId: string): Promise<PdfBundl
   });
   if (!evaluation) throw new Error("Évaluation introuvable");
 
-  // Index des scores par criterionId pour assemblage rapide
-  const scoreByCriterion = new Map<string, { score: string; comment: string }>();
-  for (const s of evaluation.scores) {
-    scoreByCriterion.set(s.criterionId, { score: s.score, comment: s.comment });
-  }
-
   const trainee = evaluation.trainee;
   const session = trainee.session;
   const formation = session.formation;
   const exercise = evaluation.exercise;
 
-  // Nom complet trimé pour le sous-dossier Drive et le filename
   const fullName = `${trainee.prenom} ${trainee.nom}`.trim();
   const safeName = sanitizeFilenamePart(fullName) || "Stagiaire";
   const safeExercise = sanitizeFilenamePart(exercise.titre).slice(0, 60) || `Ex${exercise.ordre}`;
   const filename = `Eval_Ex${exercise.ordre}_${safeName}_${safeExercise}.pdf`;
 
-  // ===== Génération du PDF =====
-  const doc = new PDFDocument({
-    size: "A4",
-    margins: { top: 50, bottom: 85, left: 50, right: 50 }, // bottom élargi pour le footer multi-lignes
-    info: {
-      Title: `Évaluation pratique — ${exercise.titre} — ${fullName}`,
-      Author: "Les Ateliers du Stream",
-      Subject: `Fiche d'évaluation pratique — ${formation.nomLong}`,
-    },
-    bufferPages: true, // pour pouvoir dessiner le footer sur toutes les pages à la fin
+  const doc = createPdfDoc({
+    title: `Évaluation pratique — ${exercise.titre} — ${fullName}`,
+    subject: `Fiche d'évaluation pratique — ${formation.nomLong}`,
   });
-  const chunks: Buffer[] = [];
-  doc.on("data", (c: Buffer) => chunks.push(c));
-  const done = new Promise<void>((resolve) => doc.on("end", () => resolve()));
+  const { chunks, done } = bindPdfStream(doc);
 
-  // -- En-tête : titre à gauche, logo à droite --
-  const headerTop = 40;
-  const logoHeight = 48;
-  const logoAspectRatio = 469.53 / 324.62; // viewBox du SVG
-  const logoWidth = logoHeight * logoAspectRatio;
-  const logoX = doc.page.width - 50 - logoWidth;
-  drawLogo(doc, logoX, headerTop, logoHeight);
+  drawDocHeader(doc, "Fiche d'évaluation pratique");
 
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(18)
-    .fillColor(COLOR_TITLE)
-    .text("Fiche d'évaluation pratique", 50, headerTop + 8, {
-      width: logoX - 60,
-      lineBreak: false,
-    });
-  doc
-    .font("Helvetica")
-    .fontSize(9)
-    .fillColor(COLOR_MUTED)
-    .text("Les Ateliers du Stream", 50, headerTop + 32, {
-      width: logoX - 60,
-      lineBreak: false,
-    });
-
-  // Repositionne le curseur sous le bloc en-tête (max entre logo et titre)
-  doc.y = headerTop + logoHeight + 12;
-  doc.x = 50;
-
-  doc.moveDown(0.4);
-
-  // -- Bloc info identification --
-  const infoY = doc.y;
-  drawInfoBox(doc, infoY, [
+  drawInfoBox(doc, doc.y, [
     { label: "Stagiaire", value: fullName },
     { label: "Formation", value: formation.nomLong },
-    {
-      label: "Session",
-      value: formatSessionDates(session.dateDebut, session.dateFin),
-    },
-    {
-      label: "Exercice",
-      value: `Exercice ${exercise.ordre} — ${exercise.titre}`,
-    },
+    { label: "Session", value: formatSessionDates(session.dateDebut, session.dateFin) },
+    { label: "Exercice", value: `Exercice ${exercise.ordre} — ${exercise.titre}` },
     {
       label: "Formateur évaluateur",
       value: evaluation.evaluator
@@ -174,7 +123,308 @@ export async function buildEvaluationPdf(evaluationId: string): Promise<PdfBundl
     { label: "Date de saisie", value: fmtDateTime(evaluation.evaluatedAt) },
   ]);
 
-  // -- Énoncé de l'exercice --
+  drawExerciseSection(doc, {
+    exercise: {
+      ordre: exercise.ordre,
+      titre: exercise.titre,
+      description: exercise.description,
+      criteria: exercise.criteria.map((c) => ({ id: c.id, ordre: c.ordre, libelle: c.libelle })),
+    },
+    evaluation: {
+      globalNote: evaluation.globalNote,
+      observations: evaluation.observations,
+      scores: evaluation.scores.map((s) => ({
+        criterionId: s.criterionId,
+        score: s.score,
+        comment: s.comment,
+      })),
+    },
+    includeExerciseTitle: false, // déjà dans le bloc info
+  });
+
+  drawFooterOnAllPages(doc);
+  doc.end();
+  await done;
+  return { buffer: Buffer.concat(chunks), filename, traineeFullName: fullName };
+}
+
+// =====================================================================
+// PDF global d'un stagiaire (tous les exercices de la formation)
+// =====================================================================
+export async function buildGlobalEvaluationPdf(traineeId: string): Promise<PdfBundle> {
+  const trainee = await prisma.trainee.findUnique({
+    where: { id: traineeId },
+    include: {
+      session: {
+        include: {
+          formation: {
+            include: {
+              evaluationExercises: {
+                where: { active: true },
+                orderBy: { ordre: "asc" },
+                include: { criteria: { orderBy: { ordre: "asc" } } },
+              },
+            },
+          },
+        },
+      },
+      exerciseEvaluations: {
+        include: { scores: true, evaluator: true },
+      },
+    },
+  });
+  if (!trainee) throw new Error("Stagiaire introuvable");
+
+  const session = trainee.session;
+  const formation = session.formation;
+  const exercises = formation.evaluationExercises;
+  const fullName = `${trainee.prenom} ${trainee.nom}`.trim();
+
+  // Index des évaluations par exerciseId
+  const evalByExercise = new Map<string, (typeof trainee.exerciseEvaluations)[number]>();
+  for (const e of trainee.exerciseEvaluations) {
+    evalByExercise.set(e.exerciseId, e);
+  }
+
+  // Compte des statuts pour la page de synthèse
+  let countAcquis = 0;
+  let countEnCours = 0;
+  let countNonAcquis = 0;
+  let countNonNotes = 0;
+  for (const ex of exercises) {
+    const ev = evalByExercise.get(ex.id);
+    if (!ev || !ev.globalNote) {
+      countNonNotes++;
+      continue;
+    }
+    if (ev.globalNote === "acquis") countAcquis++;
+    else if (ev.globalNote === "en_cours") countEnCours++;
+    else if (ev.globalNote === "non_acquis") countNonAcquis++;
+    else countNonNotes++;
+  }
+
+  // Évaluateur principal : on prend le premier rencontré (en général un seul
+  // formateur par session). Sinon vide.
+  const firstEval = trainee.exerciseEvaluations.find((e) => e.evaluator);
+  const evaluatorName = firstEval?.evaluator
+    ? `${firstEval.evaluator.prenom} ${firstEval.evaluator.nom}`
+    : "—";
+
+  const safeName = sanitizeFilenamePart(fullName) || "Stagiaire";
+  const filename = `Synthese_evaluations_${safeName}.pdf`;
+
+  const doc = createPdfDoc({
+    title: `Synthèse globale d'évaluations — ${fullName}`,
+    subject: `Synthèse globale d'évaluations pratiques — ${formation.nomLong}`,
+  });
+  const { chunks, done } = bindPdfStream(doc);
+
+  // === Page 1 : Couverture / synthèse ===
+  drawDocHeader(doc, "Synthèse globale d'évaluations pratiques");
+
+  drawInfoBox(doc, doc.y, [
+    { label: "Stagiaire", value: fullName },
+    { label: "Formation", value: formation.nomLong },
+    { label: "Session", value: formatSessionDates(session.dateDebut, session.dateFin) },
+    { label: "Formateur évaluateur", value: evaluatorName },
+    {
+      label: "Exercices évalués",
+      value: `${exercises.length} exercice${exercises.length > 1 ? "s" : ""} défini${exercises.length > 1 ? "s" : ""} dans la formation`,
+    },
+    { label: "Date d'édition", value: fmtDateTime(new Date()) },
+  ]);
+
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(12)
+    .fillColor(COLOR_TITLE)
+    .text("Bilan global");
+  doc.moveDown(0.4);
+
+  drawCountChips(doc, [
+    { label: `${countAcquis} acquis`, color: SCORE_COLORS.acquis },
+    { label: `${countEnCours} en cours`, color: SCORE_COLORS.en_cours },
+    { label: `${countNonAcquis} non acquis`, color: SCORE_COLORS.non_acquis },
+    ...(countNonNotes > 0
+      ? [
+          {
+            label: `${countNonNotes} non noté${countNonNotes > 1 ? "s" : ""}`,
+            color: { bg: "#f3f4f6", fg: "#727485" },
+          },
+        ]
+      : []),
+  ]);
+
+  doc.moveDown(0.6);
+
+  // Tableau récapitulatif par exercice
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(11)
+    .fillColor(COLOR_TITLE)
+    .text("Récapitulatif par exercice");
+  doc.moveDown(0.3);
+
+  if (exercises.length === 0) {
+    doc
+      .font("Helvetica-Oblique")
+      .fontSize(9)
+      .fillColor(COLOR_MUTED)
+      .text("Aucun exercice d'évaluation pratique n'est défini pour cette formation.");
+  } else {
+    drawRecapTable(
+      doc,
+      exercises.map((ex) => {
+        const ev = evalByExercise.get(ex.id);
+        return {
+          ordre: ex.ordre,
+          titre: ex.titre,
+          globalNote: ev?.globalNote ?? "",
+          scoredCount: ev?.scores.filter((s) => s.score && s.score !== "").length ?? 0,
+          totalCriteria: ex.criteria.length,
+        };
+      })
+    );
+  }
+
+  // === Pages suivantes : une section par exercice ===
+  for (const ex of exercises) {
+    doc.addPage();
+    drawDocHeader(doc, "Évaluation pratique");
+
+    drawInfoBox(doc, doc.y, [
+      { label: "Stagiaire", value: fullName },
+      { label: "Formation", value: formation.nomLong },
+      { label: "Exercice", value: `Exercice ${ex.ordre} — ${ex.titre}` },
+    ]);
+
+    const ev = evalByExercise.get(ex.id);
+    drawExerciseSection(doc, {
+      exercise: {
+        ordre: ex.ordre,
+        titre: ex.titre,
+        description: ex.description,
+        criteria: ex.criteria.map((c) => ({ id: c.id, ordre: c.ordre, libelle: c.libelle })),
+      },
+      evaluation: ev
+        ? {
+            globalNote: ev.globalNote,
+            observations: ev.observations,
+            scores: ev.scores.map((s) => ({
+              criterionId: s.criterionId,
+              score: s.score,
+              comment: s.comment,
+            })),
+          }
+        : {
+            globalNote: "",
+            observations: "",
+            scores: [],
+          },
+      includeExerciseTitle: false,
+    });
+  }
+
+  drawFooterOnAllPages(doc);
+  doc.end();
+  await done;
+  return { buffer: Buffer.concat(chunks), filename, traineeFullName: fullName };
+}
+
+// =====================================================================
+// Helpers PDFKit factorisés
+// =====================================================================
+
+interface DocOptions {
+  title: string;
+  subject: string;
+}
+
+function createPdfDoc(opts: DocOptions): PDFKit.PDFDocument {
+  return new PDFDocument({
+    size: "A4",
+    margins: { top: 50, bottom: 75, left: 50, right: 50 },
+    info: {
+      Title: opts.title,
+      Author: "Les Ateliers du Stream",
+      Subject: opts.subject,
+    },
+    bufferPages: true,
+  });
+}
+
+function bindPdfStream(doc: PDFKit.PDFDocument): {
+  chunks: Buffer[];
+  done: Promise<void>;
+} {
+  const chunks: Buffer[] = [];
+  doc.on("data", (c: Buffer) => chunks.push(c));
+  const done = new Promise<void>((resolve) => doc.on("end", () => resolve()));
+  return { chunks, done };
+}
+
+// En-tête : titre à gauche, logo LADS à droite (réutilisé sur chaque page de couverture).
+function drawDocHeader(doc: PDFKit.PDFDocument, title: string): void {
+  const headerTop = 40;
+  const logoHeight = 48;
+  const logoAspectRatio = 469.53 / 324.62;
+  const logoWidth = logoHeight * logoAspectRatio;
+  const logoX = doc.page.width - 50 - logoWidth;
+  drawLogo(doc, logoX, headerTop, logoHeight);
+
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(18)
+    .fillColor(COLOR_TITLE)
+    .text(title, 50, headerTop + 8, { width: logoX - 60, lineBreak: false });
+  doc
+    .font("Helvetica")
+    .fontSize(9)
+    .fillColor(COLOR_MUTED)
+    .text("Les Ateliers du Stream", 50, headerTop + 32, {
+      width: logoX - 60,
+      lineBreak: false,
+    });
+
+  doc.y = headerTop + logoHeight + 12;
+  doc.x = 50;
+  doc.moveDown(0.4);
+}
+
+// Rendu d'une section "un exercice évalué" :
+//  - (optionnel) titre exercice
+//  - énoncé de l'exercice (si renseigné)
+//  - tableau des critères
+//  - note de synthèse (si renseignée)
+//  - observations formateur (si renseignées)
+interface ExerciseSectionInput {
+  exercise: {
+    ordre: number;
+    titre: string;
+    description: string;
+    criteria: { id: string; ordre: number; libelle: string }[];
+  };
+  evaluation: {
+    globalNote: string;
+    observations: string;
+    scores: { criterionId: string; score: string; comment: string }[];
+  };
+  includeExerciseTitle: boolean;
+}
+
+function drawExerciseSection(doc: PDFKit.PDFDocument, input: ExerciseSectionInput): void {
+  const { exercise, evaluation, includeExerciseTitle } = input;
+
+  if (includeExerciseTitle) {
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(13)
+      .fillColor(COLOR_TITLE)
+      .text(`Exercice ${exercise.ordre} — ${exercise.titre}`);
+    doc.moveDown(0.4);
+  }
+
+  // Énoncé
   if (exercise.description.trim()) {
     doc
       .font("Helvetica-Bold")
@@ -190,7 +440,7 @@ export async function buildEvaluationPdf(evaluationId: string): Promise<PdfBundl
     doc.moveDown(0.6);
   }
 
-  // -- Tableau critères --
+  // Critères
   doc
     .font("Helvetica-Bold")
     .fontSize(11)
@@ -206,6 +456,10 @@ export async function buildEvaluationPdf(evaluationId: string): Promise<PdfBundl
       .text("Aucun critère défini pour cet exercice.");
     doc.moveDown(0.5);
   } else {
+    const scoreByCriterion = new Map<string, { score: string; comment: string }>();
+    for (const s of evaluation.scores) {
+      scoreByCriterion.set(s.criterionId, { score: s.score, comment: s.comment });
+    }
     drawCriteriaTable(
       doc,
       exercise.criteria.map((c) => {
@@ -222,7 +476,7 @@ export async function buildEvaluationPdf(evaluationId: string): Promise<PdfBundl
 
   doc.moveDown(0.6);
 
-  // -- Synthèse globale (uniquement si le formateur l'a renseignée) --
+  // Synthèse globale (uniquement si renseignée)
   const hasGlobalNote = !!(evaluation.globalNote && evaluation.globalNote in SCORE_COLORS);
   if (hasGlobalNote) {
     doc
@@ -235,7 +489,7 @@ export async function buildEvaluationPdf(evaluationId: string): Promise<PdfBundl
     doc.moveDown(0.5);
   }
 
-  // -- Observations (uniquement si renseignées) --
+  // Observations (uniquement si renseignées)
   const obsTrim = evaluation.observations.trim();
   if (obsTrim) {
     doc
@@ -250,23 +504,99 @@ export async function buildEvaluationPdf(evaluationId: string): Promise<PdfBundl
       .fillColor("#1f2244")
       .text(obsTrim, { align: "justify" });
   }
-
-  // -- Pied de page sur toutes les pages --
-  // Identique au footer de la feuille d'émargement (SIRET, APE, NDA, contact).
-  const pageRange = doc.bufferedPageRange();
-  for (let i = pageRange.start; i < pageRange.start + pageRange.count; i++) {
-    doc.switchToPage(i);
-    drawFooter(doc);
-  }
-
-  doc.end();
-  await done;
-  const buffer = Buffer.concat(chunks);
-
-  return { buffer, filename, traineeFullName: fullName };
 }
 
-// --- Helpers de rendu PDF ---
+// Tableau récapitulatif (page de synthèse globale) : liste des exercices
+// avec leur statut sous forme de chip.
+function drawRecapTable(
+  doc: PDFKit.PDFDocument,
+  rows: { ordre: number; titre: string; globalNote: string; scoredCount: number; totalCriteria: number }[]
+): void {
+  const x = 50;
+  const width = 495;
+  const padding = 6;
+  const colOrdre = 50;
+  const colNote = 130;
+  const colTitre = width - colOrdre - colNote - padding * 2;
+
+  // Header
+  const headerY = doc.y;
+  doc.save();
+  doc.lineWidth(0.5).strokeColor(COLOR_BORDER).fillColor("#f3f4f6");
+  doc.rect(x, headerY, width, 22).fillAndStroke("#f3f4f6", COLOR_BORDER);
+  doc.restore();
+  doc.font("Helvetica-Bold").fontSize(8).fillColor(COLOR_MUTED);
+  doc.text("Exercice", x + padding, headerY + 7, { width: colOrdre });
+  doc.text("Intitulé", x + padding + colOrdre, headerY + 7, { width: colTitre });
+  doc.text("Synthèse", x + padding + colOrdre + colTitre, headerY + 7, { width: colNote });
+  doc.y = headerY + 22;
+
+  for (const row of rows) {
+    const rowStartY = doc.y;
+    const titreHeight = doc.font("Helvetica").fontSize(9).heightOfString(row.titre, {
+      width: colTitre - padding,
+    });
+    const rowHeight = Math.max(22, titreHeight + padding * 2);
+
+    if (rowStartY + rowHeight > doc.page.height - 90) {
+      doc.addPage();
+    }
+    const y = doc.y;
+
+    doc.save();
+    doc.lineWidth(0.5).strokeColor(COLOR_BORDER);
+    doc.rect(x, y, width, rowHeight).stroke();
+    doc.restore();
+
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(9)
+      .fillColor(COLOR_TITLE)
+      .text(`Ex. ${row.ordre}`, x + padding, y + padding, { width: colOrdre - padding });
+
+    doc
+      .font("Helvetica")
+      .fontSize(9)
+      .fillColor(COLOR_TITLE)
+      .text(row.titre, x + padding + colOrdre, y + padding, { width: colTitre - padding });
+
+    drawScoreChip(doc, x + padding + colOrdre + colTitre, y + padding, row.globalNote, colNote - padding);
+    doc.y = y + rowHeight;
+  }
+}
+
+// Petites pastilles colorées (utilisées sur la page de bilan global).
+function drawCountChips(
+  doc: PDFKit.PDFDocument,
+  items: { label: string; color: { bg: string; fg: string } }[]
+): void {
+  const startX = 50;
+  let cursorX = startX;
+  const y = doc.y;
+  const padX = 8;
+  const padY = 4;
+
+  doc.font("Helvetica-Bold").fontSize(10);
+  for (const it of items) {
+    const textW = doc.widthOfString(it.label);
+    const w = textW + padX * 2;
+    const h = doc.currentLineHeight() + padY * 2;
+    doc.save();
+    doc.lineWidth(0.5).strokeColor(it.color.fg).fillColor(it.color.bg);
+    doc.roundedRect(cursorX, y, w, h, h / 2).fillAndStroke(it.color.bg, it.color.fg);
+    doc.fillColor(it.color.fg).text(it.label, cursorX + padX, y + padY, {
+      width: w - padX * 2,
+      lineBreak: false,
+    });
+    doc.restore();
+    cursorX += w + 6;
+  }
+  doc.y = y + doc.currentLineHeight() + padY * 2 + 4;
+}
+
+// =====================================================================
+// Helpers PDF primitives — restent inchangés
+// =====================================================================
 
 // Échappe les caractères posant problème dans un nom de fichier OS-friendly.
 function sanitizeFilenamePart(s: string): string {
@@ -289,10 +619,8 @@ function drawInfoBox(
   const lineHeight = 14;
   const labelWidth = 130;
 
-  // Calcul de la hauteur réelle pour le rect
   let estimatedHeight = padding * 2;
   for (const r of rows) {
-    // hauteur "raisonnable" approximative en supposant 1 ligne par row
     const valueHeight = doc.heightOfString(r.value, { width: width - padding * 2 - labelWidth });
     estimatedHeight += Math.max(lineHeight, valueHeight) + 2;
   }
@@ -333,7 +661,6 @@ function drawCriteriaTable(
   const colScore = 110;
   const colCriterion = width - colOrdre - colScore - padding * 2;
 
-  // Header
   const headerY = doc.y;
   doc.save();
   doc.lineWidth(0.5).strokeColor(COLOR_BORDER).fillColor("#f3f4f6");
@@ -345,10 +672,8 @@ function drawCriteriaTable(
   doc.text("Évaluation", x + padding + colOrdre + colCriterion, headerY + 7, { width: colScore });
   doc.y = headerY + 22;
 
-  // Body
   for (const row of rows) {
     const rowStartY = doc.y;
-    // Hauteur de la cellule "critère" + éventuel commentaire
     const libelleHeight = doc.font("Helvetica").fontSize(9).heightOfString(row.libelle, {
       width: colCriterion - padding,
     });
@@ -360,8 +685,7 @@ function drawCriteriaTable(
       : 0;
     const rowHeight = Math.max(22, libelleHeight + commentHeight + padding * 2);
 
-    // Saut de page si on déborde
-    if (rowStartY + rowHeight > doc.page.height - 100) {
+    if (rowStartY + rowHeight > doc.page.height - 90) {
       doc.addPage();
     }
     const y = doc.y;
@@ -371,14 +695,12 @@ function drawCriteriaTable(
     doc.rect(x, y, width, rowHeight).stroke();
     doc.restore();
 
-    // # ordre
     doc
       .font("Helvetica")
       .fontSize(9)
       .fillColor(COLOR_MUTED)
       .text(String(row.ordre), x + padding, y + padding, { width: colOrdre - padding });
 
-    // libellé
     doc
       .font("Helvetica")
       .fontSize(9)
@@ -395,9 +717,7 @@ function drawCriteriaTable(
         });
     }
 
-    // chip score
     drawScoreChip(doc, x + padding + colOrdre + colCriterion, y + padding, row.score, colScore - padding);
-
     doc.y = y + rowHeight;
   }
 }
@@ -414,12 +734,11 @@ function drawScoreChip(
       .font("Helvetica")
       .fontSize(9)
       .fillColor(COLOR_MUTED)
-      .text("Non noté", x, y, { width: maxWidth });
+      .text("Non noté", x, y, { width: maxWidth, lineBreak: false });
     return;
   }
   const colors = SCORE_COLORS[score as ScoreValue];
   const label = SCORE_LABELS[score as ScoreValue];
-  // Pill background
   doc.save();
   const padX = 6;
   const padY = 3;
@@ -429,7 +748,7 @@ function drawScoreChip(
   const h = doc.currentLineHeight() + padY * 2;
   doc.lineWidth(0.5).strokeColor(colors.fg).fillColor(colors.bg);
   doc.roundedRect(x, y, w, h, h / 2).fillAndStroke(colors.bg, colors.fg);
-  doc.fillColor(colors.fg).text(label, x + padX, y + padY, { width: w - padX * 2 });
+  doc.fillColor(colors.fg).text(label, x + padX, y + padY, { width: w - padX * 2, lineBreak: false });
   doc.restore();
 }
 
@@ -445,17 +764,13 @@ function drawGlobalScoreLine(doc: PDFKit.PDFDocument, score: string): void {
   const startX = 50;
   const y = doc.y;
   drawScoreChip(doc, startX, y, score, 200);
-  // Avance la position Y au-dessous du chip
   doc.y = y + 22;
 }
 
-// Trace le logo LADS depuis le SVG dans le coin supérieur gauche.
-// Si le SVG ne peut pas être chargé, ne fait rien (l'en-tête textuel reste).
 function drawLogo(doc: PDFKit.PDFDocument, x: number, y: number, height: number): void {
   const svg = loadLogoSvg();
   if (!svg) return;
   try {
-    // viewBox du logo : 469.53 x 324.62 → ratio largeur/hauteur ≈ 1.45
     const aspectRatio = 469.53 / 324.62;
     const width = height * aspectRatio;
     SVGtoPDF(doc, svg, x, y, { width, height, preserveAspectRatio: "xMinYMin meet" });
@@ -464,11 +779,6 @@ function drawLogo(doc: PDFKit.PDFDocument, x: number, y: number, height: number)
   }
 }
 
-// Formatte la période de la session :
-//   - même jour       → "12 mars 2026"
-//   - plusieurs jours → "12 – 14 mars 2026" (idem mois/année) ou "30 mars – 2 avril 2026"
-// Le séparateur est l'en-dash U+2013 (présent dans WinAnsi), pas la flèche
-// U+2192 qui ne s'affiche pas dans Helvetica/Times standard.
 function formatSessionDates(start: Date | null | undefined, end: Date | null | undefined): string {
   if (!start) return "—";
   const s = new Date(start);
@@ -498,20 +808,21 @@ function formatSessionDates(start: Date | null | undefined, end: Date | null | u
   return `${fmtDate(s)} – ${fmtDate(e)}`;
 }
 
-// Pied de page identique à la feuille d'émargement signée. Trois lignes
-// dessinées en position absolue avec lineBreak:false pour empêcher pdfkit
-// d'ajouter une page si la dernière ligne sort de la zone de contenu — sans
-// ça, le footer pouvait se retrouver fragmenté sur 2 pages (une ligne par
-// page). On désactive aussi temporairement les marges via `doc.page.margins`
-// pour permettre d'écrire sous la marge basse définie pour le contenu.
+// Dessine le pied de page sur toutes les pages bufferisées.
+function drawFooterOnAllPages(doc: PDFKit.PDFDocument): void {
+  const pageRange = doc.bufferedPageRange();
+  for (let i = pageRange.start; i < pageRange.start + pageRange.count; i++) {
+    doc.switchToPage(i);
+    drawFooter(doc);
+  }
+}
+
 function drawFooter(doc: PDFKit.PDFDocument): void {
   const leftX = 50;
   const rightX = doc.page.width - 50;
   const width = rightX - leftX;
-  const baseY = doc.page.height - 60;
+  const baseY = doc.page.height - 50;
 
-  // Sauvegarde les marges courantes et les met à 0 le temps du dessin :
-  // pdfkit n'auto-paginera plus quand on écrit hors zone de contenu.
   const savedMargins = doc.page.margins;
   doc.page.margins = { top: 0, bottom: 0, left: 0, right: 0 };
 
@@ -534,16 +845,6 @@ function drawFooter(doc: PDFKit.PDFDocument): void {
     .fontSize(7)
     .fillColor(COLOR_TITLE)
     .text(FOOTER_LINE_2, leftX, baseY + 18, { width, align: "center", lineBreak: false });
-
-  doc
-    .font("Helvetica")
-    .fontSize(6)
-    .fillColor(COLOR_MUTED)
-    .text(`Document généré le ${fmtDateTime(new Date())}`, leftX, baseY + 32, {
-      width,
-      align: "center",
-      lineBreak: false,
-    });
 
   doc.restore();
   doc.page.margins = savedMargins;

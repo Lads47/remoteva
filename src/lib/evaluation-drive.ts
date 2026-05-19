@@ -9,8 +9,8 @@
 
 import prisma from "./db";
 import { provisionSessionDriveFolder } from "./drive-provisioning";
-import { buildEvaluationPdf } from "./evaluation-pdf";
-import { findOrCreateFolder, isDriveConfigured, trashFile, uploadFile } from "./google-drive";
+import { buildEvaluationPdf, buildGlobalEvaluationPdf } from "./evaluation-pdf";
+import { findFile, findOrCreateFolder, isDriveConfigured, trashFile, uploadFile } from "./google-drive";
 
 const EVAL_FOLDER_NAME = "03_EVALUATIONS";
 
@@ -103,6 +103,67 @@ export async function syncEvaluationToDrive(
         data: { driveSyncError: error.slice(0, 500) },
       })
       .catch(() => undefined);
+    return { ok: false, error };
+  }
+}
+
+/**
+ * Génère le PDF de synthèse globale d'un stagiaire (toutes ses évaluations
+ * pratiques) et l'upload dans 03_EVALUATIONS/<Stagiaire>/ sur Drive.
+ *
+ * Idempotent : si un fichier portant le même nom existe déjà dans le dossier
+ * cible (cas d'une régénération), il est mis à la corbeille avant l'upload
+ * du nouveau.
+ *
+ * Best-effort : aucune exception propagée. Pas de state en BDD pour ce PDF
+ * — l'état est porté par la présence du fichier sur Drive.
+ */
+export async function syncGlobalEvaluationPdfToDrive(
+  traineeId: string
+): Promise<EvaluationDriveSyncResult> {
+  if (!isDriveConfigured()) {
+    return {
+      ok: false,
+      error: "Drive non configuré (GOOGLE_SERVICE_ACCOUNT_KEY_B64 absent)",
+    };
+  }
+
+  const trainee = await prisma.trainee.findUnique({
+    where: { id: traineeId },
+    select: { sessionId: true },
+  });
+  if (!trainee) return { ok: false, error: "Stagiaire introuvable" };
+
+  try {
+    const provision = await provisionSessionDriveFolder(trainee.sessionId);
+    if (!provision.ok) {
+      return { ok: false, error: `Session sans dossier Drive : ${provision.error}` };
+    }
+    const sessionFolderId = provision.driveFolderId;
+
+    const bundle = await buildGlobalEvaluationPdf(traineeId);
+
+    const evalFolder = await findOrCreateFolder(sessionFolderId, EVAL_FOLDER_NAME);
+    const traineeFolder = await findOrCreateFolder(evalFolder.id, bundle.traineeFullName);
+
+    // Recherche une version précédente portant le même nom et l'envoie à la
+    // corbeille avant l'upload (sinon Drive accepte les doublons).
+    const previous = await findFile(traineeFolder.id, bundle.filename);
+    if (previous) {
+      await trashFile(previous.id);
+    }
+
+    const driveFile = await uploadFile({
+      parentId: traineeFolder.id,
+      filename: bundle.filename,
+      mimeType: "application/pdf",
+      buffer: bundle.buffer,
+    });
+
+    return { ok: true, driveFileId: driveFile.id, driveWebUrl: driveFile.webViewLink ?? null };
+  } catch (err) {
+    const error = err instanceof Error ? err.message : "Erreur inconnue";
+    console.warn(`[evaluation-drive] sync globale échouée pour traineeId=${traineeId}:`, error);
     return { ok: false, error };
   }
 }
