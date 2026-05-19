@@ -316,13 +316,17 @@ export default function FormationsPage() {
                 required
               />
             </Field>
-            <Field label="Description" full>
+            <Field label="Description / Objectifs de la formation" full>
               <textarea
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
-                rows={2}
+                rows={6}
                 className="input"
+                placeholder={`Ex :\nÀ l'issue de la formation, le stagiaire sera capable de :\n— Configurer une régie multicaméra dans vMix\n— Gérer les transitions et l'incrustation en direct\n— Diffuser un live multi-plateformes`}
               />
+              <p className="mt-1 text-xs font-jetbrains" style={{ color: "#727485" }}>
+                Ce texte est repris dans la convocation à la place de <code>{"{{FORMATION_DESCRIPTION}}"}</code>, et dans le PDF d&apos;évaluation. Soigne-le : c&apos;est ce qui couvre l&apos;exigence Qualiopi 2.3 (information préalable, objectifs de la formation).
+              </p>
             </Field>
             <Field label="Active" full>
               <label className="inline-flex items-center gap-2 text-sm">
