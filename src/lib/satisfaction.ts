@@ -333,6 +333,136 @@ export async function submitSurvey(input: SubmitInput): Promise<{ ok: true } | {
 
 // === Page de sélection pour QR code ===
 
+// === Synthèse / agrégations ===
+
+export interface SatisfactionSynthesis {
+  session: { id: string; code: string; dateDebut: Date; dateFin: Date; lieu: string; horaires: string };
+  formation: { nomLong: string };
+  totals: { invited: number; submitted: number; pending: number; responseRate: number };
+  questions: SatisfactionQuestion[];
+  // Pour chaque question, les stats calculées
+  stats: Array<{
+    question: SatisfactionQuestion;
+    // Pour likert / nps : moyenne + distribution
+    average?: number;          // moyenne pour likert (1-5) et nps (0-10)
+    distribution?: Record<string, number>; // value → count
+    // Pour textarea / text : liste des réponses non vides
+    textResponses?: string[];
+    // Pour nps : score NPS calculé
+    npsScore?: number;
+    npsPromoters?: number;
+    npsPassives?: number;
+    npsDetractors?: number;
+  }>;
+  // Réponses individuelles anonymisées (pour audit)
+  responses: Array<{
+    submittedAt: Date | null;
+    answers: Record<string, string>;     // questionName → value
+  }>;
+}
+
+export async function buildSessionSynthesis(sessionId: string): Promise<SatisfactionSynthesis | null> {
+  const session = await prisma.session.findUnique({
+    where: { id: sessionId },
+    include: {
+      formation: { select: { nomLong: true } },
+      satisfactionResponses: {
+        include: { answers: true },
+        orderBy: { invitedAt: "asc" },
+      },
+    },
+  });
+  if (!session) return null;
+
+  const responses = session.satisfactionResponses;
+  const submitted = responses.filter((r) => r.submittedAt !== null);
+  const totals = {
+    invited: responses.length,
+    submitted: submitted.length,
+    pending: responses.length - submitted.length,
+    responseRate: responses.length > 0 ? submitted.length / responses.length : 0,
+  };
+
+  // Résoudre les questions : prendre le snapshot le plus récent (ou défaut)
+  let questions: SatisfactionQuestion[];
+  if (responses.length > 0) {
+    try {
+      questions = JSON.parse(responses[responses.length - 1].questionsSnapshot) as SatisfactionQuestion[];
+    } catch {
+      questions = DEFAULT_QUESTIONS;
+    }
+  } else {
+    questions = DEFAULT_QUESTIONS;
+  }
+
+  // Calculer les stats par question
+  const stats = questions.map((q) => {
+    const values: string[] = [];
+    for (const r of submitted) {
+      const a = r.answers.find((x) => x.questionName === q.name);
+      if (a && a.value !== "" && a.value !== null && a.value !== undefined) values.push(a.value);
+    }
+
+    if (q.type === "likert_5") {
+      const nums = values.map((v) => Number(v)).filter((n) => Number.isFinite(n) && n >= 1 && n <= 5);
+      const distribution: Record<string, number> = { "1": 0, "2": 0, "3": 0, "4": 0, "5": 0 };
+      for (const n of nums) distribution[String(n)] = (distribution[String(n)] || 0) + 1;
+      const average = nums.length > 0 ? nums.reduce((a, b) => a + b, 0) / nums.length : undefined;
+      return { question: q, average, distribution };
+    }
+
+    if (q.type === "scale_nps") {
+      const nums = values.map((v) => Number(v)).filter((n) => Number.isFinite(n) && n >= 0 && n <= 10);
+      const distribution: Record<string, number> = {};
+      for (let i = 0; i <= 10; i++) distribution[String(i)] = 0;
+      for (const n of nums) distribution[String(n)] = (distribution[String(n)] || 0) + 1;
+      const promoters = nums.filter((n) => n >= 9).length;
+      const passives = nums.filter((n) => n >= 7 && n <= 8).length;
+      const detractors = nums.filter((n) => n <= 6).length;
+      const npsScore = nums.length > 0 ? Math.round(((promoters - detractors) / nums.length) * 100) : undefined;
+      const average = nums.length > 0 ? nums.reduce((a, b) => a + b, 0) / nums.length : undefined;
+      return {
+        question: q,
+        average,
+        distribution,
+        npsScore,
+        npsPromoters: promoters,
+        npsPassives: passives,
+        npsDetractors: detractors,
+      };
+    }
+
+    if (q.type === "yes_no" || q.type === "single_choice") {
+      const distribution: Record<string, number> = {};
+      for (const v of values) distribution[v] = (distribution[v] || 0) + 1;
+      return { question: q, distribution };
+    }
+
+    // text / textarea
+    return { question: q, textResponses: values.filter((v) => v.trim() !== "") };
+  });
+
+  return {
+    session: {
+      id: session.id,
+      code: session.code,
+      dateDebut: session.dateDebut,
+      dateFin: session.dateFin,
+      lieu: session.lieu,
+      horaires: session.horaires,
+    },
+    formation: { nomLong: session.formation.nomLong },
+    totals,
+    questions,
+    stats,
+    responses: submitted.map((r) => {
+      const answers: Record<string, string> = {};
+      for (const a of r.answers) answers[a.questionName] = a.value;
+      return { submittedAt: r.submittedAt, answers };
+    }),
+  };
+}
+
 export async function getSessionInvitationsForSelection(sessionId: string): Promise<{
   session: { code: string; dateDebut: Date; dateFin: Date };
   formation: { nomLong: string };
