@@ -21,6 +21,7 @@ import {
   copyDriveFile,
   findOrCreateFolder,
   isDriveConfigured,
+  uploadFile,
 } from "./google-drive";
 
 const INSCRIPTIONS_FOLDER_NAME = "01_INSCRIPTIONS_CONVENTIONS";
@@ -285,4 +286,82 @@ function buildVariablesForTrainee(
     DATE_AUJOURDHUI: fmtDate(new Date()),
     ORGANISME: "Les Ateliers du Stream",
   };
+}
+
+// =========================================================================
+// Archivage d'un fichier arbitraire dans le dossier Drive d'un stagiaire
+// =========================================================================
+
+export interface ArchiveTraineeFileInput {
+  traineeId: string;
+  type: string;              // ex: "devis" | "convention_signed" | "contrat_signed" | ...
+  filename: string;          // nom du fichier tel qu'affiché sur Drive
+  buffer: Buffer;
+  mimeType: string;          // ex: "application/pdf"
+}
+
+export type ArchiveResult =
+  | { ok: true; documentId: string; driveFileId: string; driveFileUrl: string | null }
+  | { ok: false; error: string };
+
+/**
+ * Archive un fichier dans le dossier Drive du stagiaire :
+ *   <Session>/01_INSCRIPTIONS_CONVENTIONS/<Prénom Nom>/<filename>
+ *
+ * Provisionne le dossier de session + le sous-dossier stagiaire si besoin,
+ * upload le PDF (ou autre), et trace l'opération dans TraineeDocument (avec
+ * le `type` fourni — pas d'enum, utiliser une convention texte cohérente).
+ *
+ * Best-effort : aucune exception propagée. Retourne un résultat structuré.
+ */
+export async function archiveTraineeFile(input: ArchiveTraineeFileInput): Promise<ArchiveResult> {
+  if (!isDriveConfigured()) {
+    return { ok: false, error: "Drive non configuré (GOOGLE_SERVICE_ACCOUNT_KEY_B64 absent)" };
+  }
+
+  const trainee = await prisma.trainee.findUnique({
+    where: { id: input.traineeId },
+    select: { id: true, prenom: true, nom: true, sessionId: true },
+  });
+  if (!trainee) return { ok: false, error: "Stagiaire introuvable" };
+
+  try {
+    const provision = await provisionSessionDriveFolder(trainee.sessionId);
+    if (!provision.ok) {
+      return { ok: false, error: `Dossier Drive session : ${provision.error}` };
+    }
+    const sessionFolderId = provision.driveFolderId;
+
+    const inscFolder = await findOrCreateFolder(sessionFolderId, INSCRIPTIONS_FOLDER_NAME);
+    const fullName = `${trainee.prenom} ${trainee.nom}`.trim();
+    const traineeFolder = await findOrCreateFolder(inscFolder.id, fullName);
+
+    const driveFile = await uploadFile({
+      parentId: traineeFolder.id,
+      filename: input.filename,
+      mimeType: input.mimeType,
+      buffer: input.buffer,
+    });
+
+    const doc = await prisma.traineeDocument.create({
+      data: {
+        traineeId: input.traineeId,
+        type: input.type,
+        driveFileId: driveFile.id,
+        driveFileUrl: driveFile.webViewLink ?? "",
+        fileName: input.filename,
+      },
+    });
+
+    return {
+      ok: true,
+      documentId: doc.id,
+      driveFileId: driveFile.id,
+      driveFileUrl: driveFile.webViewLink ?? null,
+    };
+  } catch (err) {
+    const error = err instanceof Error ? err.message : "Erreur inconnue";
+    console.warn(`[archiveTraineeFile] échec ${input.type} traineeId=${input.traineeId}:`, error);
+    return { ok: false, error };
+  }
 }

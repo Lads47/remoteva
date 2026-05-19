@@ -15,6 +15,7 @@ import {
   updateOpportunityStep,
 } from "@/lib/sellsy";
 import { sendDevisToStagiaire } from "@/lib/mailer";
+import { archiveTraineeFile } from "@/lib/trainee-documents";
 
 async function requireAuth() {
   const session = await getSession();
@@ -177,6 +178,35 @@ export async function POST(_request: NextRequest, ctx: { params: Promise<{ id: s
 
     // === 4. Téléchargement PDF + envoi mail ===
     const pdf = await downloadEstimatePdf(estimateId);
+
+    // 4.bis Archivage best-effort du PDF dans Drive
+    // (<Session>/01_INSCRIPTIONS_CONVENTIONS/<Stagiaire>/Devis-XXX.pdf).
+    // Idempotent : si on relance send-devis pour un trainee qui a déjà un
+    // estimateId, on archive quand même la dernière version du PDF récupéré.
+    const archiveRes = await archiveTraineeFile({
+      traineeId: trainee.id,
+      type: "devis",
+      filename: `Devis Sellsy ${estimateId} — ${trainee.prenom} ${trainee.nom}.pdf`,
+      buffer: pdf.buffer,
+      mimeType: "application/pdf",
+    });
+    if (archiveRes.ok) {
+      await recordTraineeEvent(
+        trainee.id,
+        "doc_generated",
+        `Devis PDF archivé sur Drive`,
+        { type: "devis", driveFileId: archiveRes.driveFileId, driveFileUrl: archiveRes.driveFileUrl }
+      );
+    } else {
+      console.warn("[send-devis] archivage Drive échoué :", archiveRes.error);
+      await recordTraineeEvent(
+        trainee.id,
+        "doc_generated",
+        `Échec archivage Drive du devis : ${archiveRes.error}`,
+        { type: "devis_archive_failed", error: archiveRes.error }
+      );
+    }
+
     const mailRes = await sendDevisToStagiaire({
       to: trainee.email,
       prenom: trainee.prenom,
