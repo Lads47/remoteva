@@ -5,6 +5,7 @@ import { randomUUID } from "crypto";
 import { mkdir, writeFile, unlink, readFile, stat } from "fs/promises";
 import path from "path";
 import prisma from "./db";
+import { provisionSessionDriveFolder } from "./drive-provisioning";
 import { findOrCreateFolder, isDriveConfigured, trashFile, uploadFile } from "./google-drive";
 
 // Nom du sous-dossier Drive où archiver les feuilles signées d'une session.
@@ -198,21 +199,30 @@ export async function syncAttendanceFileToDrive(attendanceFileId: string): Promi
 
   const row = await prisma.attendanceFile.findUnique({
     where: { id: attendanceFileId },
-    include: { session: { select: { driveFolderId: true } } },
+    include: { session: { select: { id: true, driveFolderId: true } } },
   });
   if (!row) return { ok: false, error: "Fichier introuvable" };
-  if (!row.session.driveFolderId) {
-    const error = "Session sans driveFolderId configuré";
-    await prisma.attendanceFile.update({
-      where: { id: attendanceFileId },
-      data: { driveSyncError: error },
-    });
-    return { ok: false, error };
+
+  // Auto-réparation : si la session n'a pas encore de dossier Drive, on tente
+  // un provisioning à la volée. Cas typique : session créée avant que le
+  // câblage Drive n'existe, ou avant que la formation n'ait son
+  // `driveDossierSessionsId` configuré.
+  let sessionDriveFolderId = row.session.driveFolderId;
+  if (!sessionDriveFolderId) {
+    const provision = await provisionSessionDriveFolder(row.session.id);
+    if (!provision.ok) {
+      await prisma.attendanceFile.update({
+        where: { id: attendanceFileId },
+        data: { driveSyncError: `Session sans dossier Drive : ${provision.error}` },
+      });
+      return { ok: false, error: `Session sans dossier Drive : ${provision.error}` };
+    }
+    sessionDriveFolderId = provision.driveFolderId;
   }
 
   try {
     // 1. Trouve ou crée le sous-dossier suivi/incidents
-    const folder = await findOrCreateFolder(row.session.driveFolderId, DRIVE_SUIVI_FOLDER_NAME);
+    const folder = await findOrCreateFolder(sessionDriveFolderId, DRIVE_SUIVI_FOLDER_NAME);
     // 2. Lit le buffer local et upload
     const localPath = path.join(STORAGE_ROOT, row.storagePath);
     const buffer = await readFile(localPath);

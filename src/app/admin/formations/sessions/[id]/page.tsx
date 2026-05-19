@@ -16,6 +16,7 @@ interface SessionDetail {
   lieu: string;
   horaires: string;
   status: string;
+  driveFolderId: string | null;
   traineeCount: number;
 }
 
@@ -65,6 +66,39 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+  const [provisioning, setProvisioning] = useState(false);
+
+  async function provisionDrive() {
+    if (provisioning) return;
+    setProvisioning(true);
+    setFeedback(null);
+    try {
+      const r = await fetch(`/api/admin/sessions/${id}/provision-drive`, { method: "POST" });
+      const d = await r.json();
+      if (!r.ok || !d.success) {
+        setFeedback({ type: "error", msg: d.error || "Échec du provisioning Drive" });
+        return;
+      }
+      const subs = (d.subfoldersCreated as string[]) || [];
+      setFeedback({
+        type: "success",
+        msg:
+          subs.length > 0
+            ? `Dossier Drive OK · ${subs.length} sous-dossier(s) Qualiopi créé(s) : ${subs.join(", ")}`
+            : `Dossier Drive OK · arborescence déjà complète`,
+      });
+      // Refresh session to update driveFolderId in UI
+      const sessionsRes = await fetch(`/api/admin/sessions`).then((r) => r.json());
+      const found = (sessionsRes.sessions || []).find((s: SessionDetail) => s.id === id);
+      if (found) setSession(found);
+    } catch (err) {
+      console.error(err);
+      setFeedback({ type: "error", msg: "Erreur réseau" });
+    } finally {
+      setProvisioning(false);
+      setTimeout(() => setFeedback(null), 8000);
+    }
+  }
 
   async function refreshTrainees() {
     try {
@@ -188,6 +222,56 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
             ⚠ Statut actuel : <strong>{session.status}</strong>. Passe la session en <strong>« Ouverte aux inscriptions »</strong> pour qu&apos;elle apparaisse au public.
           </p>
         )}
+      </div>
+
+      {/* Bloc Drive */}
+      <div className="mb-8 p-5 rounded-xl border" style={{ borderColor: "#e5e7eb", backgroundColor: "#fafbff" }}>
+        <h2 className="text-sm font-semibold uppercase tracking-wide mb-2" style={{ color: "#1f2244" }}>
+          Dossier Google Drive
+        </h2>
+        <p className="text-xs font-jetbrains mb-3" style={{ color: "#727485" }}>
+          Arborescence Qualiopi : 01_INSCRIPTIONS_CONVENTIONS · 02_SUIVI_ET_INCIDENTS · 03_EVALUATIONS · 04_ATTESTATIONS_BILAN · 05_PROGRAMME_SUPPORTS
+        </p>
+        <div className="flex gap-2 items-center flex-wrap">
+          {session.driveFolderId ? (
+            <>
+              <span className="text-xs font-jetbrains px-2 py-1 rounded bg-green-50 text-green-800">
+                ✓ Dossier provisionné
+              </span>
+              <a
+                href={`https://drive.google.com/drive/folders/${session.driveFolderId}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs px-3 py-2 rounded-full border cursor-pointer"
+                style={{ borderColor: "#1f2244", color: "#1f2244" }}
+              >
+                Ouvrir dans Drive ↗
+              </a>
+              <button
+                onClick={provisionDrive}
+                disabled={provisioning}
+                className="text-xs px-3 py-2 rounded-full cursor-pointer disabled:opacity-50"
+                style={{ backgroundColor: "#7dcef5", color: "#1f2244" }}
+              >
+                {provisioning ? "..." : "Réparer arborescence"}
+              </button>
+            </>
+          ) : (
+            <>
+              <span className="text-xs font-jetbrains px-2 py-1 rounded bg-amber-50 text-amber-800">
+                ⚠ Pas encore créé
+              </span>
+              <button
+                onClick={provisionDrive}
+                disabled={provisioning}
+                className="text-xs px-3 py-2 rounded-full cursor-pointer disabled:opacity-50"
+                style={{ backgroundColor: "#1f2244", color: "white" }}
+              >
+                {provisioning ? "Création..." : "Créer dossier + arborescence Qualiopi"}
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Tableau stagiaires */}

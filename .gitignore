@@ -47,3 +47,7 @@ next-env.d.ts
 
 # Claude Code dev configs
 .claude/
+
+# Service Account Google (clé privée, NE JAMAIS commit)
+evaremote-drive-*.json
+*-service-account*.json

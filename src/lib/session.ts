@@ -1,4 +1,5 @@
 import prisma from "./db";
+import { provisionSessionDriveFolder } from "./drive-provisioning";
 
 export interface SessionInfo {
   id: string;
@@ -134,7 +135,24 @@ export async function createSession(input: SessionCreateInput): Promise<SessionI
       _count: { select: { trainees: true } },
     },
   });
-  return toInfo(s);
+  // Provisionne le dossier Drive de la session (best-effort, ne bloque pas la
+  // création même si Drive non configuré ou formation sans parent folder).
+  // On attend le résultat pour que la réponse contienne le driveFolderId si
+  // tout s'est bien passé, mais on ne propage jamais l'erreur.
+  const provision = await provisionSessionDriveFolder(s.id);
+  if (!provision.ok) {
+    console.warn(`[session] provisioning Drive échoué pour ${s.id}:`, provision.error);
+  }
+  // Re-fetch pour récupérer le driveFolderId potentiellement mis à jour
+  const refreshed = await prisma.session.findUniqueOrThrow({
+    where: { id: s.id },
+    include: {
+      formation: { select: { code: true, nomLong: true } },
+      trainer: { select: { id: true, prenom: true, nom: true } },
+      _count: { select: { trainees: true } },
+    },
+  });
+  return toInfo(refreshed);
 }
 
 export async function updateSession(id: string, input: SessionUpdateInput): Promise<SessionInfo> {
