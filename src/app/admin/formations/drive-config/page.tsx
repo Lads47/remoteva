@@ -127,15 +127,68 @@ export default function DriveConfigPage() {
 
       <div className="mt-6 p-4 rounded-xl text-xs font-jetbrains" style={{ backgroundColor: "#fafbff", color: "#727485" }}>
         <p>
-          <strong style={{ color: "#1f2244" }}>Comment ça marche</strong> : à la génération d&apos;un document pour un stagiaire, le système cherche d&apos;abord un template configuré sur la formation. Si rien n&apos;y est défini, il utilise l&apos;ID renseigné ici.
-        </p>
-        <p className="mt-2">
-          Comment trouver l&apos;ID d&apos;un Google Doc : ouvre le doc dans Drive, regarde l&apos;URL :{" "}
+          <strong style={{ color: "#1f2244" }}>Comment trouver l&apos;ID d&apos;un Google Doc</strong> : ouvre le doc dans Drive, regarde l&apos;URL :{" "}
           <code>docs.google.com/document/d/<strong>ID_ICI</strong>/edit</code>
         </p>
         <p className="mt-2">
-          Liste complète des variables disponibles (<code>{"{{NOM}}"}</code>, <code>{"{{FORMATION}}"}</code>, etc.) : voir la modale d&apos;édition d&apos;une formation, section &laquo; Variables disponibles &raquo;.
+          <strong style={{ color: "#1f2244" }}>Quand utiliser quoi ?</strong> Pour un stagiaire en
+          {" "}<strong>entreprise</strong> (employeur paye), on génère une <strong>convention</strong> (signée OF + employeur).
+          Pour un stagiaire <strong>particulier</strong> (intermittent, indépendant, personne physique payant à titre individuel), on génère un <strong>contrat</strong> (article L.6353-3 du Code du travail).
+          La convocation est toujours utile pour rappeler les modalités pratiques.
         </p>
+      </div>
+
+      {/* Variables disponibles */}
+      <div className="mt-4 p-4 rounded-xl text-xs font-jetbrains" style={{ backgroundColor: "#fafbff", color: "#727485" }}>
+        <strong style={{ color: "#1f2244" }}>Variables disponibles dans les templates</strong>.
+        Utilise la syntaxe <code>{"{{NOM_VARIABLE}}"}</code> (double accolades) dans tes Google Doc.
+        Lors de la génération pour un stagiaire, elles sont remplacées par les valeurs réelles.
+        <details className="mt-2 cursor-pointer" open>
+          <summary className="cursor-pointer" style={{ color: "#1f2244" }}>Voir la liste complète (34 variables)</summary>
+          <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-1 max-h-96 overflow-y-auto pr-2">
+            {[
+              ["PRENOM", "Prénom du stagiaire"],
+              ["NOM", "Nom du stagiaire"],
+              ["NOM_COMPLET", "Prénom + Nom"],
+              ["EMAIL", "Email du stagiaire"],
+              ["TELEPHONE", "Téléphone du stagiaire"],
+              ["ADRESSE", "Adresse postale (particulier) ou siège (entreprise)"],
+              ["STATUT", "Statut actuel (intermittent, salarié, DE...)"],
+              ["SOCIETE", "Raison sociale (vide si particulier)"],
+              ["SIRET", "SIRET de la société"],
+              ["ADRESSE_SIEGE", "Adresse du siège"],
+              ["CONTACT_ADMIN", "Référent admin"],
+              ["DOMAINE_ACTIVITE", "Domaine d'activité"],
+              ["FORMATION", "Libellé long de la formation"],
+              ["FORMATION_CODE", "Code interne"],
+              ["FORMATION_DUREE_JOURS", "Durée (jours)"],
+              ["FORMATION_DUREE_HEURES", "Durée (heures, = jours × 7)"],
+              ["FORMATION_PRIX_HT", "Prix HT catalogue"],
+              ["FORMATION_DESCRIPTION", "Description / objectifs"],
+              ["SESSION_CODE", "Code de la session"],
+              ["SESSION_DATE_DEBUT", "Date début (jour mois année)"],
+              ["SESSION_DATE_FIN", "Date fin"],
+              ["SESSION_DATES", "Période formatée (intelligent)"],
+              ["SESSION_LIEU", "Lieu"],
+              ["SESSION_HORAIRES", "Horaires"],
+              ["FORMATEUR_NOM", "Formateur (prénom + nom)"],
+              ["FORMATEUR_EMAIL", "Email formateur"],
+              ["MODE_FINANCEMENT", "Mode de financement"],
+              ["OPCO", "OPCO détecté"],
+              ["ID_OPCO", "N° dossier OPCO"],
+              ["MONTANT_HT", "Montant HT négocié"],
+              ["PSH", "« Oui » si PSH, vide sinon"],
+              ["BESOINS_ADAPTATION", "Besoins d'adaptation"],
+              ["DATE_AUJOURDHUI", "Date du jour de génération"],
+              ["ORGANISME", "Nom de l'organisme (LADS)"],
+            ].map(([k, desc]) => (
+              <div key={k} className="flex items-baseline gap-2">
+                <code style={{ color: "#1f2244" }}>{`{{${k}}}`}</code>
+                <span className="text-[10px]" style={{ color: "#9ca3af" }}>{desc}</span>
+              </div>
+            ))}
+          </div>
+        </details>
       </div>
     </div>
   );

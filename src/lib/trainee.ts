@@ -138,12 +138,11 @@ export async function getTraineeWithDetails(id: string): Promise<TraineeWithDeta
       code: t.session.formation.code,
       nomLong: t.session.formation.nomLong,
       configForm: t.session.formation.configForm,
-      hasTemplateConvention:
-        Boolean(t.session.formation.driveTemplateConventionId) || Boolean(globalTemplates.convention),
-      hasTemplateContrat:
-        Boolean(t.session.formation.driveTemplateContratId) || Boolean(globalTemplates.contrat),
-      hasTemplateConvocation:
-        Boolean(t.session.formation.driveTemplateConvocationId) || Boolean(globalTemplates.convocation),
+      // Disponibilité = template global défini. Les colonnes formation.driveTemplate*Id
+      // sont legacy et ne sont plus consultées (gérées globalement dans drive-config).
+      hasTemplateConvention: Boolean(globalTemplates.convention),
+      hasTemplateContrat: Boolean(globalTemplates.contrat),
+      hasTemplateConvocation: Boolean(globalTemplates.convocation),
     },
     events: t.events.map((e) => ({
       id: e.id,

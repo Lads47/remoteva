@@ -119,30 +119,13 @@ export interface GenerateDocumentResult {
 export type GenerateDocumentError = { ok: false; error: string };
 
 /**
- * Résout l'ID du template à utiliser pour un type donné.
- * Priorité : template configuré sur la formation > template global par défaut
- * (AppConfig) > null. Permet de définir un template partagé pour toutes les
- * formations tout en gardant la possibilité d'override par-formation.
+ * Résout l'ID du template à utiliser pour un type donné depuis la
+ * configuration globale (AppConfig). Les colonnes
+ * formation.driveTemplate*Id sont conservées pour rétrocompat mais ne sont
+ * plus consultées : tous les templates sont gérés globalement dans
+ * /admin/formations/drive-config.
  */
-async function resolveTemplateId(
-  type: DocumentType,
-  formation: {
-    driveTemplateConventionId: string | null;
-    driveTemplateContratId: string | null;
-    driveTemplateConvocationId: string | null;
-  }
-): Promise<string | null> {
-  const formationTemplate =
-    type === "convention"
-      ? formation.driveTemplateConventionId
-      : type === "contrat"
-      ? formation.driveTemplateContratId
-      : type === "convocation"
-      ? formation.driveTemplateConvocationId
-      : null;
-  if (formationTemplate) return formationTemplate;
-
-  // Fallback : template global par défaut depuis AppConfig
+async function resolveTemplateId(type: DocumentType): Promise<string | null> {
   const defaults = await getDriveDefaultTemplates();
   return defaults[type] ?? null;
 }
@@ -171,11 +154,11 @@ export async function generateTraineeDocument(
   if (!trainee) return { ok: false, error: "Stagiaire introuvable" };
 
   const formation = trainee.session.formation;
-  const templateId = await resolveTemplateId(type, formation);
+  const templateId = await resolveTemplateId(type);
   if (!templateId) {
     return {
       ok: false,
-      error: `Pas de template ${DOCUMENT_TYPE_LABELS[type]} configuré (ni sur la formation, ni en template global par défaut). À renseigner dans /admin/formations/drive-config (global) ou en éditant la formation.`,
+      error: `Pas de template ${DOCUMENT_TYPE_LABELS[type]} configuré. À renseigner dans /admin/formations/drive-config.`,
     };
   }
 

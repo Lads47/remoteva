@@ -78,16 +78,8 @@ export default function FormationsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
-  // Templates Drive par défaut globaux : on les charge pour pouvoir afficher
-  // « hérite du défaut global » sur les champs vides de la modale.
-  const [globalTemplates, setGlobalTemplates] = useState<{ convention?: string; contrat?: string; convocation?: string }>({});
-
   useEffect(() => {
     fetchFormations();
-    fetch("/api/admin/drive-config")
-      .then((r) => r.json())
-      .then((d) => setGlobalTemplates(d.templates ?? {}))
-      .catch(() => {});
   }, []);
 
   async function fetchFormations() {
@@ -384,7 +376,7 @@ export default function FormationsPage() {
             </Field>
           </Section>
 
-          <Section title="Google Drive" hint="IDs des dossiers/templates Google (laisser vide tant que Drive non branché)">
+          <Section title="Dossiers Drive de la formation" hint="Les templates de documents (convention / contrat / convocation) sont gérés globalement dans « 📄 Templates Drive ». Ici on configure uniquement l'arborescence Drive propre à cette formation.">
             <Field label="Dossier racine FORMATION" full>
               <input
                 type="text"
@@ -402,108 +394,6 @@ export default function FormationsPage() {
                 className="input font-jetbrains text-xs"
               />
             </Field>
-            <Field label="Template programme (PDF)">
-              <input
-                type="text"
-                value={form.driveTemplateProgrammeId}
-                onChange={(e) => setForm({ ...form, driveTemplateProgrammeId: e.target.value })}
-                className="input font-jetbrains text-xs"
-              />
-            </Field>
-            <Field label="Template convention (Doc)">
-              <input
-                type="text"
-                value={form.driveTemplateConventionId}
-                onChange={(e) => setForm({ ...form, driveTemplateConventionId: e.target.value })}
-                className="input font-jetbrains text-xs"
-              />
-              <FallbackHint local={form.driveTemplateConventionId} global={globalTemplates.convention} />
-            </Field>
-            <Field label="Template contrat (Doc)">
-              <input
-                type="text"
-                value={form.driveTemplateContratId}
-                onChange={(e) => setForm({ ...form, driveTemplateContratId: e.target.value })}
-                className="input font-jetbrains text-xs"
-              />
-              <FallbackHint local={form.driveTemplateContratId} global={globalTemplates.contrat} />
-            </Field>
-            <Field label="Template convocation (Doc)">
-              <input
-                type="text"
-                value={form.driveTemplateConvocationId}
-                onChange={(e) => setForm({ ...form, driveTemplateConvocationId: e.target.value })}
-                className="input font-jetbrains text-xs"
-              />
-              <FallbackHint local={form.driveTemplateConvocationId} global={globalTemplates.convocation} />
-            </Field>
-            <Field label="Template émargement (Doc)">
-              <input
-                type="text"
-                value={form.driveTemplateEmargementId}
-                onChange={(e) => setForm({ ...form, driveTemplateEmargementId: e.target.value })}
-                className="input font-jetbrains text-xs"
-              />
-            </Field>
-            <Field label="Template suivi (Sheet)">
-              <input
-                type="text"
-                value={form.driveTemplateSuiviId}
-                onChange={(e) => setForm({ ...form, driveTemplateSuiviId: e.target.value })}
-                className="input font-jetbrains text-xs"
-              />
-            </Field>
-            <div className="col-span-2 mt-2 p-3 rounded-lg text-xs font-jetbrains" style={{ backgroundColor: "#fafbff", color: "#727485" }}>
-              <strong style={{ color: "#1f2244" }}>Variables disponibles dans les templates Doc</strong> (convention / contrat / convocation).
-              Utilise la syntaxe <code>{"{{NOM_VARIABLE}}"}</code> (double accolades) dans tes templates Google Doc.
-              Lors de la génération, elles sont remplacées par les valeurs du stagiaire.
-              <details className="mt-2 cursor-pointer">
-                <summary className="cursor-pointer" style={{ color: "#1f2244" }}>Voir la liste complète des variables</summary>
-                <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-1 max-h-72 overflow-y-auto pr-2">
-                  {[
-                    ["PRENOM", "Prénom du stagiaire"],
-                    ["NOM", "Nom du stagiaire"],
-                    ["NOM_COMPLET", "Prénom + Nom"],
-                    ["EMAIL", "Email du stagiaire"],
-                    ["TELEPHONE", "Téléphone du stagiaire"],
-                    ["ADRESSE", "Adresse postale (particulier) ou siège (entreprise)"],
-                    ["STATUT", "Statut actuel (intermittent, salarié, DE...)"],
-                    ["SOCIETE", "Raison sociale (vide si particulier)"],
-                    ["SIRET", "SIRET de la société"],
-                    ["ADRESSE_SIEGE", "Adresse du siège"],
-                    ["CONTACT_ADMIN", "Référent admin"],
-                    ["DOMAINE_ACTIVITE", "Domaine d'activité"],
-                    ["FORMATION", "Libellé long de la formation"],
-                    ["FORMATION_CODE", "Code interne"],
-                    ["FORMATION_DUREE_JOURS", "Durée (jours)"],
-                    ["FORMATION_DUREE_HEURES", "Durée (heures, = jours × 7)"],
-                    ["FORMATION_PRIX_HT", "Prix HT catalogue"],
-                    ["FORMATION_DESCRIPTION", "Description"],
-                    ["SESSION_CODE", "Code de la session"],
-                    ["SESSION_DATE_DEBUT", "Date début (jour mois année)"],
-                    ["SESSION_DATE_FIN", "Date fin"],
-                    ["SESSION_DATES", "Période formatée (intelligent)"],
-                    ["SESSION_LIEU", "Lieu"],
-                    ["SESSION_HORAIRES", "Horaires"],
-                    ["FORMATEUR_NOM", "Formateur (prénom + nom)"],
-                    ["FORMATEUR_EMAIL", "Email formateur"],
-                    ["MODE_FINANCEMENT", "Mode de financement"],
-                    ["OPCO", "OPCO détecté"],
-                    ["ID_OPCO", "N° dossier OPCO"],
-                    ["MONTANT_HT", "Montant HT négocié"],
-                    ["PSH", "« Oui » si PSH, vide sinon"],
-                    ["BESOINS_ADAPTATION", "Besoins d'adaptation"],
-                    ["DATE_AUJOURDHUI", "Date du jour de génération"],
-                    ["ORGANISME", "Nom de l'organisme (LADS)"],
-                  ].map(([k, desc]) => (
-                    <div key={k} className="flex items-baseline gap-2">
-                      <code style={{ color: "#1f2244" }}>{`{{${k}}}`}</code>
-                      <span className="text-[10px]" style={{ color: "#9ca3af" }}>{desc}</span>
-                    </div>
-                  ))}
-                </div>
-              </details>
-            </div>
           </Section>
 
           {error && <p className="text-sm text-red-600">{error}</p>}
@@ -670,22 +560,3 @@ function Field({
   );
 }
 
-// Affiche un petit indicateur sous un champ de template :
-//   - si vide  + global défini  → "hérite du défaut global (ID...)"
-//   - si rempli                 → vide (rien à dire)
-//   - si vide  + pas de global  → "aucun template — la génération échouera"
-function FallbackHint({ local, global }: { local: string; global: string | undefined }) {
-  if (local && local.trim()) return null;
-  if (global) {
-    return (
-      <p className="mt-1 text-[10px] font-jetbrains" style={{ color: "#166534" }}>
-        ↳ Hérite du défaut global : <code>{global}</code>
-      </p>
-    );
-  }
-  return (
-    <p className="mt-1 text-[10px] font-jetbrains" style={{ color: "#991b1b" }}>
-      ⚠ Aucun template défini (ni ici, ni en global). La génération échouera.
-    </p>
-  );
-}

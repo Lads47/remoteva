@@ -330,25 +330,34 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
           </span>
         </div>
         <p className="text-xs font-jetbrains mb-3" style={{ color: "#727485" }}>
-          Génère le document depuis le template Google Doc configuré sur la formation. Les variables{" "}
-          <code>{"{{NOM}}"}</code>, <code>{"{{FORMATION}}"}</code>, <code>{"{{SESSION_DATES}}"}</code>... sont remplacées automatiquement.
+          Génère le document depuis le template Google Doc défini globalement dans
+          {" "}<Link href="/admin/formations/drive-config" className="underline" style={{ color: "#1f2244" }}>« Templates Drive »</Link>.
+          Les variables <code>{"{{NOM}}"}</code>, <code>{"{{FORMATION}}"}</code>, <code>{"{{SESSION_DATES}}"}</code>... sont remplacées automatiquement.
           Le fichier est archivé dans <code>01_INSCRIPTIONS_CONVENTIONS / {trainee.prenom} {trainee.nom}</code> sur Drive.
+          {trainee.inscriptionType === "entreprise" ? (
+            <> Stagiaire inscrit en <strong>entreprise</strong> : une <strong>convention de formation</strong> (signée OF + employeur) est requise.</>
+          ) : (
+            <> Stagiaire inscrit en <strong>particulier</strong> : un <strong>contrat de formation</strong> (signé OF + stagiaire individuel, L.6353-3 du Code du travail) est requis.</>
+          )}
         </p>
         <div className="flex gap-2 flex-wrap mb-3">
-          <DocGenerateButton
-            label="Convention"
-            available={trainee.formation.hasTemplateConvention}
-            disabled={generating !== null}
-            loading={generating === "convention"}
-            onClick={() => handleGenerateDoc("convention")}
-          />
-          <DocGenerateButton
-            label="Contrat"
-            available={trainee.formation.hasTemplateContrat}
-            disabled={generating !== null}
-            loading={generating === "contrat"}
-            onClick={() => handleGenerateDoc("contrat")}
-          />
+          {trainee.inscriptionType === "entreprise" ? (
+            <DocGenerateButton
+              label="Convention"
+              available={trainee.formation.hasTemplateConvention}
+              disabled={generating !== null}
+              loading={generating === "convention"}
+              onClick={() => handleGenerateDoc("convention")}
+            />
+          ) : (
+            <DocGenerateButton
+              label="Contrat"
+              available={trainee.formation.hasTemplateContrat}
+              disabled={generating !== null}
+              loading={generating === "contrat"}
+              onClick={() => handleGenerateDoc("contrat")}
+            />
+          )}
           <DocGenerateButton
             label="Convocation"
             available={trainee.formation.hasTemplateConvocation}
