@@ -69,6 +69,7 @@ export const DOCUMENT_VARIABLES: { key: string; description: string; example: st
   { key: "SESSION_DATES", description: "Période formatée (intelligent selon durée)", example: "12 – 14 mai 2026" },
   { key: "SESSION_LIEU", description: "Lieu de la session", example: "Marmande (47)" },
   { key: "SESSION_HORAIRES", description: "Horaires", example: "9h – 17h30" },
+  { key: "SESSION_CAPACITE", description: "Effectif maximum de la session (configurable côté session)", example: "8" },
   // Formateur
   { key: "FORMATEUR_NOM", description: "Prénom + Nom du formateur", example: "Paul Martin" },
   { key: "FORMATEUR_EMAIL", description: "Email du formateur", example: "paul@example.com" },
@@ -222,7 +223,7 @@ type TraineeWithRelations = Awaited<ReturnType<typeof prisma.trainee.findUnique>
 
 function buildVariablesForTrainee(
   t: NonNullable<TraineeWithRelations> & {
-    session: { formation: { code: string; nomLong: string; dureeJours: number; prixHT: number; description: string }; trainer: { prenom: string; nom: string; email: string } | null; code: string; dateDebut: Date; dateFin: Date; lieu: string; horaires: string };
+    session: { formation: { code: string; nomLong: string; dureeJours: number; prixHT: number; description: string }; trainer: { prenom: string; nom: string; email: string } | null; code: string; dateDebut: Date; dateFin: Date; lieu: string; horaires: string; capacite: number };
   }
 ): Record<string, string> {
   const formation = t.session.formation;
@@ -268,6 +269,7 @@ function buildVariablesForTrainee(
     SESSION_DATES: fmtSessionDates(session.dateDebut, session.dateFin),
     SESSION_LIEU: session.lieu || "",
     SESSION_HORAIRES: session.horaires || "",
+    SESSION_CAPACITE: String(session.capacite),
     // Formateur
     FORMATEUR_NOM: trainer ? `${trainer.prenom} ${trainer.nom}` : "",
     FORMATEUR_EMAIL: trainer?.email || "",

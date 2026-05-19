@@ -173,6 +173,7 @@ export default function DriveConfigPage() {
               ["SESSION_DATES", "Période formatée (intelligent)"],
               ["SESSION_LIEU", "Lieu"],
               ["SESSION_HORAIRES", "Horaires"],
+              ["SESSION_CAPACITE", "Effectif max (config par session, défaut 8)"],
               ["FORMATEUR_NOM", "Formateur (prénom + nom)"],
               ["FORMATEUR_EMAIL", "Email formateur"],
               ["MODE_FINANCEMENT", "Mode de financement"],

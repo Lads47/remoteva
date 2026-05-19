@@ -107,7 +107,7 @@ const segments = [
 
   ["Article IV — Organisation de l'action de formation\n", HEAD],
   ["L'action de formation a lieu les {{SESSION_DATES}} à {{SESSION_LIEU}}, selon les horaires : {{SESSION_HORAIRES}}.\n", NORMAL],
-  ["Elle est organisée pour un effectif de 1 stagiaire.\n", NORMAL],
+  ["Elle est organisée pour un effectif compris entre 1 et {{SESSION_CAPACITE}} stagiaires.\n", NORMAL],
   ["\n", NORMAL],
   ["Conditions générales : formation en présentiel avec méthode active et mises en situation professionnelles concrètes. Mise à disposition d'ordinateurs équipés et de tous les matériels audiovisuels nécessaires à la bonne exécution des contenus pédagogiques.\n", NORMAL],
   ["\n", NORMAL],

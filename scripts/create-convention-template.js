@@ -103,7 +103,7 @@ const segments = [
   ["Référence interne : {{FORMATION_CODE}}\n", NORMAL],
   ["Nature : action d'adaptation et de développement des compétences des salariés (formation en présentiel)\n", NORMAL],
   ["Durée : {{FORMATION_DUREE_JOURS}} jour(s), soit {{FORMATION_DUREE_HEURES}} heures\n", NORMAL],
-  ["Effectif : 1 stagiaire\n", NORMAL],
+  ["Effectif de la session : 1 à {{SESSION_CAPACITE}} stagiaires\n", NORMAL],
   ["Dates : {{SESSION_DATES}}\n", NORMAL],
   ["Horaires : {{SESSION_HORAIRES}}\n", NORMAL],
   ["Lieu : {{SESSION_LIEU}}\n", NORMAL],
