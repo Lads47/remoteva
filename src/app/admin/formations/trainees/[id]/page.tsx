@@ -13,6 +13,17 @@ interface TraineeEvent {
   createdAt: string;
 }
 
+interface TraineeDocument {
+  id: string;
+  type: string;
+  fileName: string;
+  driveFileId: string;
+  driveFileUrl: string;
+  generatedAt: string;
+  sentAt: string | null;
+  signedAt: string | null;
+}
+
 interface TraineeDetail {
   id: string;
   sessionId: string;
@@ -56,8 +67,12 @@ interface TraineeDetail {
     code: string;
     nomLong: string;
     configForm: string;
+    hasTemplateConvention: boolean;
+    hasTemplateContrat: boolean;
+    hasTemplateConvocation: boolean;
   };
   events: TraineeEvent[];
+  documents: TraineeDocument[];
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -98,6 +113,8 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
   const [error, setError] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+  const [generating, setGenerating] = useState<string | null>(null);
+  const [docFeedback, setDocFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
   async function refresh() {
     const res = await fetch(`/api/admin/trainees/${id}`);
@@ -123,6 +140,34 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
   }, [id]);
+
+  async function handleGenerateDoc(type: "convention" | "contrat" | "convocation") {
+    if (!trainee || generating) return;
+    setGenerating(type);
+    setDocFeedback(null);
+    try {
+      const res = await fetch(`/api/admin/trainees/${id}/generate-document`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setDocFeedback({ type: "error", msg: data.error || "Échec de la génération" });
+        return;
+      }
+      setDocFeedback({
+        type: "success",
+        msg: `${data.fileName} généré ✓`,
+      });
+      await refresh();
+    } catch {
+      setDocFeedback({ type: "error", msg: "Erreur réseau" });
+    } finally {
+      setGenerating(null);
+      setTimeout(() => setDocFeedback(null), 8000);
+    }
+  }
 
   async function handleSendDevis() {
     if (!trainee) return;
@@ -273,6 +318,92 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
           {actionFeedback.msg}
         </div>
       )}
+
+      {/* Documents administratifs */}
+      <div className="p-5 rounded-xl border" style={{ borderColor: "#e5e7eb", backgroundColor: "white" }}>
+        <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: "#1f2244" }}>
+            Documents administratifs
+          </h2>
+          <span className="text-xs font-jetbrains" style={{ color: "#727485" }}>
+            {trainee.documents?.length ?? 0} document{(trainee.documents?.length ?? 0) > 1 ? "s" : ""} généré{(trainee.documents?.length ?? 0) > 1 ? "s" : ""}
+          </span>
+        </div>
+        <p className="text-xs font-jetbrains mb-3" style={{ color: "#727485" }}>
+          Génère le document depuis le template Google Doc configuré sur la formation. Les variables{" "}
+          <code>{"{{NOM}}"}</code>, <code>{"{{FORMATION}}"}</code>, <code>{"{{SESSION_DATES}}"}</code>... sont remplacées automatiquement.
+          Le fichier est archivé dans <code>01_INSCRIPTIONS_CONVENTIONS / {trainee.prenom} {trainee.nom}</code> sur Drive.
+        </p>
+        <div className="flex gap-2 flex-wrap mb-3">
+          <DocGenerateButton
+            label="Convention"
+            available={trainee.formation.hasTemplateConvention}
+            disabled={generating !== null}
+            loading={generating === "convention"}
+            onClick={() => handleGenerateDoc("convention")}
+          />
+          <DocGenerateButton
+            label="Contrat"
+            available={trainee.formation.hasTemplateContrat}
+            disabled={generating !== null}
+            loading={generating === "contrat"}
+            onClick={() => handleGenerateDoc("contrat")}
+          />
+          <DocGenerateButton
+            label="Convocation"
+            available={trainee.formation.hasTemplateConvocation}
+            disabled={generating !== null}
+            loading={generating === "convocation"}
+            onClick={() => handleGenerateDoc("convocation")}
+          />
+        </div>
+        {docFeedback && (
+          <div
+            className={`p-2.5 mb-3 rounded-lg text-xs font-jetbrains ${
+              docFeedback.type === "success" ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"
+            }`}
+          >
+            {docFeedback.msg}
+          </div>
+        )}
+        {trainee.documents && trainee.documents.length > 0 ? (
+          <div className="space-y-1.5">
+            {trainee.documents.map((d) => (
+              <div
+                key={d.id}
+                className="flex items-center justify-between gap-3 p-2.5 rounded-lg border flex-wrap"
+                style={{ borderColor: "#e5e7eb", backgroundColor: "#fafbff" }}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="font-jetbrains text-xs" style={{ color: "#1f2244" }}>
+                    <strong>{d.fileName}</strong>
+                  </div>
+                  <div className="text-xs mt-0.5" style={{ color: "#9ca3af" }}>
+                    {d.type} · généré le {fmtDateTime(d.generatedAt)}
+                    {d.sentAt && ` · envoyé le ${fmtDateTime(d.sentAt)}`}
+                    {d.signedAt && ` · signé le ${fmtDateTime(d.signedAt)}`}
+                  </div>
+                </div>
+                {d.driveFileUrl && (
+                  <a
+                    href={d.driveFileUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs px-3 py-1 rounded-full border cursor-pointer"
+                    style={{ borderColor: "#1f2244", color: "#1f2244" }}
+                  >
+                    Ouvrir dans Drive ↗
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs font-jetbrains italic" style={{ color: "#9ca3af" }}>
+            Aucun document généré pour ce stagiaire.
+          </p>
+        )}
+      </div>
 
       {/* Identité */}
       <Section title="Identité et contact">
@@ -434,6 +565,42 @@ function Info({ label, value, full, mono }: { label: string; value: string; full
         {value}
       </div>
     </div>
+  );
+}
+
+function DocGenerateButton({
+  label,
+  available,
+  disabled,
+  loading,
+  onClick,
+}: {
+  label: string;
+  available: boolean;
+  disabled: boolean;
+  loading: boolean;
+  onClick: () => void;
+}) {
+  if (!available) {
+    return (
+      <span
+        className="text-xs px-3 py-1.5 rounded-full border cursor-not-allowed"
+        style={{ borderColor: "#e5e7eb", color: "#9ca3af", backgroundColor: "#f9fafb" }}
+        title="Template Drive non configuré sur la formation"
+      >
+        {label} <span className="ml-1">⚠ template manquant</span>
+      </span>
+    );
+  }
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="text-xs px-3 py-1.5 rounded-full cursor-pointer disabled:opacity-50"
+      style={{ backgroundColor: "#1f2244", color: "white" }}
+    >
+      {loading ? "Génération..." : `Générer ${label}`}
+    </button>
   );
 }
 

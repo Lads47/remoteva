@@ -74,6 +74,17 @@ export interface TraineeEventInfo {
   createdAt: Date;
 }
 
+export interface TraineeDocumentInfo {
+  id: string;
+  type: string;                    // "convention" | "contrat" | "convocation" | "devis" | ...
+  fileName: string;
+  driveFileId: string;
+  driveFileUrl: string;
+  generatedAt: Date;
+  sentAt: Date | null;
+  signedAt: Date | null;
+}
+
 export interface TraineeWithDetails extends TraineeInfo {
   session: {
     id: string;
@@ -89,8 +100,13 @@ export interface TraineeWithDetails extends TraineeInfo {
     code: string;
     nomLong: string;
     configForm: string;
+    // Indique si chaque template est configuré côté formation
+    hasTemplateConvention: boolean;
+    hasTemplateContrat: boolean;
+    hasTemplateConvocation: boolean;
   };
   events: TraineeEventInfo[];
+  documents: TraineeDocumentInfo[];
 }
 
 export async function getTraineeWithDetails(id: string): Promise<TraineeWithDetails | null> {
@@ -99,6 +115,7 @@ export async function getTraineeWithDetails(id: string): Promise<TraineeWithDeta
     include: {
       session: { include: { formation: true } },
       events: { orderBy: { createdAt: "desc" } },
+      documents: { orderBy: { generatedAt: "desc" } },
     },
   });
   if (!t) return null;
@@ -118,6 +135,9 @@ export async function getTraineeWithDetails(id: string): Promise<TraineeWithDeta
       code: t.session.formation.code,
       nomLong: t.session.formation.nomLong,
       configForm: t.session.formation.configForm,
+      hasTemplateConvention: Boolean(t.session.formation.driveTemplateConventionId),
+      hasTemplateContrat: Boolean(t.session.formation.driveTemplateContratId),
+      hasTemplateConvocation: Boolean(t.session.formation.driveTemplateConvocationId),
     },
     events: t.events.map((e) => ({
       id: e.id,
@@ -125,6 +145,16 @@ export async function getTraineeWithDetails(id: string): Promise<TraineeWithDeta
       message: e.message,
       payload: e.payload,
       createdAt: e.createdAt,
+    })),
+    documents: t.documents.map((d) => ({
+      id: d.id,
+      type: d.type,
+      fileName: d.fileName,
+      driveFileId: d.driveFileId,
+      driveFileUrl: d.driveFileUrl,
+      generatedAt: d.generatedAt,
+      sentAt: d.sentAt,
+      signedAt: d.signedAt,
     })),
   };
 }

@@ -432,6 +432,57 @@ export default function FormationsPage() {
                 className="input font-jetbrains text-xs"
               />
             </Field>
+            <div className="col-span-2 mt-2 p-3 rounded-lg text-xs font-jetbrains" style={{ backgroundColor: "#fafbff", color: "#727485" }}>
+              <strong style={{ color: "#1f2244" }}>Variables disponibles dans les templates Doc</strong> (convention / contrat / convocation).
+              Utilise la syntaxe <code>{"{{NOM_VARIABLE}}"}</code> (double accolades) dans tes templates Google Doc.
+              Lors de la génération, elles sont remplacées par les valeurs du stagiaire.
+              <details className="mt-2 cursor-pointer">
+                <summary className="cursor-pointer" style={{ color: "#1f2244" }}>Voir la liste complète des variables</summary>
+                <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-1 max-h-72 overflow-y-auto pr-2">
+                  {[
+                    ["PRENOM", "Prénom du stagiaire"],
+                    ["NOM", "Nom du stagiaire"],
+                    ["NOM_COMPLET", "Prénom + Nom"],
+                    ["EMAIL", "Email du stagiaire"],
+                    ["TELEPHONE", "Téléphone du stagiaire"],
+                    ["ADRESSE", "Adresse postale (particulier) ou siège (entreprise)"],
+                    ["STATUT", "Statut actuel (intermittent, salarié, DE...)"],
+                    ["SOCIETE", "Raison sociale (vide si particulier)"],
+                    ["SIRET", "SIRET de la société"],
+                    ["ADRESSE_SIEGE", "Adresse du siège"],
+                    ["CONTACT_ADMIN", "Référent admin"],
+                    ["DOMAINE_ACTIVITE", "Domaine d'activité"],
+                    ["FORMATION", "Libellé long de la formation"],
+                    ["FORMATION_CODE", "Code interne"],
+                    ["FORMATION_DUREE_JOURS", "Durée (jours)"],
+                    ["FORMATION_DUREE_HEURES", "Durée (heures, = jours × 7)"],
+                    ["FORMATION_PRIX_HT", "Prix HT catalogue"],
+                    ["FORMATION_DESCRIPTION", "Description"],
+                    ["SESSION_CODE", "Code de la session"],
+                    ["SESSION_DATE_DEBUT", "Date début (jour mois année)"],
+                    ["SESSION_DATE_FIN", "Date fin"],
+                    ["SESSION_DATES", "Période formatée (intelligent)"],
+                    ["SESSION_LIEU", "Lieu"],
+                    ["SESSION_HORAIRES", "Horaires"],
+                    ["FORMATEUR_NOM", "Formateur (prénom + nom)"],
+                    ["FORMATEUR_EMAIL", "Email formateur"],
+                    ["MODE_FINANCEMENT", "Mode de financement"],
+                    ["OPCO", "OPCO détecté"],
+                    ["ID_OPCO", "N° dossier OPCO"],
+                    ["MONTANT_HT", "Montant HT négocié"],
+                    ["PSH", "« Oui » si PSH, vide sinon"],
+                    ["BESOINS_ADAPTATION", "Besoins d'adaptation"],
+                    ["DATE_AUJOURDHUI", "Date du jour de génération"],
+                    ["ORGANISME", "Nom de l'organisme (LADS)"],
+                  ].map(([k, desc]) => (
+                    <div key={k} className="flex items-baseline gap-2">
+                      <code style={{ color: "#1f2244" }}>{`{{${k}}}`}</code>
+                      <span className="text-[10px]" style={{ color: "#9ca3af" }}>{desc}</span>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            </div>
           </Section>
 
           {error && <p className="text-sm text-red-600">{error}</p>}

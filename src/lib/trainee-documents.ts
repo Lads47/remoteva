@@ -1,0 +1,278 @@
+// Génération de documents administratifs par stagiaire à partir des
+// templates Google Docs configurés au niveau de la formation.
+//
+// Workflow :
+//   1. Charge le stagiaire + sa session + sa formation + son formateur
+//   2. Récupère l'ID du template Drive correspondant au type demandé
+//      (convention | contrat | convocation)
+//   3. Copie le template dans 01_INSCRIPTIONS_CONVENTIONS/<Stagiaire>/ sur
+//      le Drive de la session (provisionne le dossier session si besoin)
+//   4. Lance un batchUpdate Docs pour substituer les variables `{{XXX}}`
+//   5. Insère une ligne TraineeDocument pour traçabilité
+//
+// La liste des variables disponibles est exportée pour pouvoir l'afficher
+// côté admin (page de configuration de la formation) — voir DOCUMENT_VARIABLES.
+
+import prisma from "./db";
+import { provisionSessionDriveFolder } from "./drive-provisioning";
+import { replaceTextInDoc } from "./google-docs";
+import {
+  copyDriveFile,
+  findOrCreateFolder,
+  isDriveConfigured,
+} from "./google-drive";
+
+const INSCRIPTIONS_FOLDER_NAME = "01_INSCRIPTIONS_CONVENTIONS";
+
+export type DocumentType = "convention" | "contrat" | "convocation";
+
+export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
+  convention: "Convention de formation",
+  contrat: "Contrat de formation",
+  convocation: "Convocation",
+};
+
+/**
+ * Catalogue des variables que les templates peuvent utiliser. La syntaxe
+ * dans les templates Google Docs est `{{NOM_VARIABLE}}` (double accolades).
+ * Affiché côté admin pour aider à préparer les templates.
+ */
+export const DOCUMENT_VARIABLES: { key: string; description: string; example: string }[] = [
+  // Stagiaire
+  { key: "PRENOM", description: "Prénom du stagiaire", example: "Marie" },
+  { key: "NOM", description: "Nom du stagiaire", example: "Dupont" },
+  { key: "NOM_COMPLET", description: "Prénom + Nom", example: "Marie Dupont" },
+  { key: "EMAIL", description: "Email du stagiaire", example: "marie.dupont@example.com" },
+  { key: "TELEPHONE", description: "Téléphone du stagiaire", example: "06 12 34 56 78" },
+  { key: "ADRESSE", description: "Adresse postale (particulier) ou siège (entreprise)", example: "12 rue des Lilas, 33000 Bordeaux" },
+  { key: "STATUT", description: "Statut actuel (intermittent, salarié, DE...)", example: "Intermittent du spectacle" },
+  // Entreprise
+  { key: "SOCIETE", description: "Raison sociale (vide si particulier)", example: "ACME Films" },
+  { key: "SIRET", description: "SIRET de la société", example: "12345678900012" },
+  { key: "ADRESSE_SIEGE", description: "Adresse du siège social", example: "10 av. de la République, 75011 Paris" },
+  { key: "CONTACT_ADMIN", description: "Référent admin si différent du stagiaire", example: "Jean Martin (jean@acme.fr)" },
+  { key: "DOMAINE_ACTIVITE", description: "Domaine d'activité de la société", example: "Production audiovisuelle" },
+  // Formation
+  { key: "FORMATION", description: "Libellé long de la formation", example: "Perfectionnement vMix — 1 jour" },
+  { key: "FORMATION_CODE", description: "Code interne de la formation", example: "vMix-1J" },
+  { key: "FORMATION_DUREE_JOURS", description: "Durée en jours", example: "1" },
+  { key: "FORMATION_DUREE_HEURES", description: "Durée en heures (= jours × 7)", example: "7" },
+  { key: "FORMATION_PRIX_HT", description: "Prix HT catalogue (€)", example: "850" },
+  { key: "FORMATION_DESCRIPTION", description: "Description de la formation", example: "Objectifs : maîtriser..." },
+  // Session
+  { key: "SESSION_CODE", description: "Code de la session", example: "vMix-2026-05" },
+  { key: "SESSION_DATE_DEBUT", description: "Date de début (jour mois année)", example: "12 mai 2026" },
+  { key: "SESSION_DATE_FIN", description: "Date de fin", example: "12 mai 2026" },
+  { key: "SESSION_DATES", description: "Période formatée (intelligent selon durée)", example: "12 – 14 mai 2026" },
+  { key: "SESSION_LIEU", description: "Lieu de la session", example: "Marmande (47)" },
+  { key: "SESSION_HORAIRES", description: "Horaires", example: "9h – 17h30" },
+  // Formateur
+  { key: "FORMATEUR_NOM", description: "Prénom + Nom du formateur", example: "Paul Martin" },
+  { key: "FORMATEUR_EMAIL", description: "Email du formateur", example: "paul@example.com" },
+  // Financement
+  { key: "MODE_FINANCEMENT", description: "Mode de financement", example: "AFDAS" },
+  { key: "OPCO", description: "OPCO détecté", example: "AFDAS" },
+  { key: "ID_OPCO", description: "N° de dossier OPCO", example: "DOSS-2026-12345" },
+  { key: "MONTANT_HT", description: "Montant HT négocié (€)", example: "850" },
+  // PSH
+  { key: "PSH", description: "« Oui » si PSH, vide sinon", example: "Oui" },
+  { key: "BESOINS_ADAPTATION", description: "Besoins d'adaptation PSH", example: "Pause toutes les 45 min" },
+  // Divers
+  { key: "DATE_AUJOURDHUI", description: "Date du jour de génération", example: "19 mai 2026" },
+  { key: "ORGANISME", description: "Nom de l'organisme (LADS)", example: "Les Ateliers du Stream" },
+];
+
+function fmtDate(d: Date | string): string {
+  return new Date(d).toLocaleDateString("fr-FR", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+function fmtSessionDates(start: Date | string, end: Date | string | null): string {
+  if (!end) return fmtDate(start);
+  const s = new Date(start);
+  const e = new Date(end);
+  const sameDay =
+    s.getUTCFullYear() === e.getUTCFullYear() &&
+    s.getUTCMonth() === e.getUTCMonth() &&
+    s.getUTCDate() === e.getUTCDate();
+  if (sameDay) return fmtDate(s);
+  const sameMY = s.getUTCFullYear() === e.getUTCFullYear() && s.getUTCMonth() === e.getUTCMonth();
+  if (sameMY) {
+    const startDay = s.toLocaleDateString("fr-FR", { day: "numeric", timeZone: "UTC" });
+    return `${startDay} – ${fmtDate(e)}`;
+  }
+  return `${fmtDate(s)} – ${fmtDate(e)}`;
+}
+
+export interface GenerateDocumentResult {
+  ok: true;
+  documentId: string;
+  driveFileId: string;
+  driveWebUrl: string | null;
+  fileName: string;
+}
+export type GenerateDocumentError = { ok: false; error: string };
+
+function getTemplateIdForType(
+  type: DocumentType,
+  formation: {
+    driveTemplateConventionId: string | null;
+    driveTemplateContratId: string | null;
+    driveTemplateConvocationId: string | null;
+  }
+): string | null {
+  if (type === "convention") return formation.driveTemplateConventionId;
+  if (type === "contrat") return formation.driveTemplateContratId;
+  if (type === "convocation") return formation.driveTemplateConvocationId;
+  return null;
+}
+
+/**
+ * Génère un document administratif (convention | contrat | convocation) pour
+ * un stagiaire en copiant le template Drive de la formation puis en
+ * remplaçant les variables `{{XXX}}` par les valeurs réelles. Le fichier
+ * résultant est rangé dans 01_INSCRIPTIONS_CONVENTIONS/<Stagiaire>/ du
+ * dossier Drive de la session, et tracé en BDD via TraineeDocument.
+ */
+export async function generateTraineeDocument(
+  traineeId: string,
+  type: DocumentType
+): Promise<GenerateDocumentResult | GenerateDocumentError> {
+  if (!isDriveConfigured()) {
+    return { ok: false, error: "Drive non configuré (GOOGLE_SERVICE_ACCOUNT_KEY_B64 absent)" };
+  }
+
+  const trainee = await prisma.trainee.findUnique({
+    where: { id: traineeId },
+    include: {
+      session: { include: { formation: true, trainer: true } },
+    },
+  });
+  if (!trainee) return { ok: false, error: "Stagiaire introuvable" };
+
+  const formation = trainee.session.formation;
+  const templateId = getTemplateIdForType(type, formation);
+  if (!templateId) {
+    return {
+      ok: false,
+      error: `Pas de template ${DOCUMENT_TYPE_LABELS[type]} configuré sur la formation. À renseigner dans /admin/formations.`,
+    };
+  }
+
+  // Provisionne le dossier Drive de la session si besoin
+  const provision = await provisionSessionDriveFolder(trainee.session.id);
+  if (!provision.ok) {
+    return { ok: false, error: `Dossier Drive session : ${provision.error}` };
+  }
+  const sessionFolderId = provision.driveFolderId;
+
+  try {
+    // Sous-dossier 01_INSCRIPTIONS_CONVENTIONS / <Prénom Nom>
+    const inscFolder = await findOrCreateFolder(sessionFolderId, INSCRIPTIONS_FOLDER_NAME);
+    const fullName = `${trainee.prenom} ${trainee.nom}`.trim();
+    const traineeFolder = await findOrCreateFolder(inscFolder.id, fullName);
+
+    // Construit le nom de fichier final
+    const typeLabel = DOCUMENT_TYPE_LABELS[type];
+    const safeFormation = formation.code || "formation";
+    const fileName = `${typeLabel} — ${fullName} — ${safeFormation}`;
+
+    // 1. Copie du template vers le dossier stagiaire
+    const copy = await copyDriveFile({
+      sourceFileId: templateId,
+      parentFolderId: traineeFolder.id,
+      newName: fileName,
+    });
+
+    // 2. Substitution des variables via Docs API
+    const variables = buildVariablesForTrainee(trainee);
+    await replaceTextInDoc(copy.id, variables);
+
+    // 3. Enregistrement BDD
+    const doc = await prisma.traineeDocument.create({
+      data: {
+        traineeId,
+        type,
+        driveFileId: copy.id,
+        driveFileUrl: copy.webViewLink ?? "",
+        fileName,
+      },
+    });
+
+    return {
+      ok: true,
+      documentId: doc.id,
+      driveFileId: copy.id,
+      driveWebUrl: copy.webViewLink ?? null,
+      fileName,
+    };
+  } catch (err) {
+    const error = err instanceof Error ? err.message : "Erreur inconnue";
+    console.warn(`[trainee-documents] génération échouée ${type} traineeId=${traineeId}:`, error);
+    return { ok: false, error };
+  }
+}
+
+type TraineeWithRelations = Awaited<ReturnType<typeof prisma.trainee.findUnique>>;
+
+function buildVariablesForTrainee(
+  t: NonNullable<TraineeWithRelations> & {
+    session: { formation: { code: string; nomLong: string; dureeJours: number; prixHT: number; description: string }; trainer: { prenom: string; nom: string; email: string } | null; code: string; dateDebut: Date; dateFin: Date; lieu: string; horaires: string };
+  }
+): Record<string, string> {
+  const formation = t.session.formation;
+  const session = t.session;
+  const trainer = session.trainer;
+
+  // Adresse selon type d'inscription (particulier vs entreprise)
+  const adresse = t.inscriptionType === "entreprise" ? t.adresseSiege : t.adressePostale;
+
+  return {
+    // Stagiaire
+    PRENOM: t.prenom,
+    NOM: t.nom,
+    NOM_COMPLET: `${t.prenom} ${t.nom}`,
+    EMAIL: t.email,
+    TELEPHONE: t.telephone,
+    ADRESSE: adresse || "",
+    STATUT: t.statutActuel || "",
+    // Entreprise
+    SOCIETE: t.raisonSociale || "",
+    SIRET: t.siret || "",
+    ADRESSE_SIEGE: t.adresseSiege || "",
+    CONTACT_ADMIN: t.contactAdmin || "",
+    DOMAINE_ACTIVITE: t.domaineActivite || "",
+    // Formation
+    FORMATION: formation.nomLong,
+    FORMATION_CODE: formation.code,
+    FORMATION_DUREE_JOURS: String(formation.dureeJours),
+    FORMATION_DUREE_HEURES: String(formation.dureeJours * 7),
+    FORMATION_PRIX_HT: String(formation.prixHT),
+    FORMATION_DESCRIPTION: formation.description || "",
+    // Session
+    SESSION_CODE: session.code,
+    SESSION_DATE_DEBUT: fmtDate(session.dateDebut),
+    SESSION_DATE_FIN: fmtDate(session.dateFin),
+    SESSION_DATES: fmtSessionDates(session.dateDebut, session.dateFin),
+    SESSION_LIEU: session.lieu || "",
+    SESSION_HORAIRES: session.horaires || "",
+    // Formateur
+    FORMATEUR_NOM: trainer ? `${trainer.prenom} ${trainer.nom}` : "",
+    FORMATEUR_EMAIL: trainer?.email || "",
+    // Financement
+    MODE_FINANCEMENT: t.modeFinancement || "",
+    OPCO: t.opcoDetecte || "",
+    ID_OPCO: t.idOpco || "",
+    MONTANT_HT: t.montantHT ? String(t.montantHT) : "",
+    // PSH
+    PSH: t.psh ? "Oui" : "",
+    BESOINS_ADAPTATION: t.besoinsAdaptation || "",
+    // Divers
+    DATE_AUJOURDHUI: fmtDate(new Date()),
+    ORGANISME: "Les Ateliers du Stream",
+  };
+}

@@ -10,7 +10,14 @@
 
 import { createSign } from "crypto";
 
-const SCOPES = "https://www.googleapis.com/auth/drive";
+// Scopes nécessaires :
+//   drive     → opérations fichiers/dossiers (upload, copie, trash, listing)
+//   documents → batchUpdate sur Google Docs (substitution variables pour
+//               les templates convention/contrat/convocation).
+const SCOPES = [
+  "https://www.googleapis.com/auth/drive",
+  "https://www.googleapis.com/auth/documents",
+].join(" ");
 const OAUTH_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const DRIVE_API = "https://www.googleapis.com/drive/v3";
 const DRIVE_UPLOAD = "https://www.googleapis.com/upload/drive/v3";
@@ -50,7 +57,7 @@ function base64url(input: Buffer | string): string {
   return b.toString("base64").replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
 }
 
-async function getAccessToken(): Promise<string> {
+export async function getAccessToken(): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   if (cachedToken && cachedToken.expiresAt > now + 30) {
     return cachedToken.value;
@@ -233,6 +240,38 @@ export async function uploadFile(input: {
   if (!res.ok) {
     const t = await res.text().catch(() => "");
     throw new Error(`Drive uploadFile failed (HTTP ${res.status}): ${t.slice(0, 300)}`);
+  }
+  return (await res.json()) as DriveFile;
+}
+
+/**
+ * Copie un fichier Drive existant (typiquement un template Google Doc) vers
+ * un dossier cible, avec un nouveau nom. Renvoie l'id et le webViewLink de
+ * la copie.
+ */
+export async function copyDriveFile(input: {
+  sourceFileId: string;
+  parentFolderId: string;
+  newName: string;
+}): Promise<DriveFile> {
+  const token = await getAccessToken();
+  const res = await fetch(
+    `${DRIVE_API}/files/${encodeURIComponent(input.sourceFileId)}/copy?supportsAllDrives=true&fields=id,name,webViewLink,mimeType`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: input.newName,
+        parents: [input.parentFolderId],
+      }),
+    }
+  );
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(`Drive copyFile failed (HTTP ${res.status}): ${t.slice(0, 300)}`);
   }
   return (await res.json()) as DriveFile;
 }
