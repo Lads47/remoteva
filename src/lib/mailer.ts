@@ -463,6 +463,101 @@ Voir la fiche : ${fichSessionUrl}`;
 }
 
 /**
+ * Envoi convocation au stagiaire J-15 avant la session.
+ * Joint la convocation PDF + le RI (si configuré).
+ */
+export async function sendConvocationToStagiaire(params: {
+  to: string;
+  prenom: string;
+  nom: string;
+  formationNomLong: string;
+  sessionDateDebut: Date | string;
+  sessionDateFin: Date | string;
+  sessionLieu: string;
+  sessionHoraires: string;
+  convocationPdfBuffer: Buffer;
+  convocationPdfFilename: string;
+  riBuffer?: Buffer;
+  riFilename?: string;
+  replyTo?: string;
+}): Promise<SendEmailResult> {
+  const replyTo = params.replyTo || process.env.ADMIN_NOTIFY_EMAIL;
+  const safe = {
+    prenom: escapeHtml(params.prenom),
+    formation: escapeHtml(params.formationNomLong),
+    lieu: escapeHtml(params.sessionLieu || "Lieu à préciser"),
+    horaires: escapeHtml(params.sessionHoraires || ""),
+  };
+  const dateDebut = fmtDateFr(params.sessionDateDebut);
+  const dateFin = fmtDateFr(params.sessionDateFin);
+
+  const html = `<!DOCTYPE html>
+<html lang="fr">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #1f2244;">
+  <h1 style="font-size: 22px; margin: 0 0 16px;">Convocation à la formation ${safe.formation}</h1>
+  <p>Bonjour ${safe.prenom},</p>
+  <p>Votre formation <strong>${safe.formation}</strong> approche !
+  Vous trouverez ci-joint votre <strong>convocation officielle</strong> avec les modalités pratiques,
+  ainsi que le règlement intérieur de l'organisme de formation.</p>
+
+  <table style="border-collapse: collapse; margin: 16px 0; background: #f8fafc; border-radius: 8px; padding: 12px; width: 100%;">
+    <tr><td style="padding: 8px 12px; color: #727485;">Période</td><td style="padding: 8px 12px;"><strong>Du ${dateDebut} au ${dateFin}</strong></td></tr>
+    <tr><td style="padding: 8px 12px; color: #727485;">Lieu</td><td style="padding: 8px 12px;">${safe.lieu}</td></tr>
+    ${safe.horaires ? `<tr><td style="padding: 8px 12px; color: #727485;">Horaires</td><td style="padding: 8px 12px;">${safe.horaires}</td></tr>` : ""}
+  </table>
+
+  <p style="background: #fef3c7; padding: 12px 16px; border-radius: 8px; border-left: 4px solid #f59e0b;">
+    <strong>À faire avant le démarrage :</strong><br/>
+    Lisez attentivement le règlement intérieur ci-joint. Si vous avez un besoin d'adaptation pédagogique
+    (situation de handicap, contraintes spécifiques), contactez-nous au plus vite.
+  </p>
+
+  <p>Pour toute question, vous pouvez simplement répondre à ce mail.</p>
+  <p>À très bientôt !<br/>Noémie Marphay<br/><em>Les Ateliers du Stream</em></p>
+  <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;"/>
+  <p style="font-size: 11px; color: #9ca3af;">
+    Les Ateliers du Stream — NDA N°75470196847. Organisme de formation référencé Qualiopi.
+  </p>
+</body>
+</html>`;
+
+  const text = `Bonjour ${params.prenom},
+
+Votre formation ${params.formationNomLong} approche. Vous trouverez ci-joint votre convocation officielle et le règlement intérieur.
+
+Période : du ${dateDebut} au ${dateFin}
+Lieu : ${params.sessionLieu || "Lieu à préciser"}${params.sessionHoraires ? `\nHoraires : ${params.sessionHoraires}` : ""}
+
+À faire avant le démarrage :
+Lisez attentivement le règlement intérieur ci-joint. Si vous avez un besoin d'adaptation pédagogique, contactez-nous au plus vite.
+
+Pour toute question, répondez à ce mail.
+
+À très bientôt !
+Noémie Marphay
+Les Ateliers du Stream`;
+
+  const attachments: EmailAttachment[] = [
+    { filename: params.convocationPdfFilename, content: params.convocationPdfBuffer.toString("base64") },
+  ];
+  if (params.riBuffer) {
+    attachments.push({
+      filename: params.riFilename || "Reglement-Interieur.pdf",
+      content: params.riBuffer.toString("base64"),
+    });
+  }
+
+  return sendEmail({
+    to: params.to,
+    subject: `Convocation — ${params.formationNomLong} (${dateDebut})`,
+    html,
+    text,
+    replyTo,
+    attachments,
+  });
+}
+
+/**
  * Envoi convention/contrat de formation au stagiaire après signature du devis.
  * Joint en PDF :
  *   1. La convention (entreprise) ou le contrat (particulier) générée

@@ -25,7 +25,7 @@ import {
   isDriveConfigured,
   uploadFile,
 } from "./google-drive";
-import { sendContractToStagiaire } from "./mailer";
+import { sendContractToStagiaire, sendConvocationToStagiaire } from "./mailer";
 import { recordTraineeEvent } from "./trainee";
 
 const INSCRIPTIONS_FOLDER_NAME = "01_INSCRIPTIONS_CONVENTIONS";
@@ -481,6 +481,102 @@ export async function generateAndMailContract(traineeId: string): Promise<Genera
   return {
     ok: true,
     documentType: docType,
+    driveFileId: gen.driveFileId,
+    driveWebUrl: gen.driveWebUrl,
+    emailSent: mailRes.success,
+    emailError: mailRes.error || null,
+  };
+}
+
+// =========================================================================
+// Convocation : génération + envoi mail au stagiaire (avec RI en PJ)
+// =========================================================================
+
+export type GenerateAndMailConvocationResult =
+  | { ok: true; driveFileId: string; driveWebUrl: string | null; emailSent: boolean; emailError: string | null }
+  | { ok: false; error: string };
+
+/**
+ * Workflow J-15 : pour un stagiaire donné, génère la convocation, l'exporte
+ * en PDF, télécharge le RI depuis Drive, et envoie un mail au stagiaire.
+ * Met aussi à jour `dateConvocation` du trainee si pas déjà fait.
+ *
+ * Idempotent au niveau "envoi mail" : un statut/champ devrait être posé par
+ * l'appelant pour ne pas réenvoyer si déjà fait (voir le cronjob).
+ */
+export async function generateAndMailConvocation(traineeId: string): Promise<GenerateAndMailConvocationResult> {
+  const trainee = await prisma.trainee.findUnique({
+    where: { id: traineeId },
+    include: { session: { include: { formation: true } } },
+  });
+  if (!trainee) return { ok: false, error: "Stagiaire introuvable" };
+
+  // 1. Génère la convocation
+  const gen = await generateTraineeDocument(traineeId, "convocation");
+  if (!gen.ok) {
+    return { ok: false, error: `Génération convocation échouée : ${gen.error}` };
+  }
+
+  // 2. Export PDF
+  let convocPdfBuffer: Buffer;
+  let convocPdfFilename: string;
+  try {
+    const exported = await exportDriveDocAsPdf(gen.driveFileId);
+    convocPdfBuffer = exported.buffer;
+    convocPdfFilename = `${exported.name}.pdf`;
+  } catch (err) {
+    return { ok: false, error: `Export PDF convocation échoué : ${err instanceof Error ? err.message : "?"}` };
+  }
+
+  // 3. RI (best-effort)
+  const attachmentsConfig = await getDriveAttachments();
+  let riBuffer: Buffer | undefined;
+  let riFilename: string | undefined;
+  if (attachmentsConfig.ri) {
+    try {
+      const ri = await downloadDriveFile(attachmentsConfig.ri);
+      riBuffer = ri.buffer;
+      riFilename = ri.name.endsWith(".pdf") ? ri.name : `${ri.name}.pdf`;
+    } catch (err) {
+      console.warn("[generateAndMailConvocation] RI download échoué:", err);
+    }
+  }
+
+  // 4. Envoi mail
+  const mailRes = await sendConvocationToStagiaire({
+    to: trainee.email,
+    prenom: trainee.prenom,
+    nom: trainee.nom,
+    formationNomLong: trainee.session.formation.nomLong,
+    sessionDateDebut: trainee.session.dateDebut,
+    sessionDateFin: trainee.session.dateFin,
+    sessionLieu: trainee.session.lieu,
+    sessionHoraires: trainee.session.horaires,
+    convocationPdfBuffer: convocPdfBuffer,
+    convocationPdfFilename: convocPdfFilename,
+    riBuffer,
+    riFilename,
+  });
+
+  // 5. Update trainee.dateConvocation
+  if (mailRes.success && !trainee.dateConvocation) {
+    await prisma.trainee.update({
+      where: { id: traineeId },
+      data: { dateConvocation: new Date() },
+    });
+  }
+
+  await recordTraineeEvent(
+    traineeId,
+    mailRes.success ? "email_sent" : "email_failed",
+    mailRes.success
+      ? `Convocation envoyée au stagiaire (${trainee.email})${riBuffer ? " + RI" : ""}`
+      : `Échec mail convocation : ${mailRes.error}`,
+    { type: "convocation", to: trainee.email, messageId: mailRes.messageId, ri: !!riBuffer }
+  );
+
+  return {
+    ok: true,
     driveFileId: gen.driveFileId,
     driveWebUrl: gen.driveWebUrl,
     emailSent: mailRes.success,
