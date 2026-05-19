@@ -59,6 +59,8 @@ export const DOCUMENT_VARIABLES: { key: string; description: string; example: st
   { key: "FORMATION_DUREE_JOURS", description: "Durée en jours", example: "1" },
   { key: "FORMATION_DUREE_HEURES", description: "Durée en heures (= jours × 7)", example: "7" },
   { key: "FORMATION_PRIX_HT", description: "Prix HT catalogue (€)", example: "850" },
+  { key: "PRIX_HT", description: "Montant HT facturé : MONTANT_HT si défini, sinon FORMATION_PRIX_HT", example: "850" },
+  { key: "PRIX_TTC", description: "Idem PRIX_HT × 1.2 (TVA 20%). À adapter si OF en franchise.", example: "1020" },
   { key: "FORMATION_DESCRIPTION", description: "Description de la formation", example: "Objectifs : maîtriser..." },
   // Session
   { key: "SESSION_CODE", description: "Code de la session", example: "vMix-2026-05" },
@@ -230,6 +232,11 @@ function buildVariablesForTrainee(
   // Adresse selon type d'inscription (particulier vs entreprise)
   const adresse = t.inscriptionType === "entreprise" ? t.adresseSiege : t.adressePostale;
 
+  // Prix facturé : montant négocié (per-stagiaire) si renseigné, sinon prix catalogue
+  const prixHtFacture = t.montantHT && t.montantHT > 0 ? t.montantHT : formation.prixHT;
+  // TVA 20% par défaut (l'OF peut être en franchise — ajuster le template si besoin)
+  const prixTtcFacture = Math.round(prixHtFacture * 1.2 * 100) / 100;
+
   return {
     // Stagiaire
     PRENOM: t.prenom,
@@ -251,6 +258,8 @@ function buildVariablesForTrainee(
     FORMATION_DUREE_JOURS: String(formation.dureeJours),
     FORMATION_DUREE_HEURES: String(formation.dureeJours * 7),
     FORMATION_PRIX_HT: String(formation.prixHT),
+    PRIX_HT: String(prixHtFacture),
+    PRIX_TTC: String(prixTtcFacture),
     FORMATION_DESCRIPTION: formation.description || "",
     // Session
     SESSION_CODE: session.code,

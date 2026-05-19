@@ -164,6 +164,8 @@ export default function DriveConfigPage() {
               ["FORMATION_DUREE_JOURS", "Durée (jours)"],
               ["FORMATION_DUREE_HEURES", "Durée (heures, = jours × 7)"],
               ["FORMATION_PRIX_HT", "Prix HT catalogue"],
+              ["PRIX_HT", "Montant HT facturé (négocié si défini, sinon catalogue)"],
+              ["PRIX_TTC", "Idem PRIX_HT × 1.2 (TVA 20%)"],
               ["FORMATION_DESCRIPTION", "Description / objectifs"],
               ["SESSION_CODE", "Code de la session"],
               ["SESSION_DATE_DEBUT", "Date début (jour mois année)"],
