@@ -8,9 +8,26 @@
 // Implémentation via `pdfkit` (pure JS, pas de navigateur headless), pour
 // rester compatible Docker slim sans dépendances système.
 
+import { readFileSync } from "fs";
+import path from "path";
 import PDFDocument from "pdfkit";
+import SVGtoPDF from "svg-to-pdfkit";
 import prisma from "./db";
 import { SCORE_LABELS, type ScoreValue } from "./evaluation-grids";
+
+// Logo LADS — chargé une fois en mémoire au premier appel et cached.
+let cachedLogoSvg: string | null | undefined;
+function loadLogoSvg(): string | null {
+  if (cachedLogoSvg !== undefined) return cachedLogoSvg;
+  try {
+    const filePath = path.join(process.cwd(), "public", "logo-lads-fonce.svg");
+    cachedLogoSvg = readFileSync(filePath, "utf8");
+  } catch (err) {
+    console.warn("[evaluation-pdf] Logo introuvable, fallback texte :", err);
+    cachedLogoSvg = null;
+  }
+  return cachedLogoSvg;
+}
 
 // Identité organisme de formation — doit rester aligné avec le footer de la
 // feuille d'émargement (src/app/formateur/sessions/[id]/emargement/print/page.tsx).
@@ -104,29 +121,34 @@ export async function buildEvaluationPdf(evaluationId: string): Promise<PdfBundl
   doc.on("data", (c: Buffer) => chunks.push(c));
   const done = new Promise<void>((resolve) => doc.on("end", () => resolve()));
 
-  // -- En-tête --
+  // -- En-tête avec logo --
+  drawLogo(doc, 50, 40, 48);
   doc
     .font("Helvetica-Bold")
     .fontSize(18)
     .fillColor(COLOR_TITLE)
-    .text("Fiche d'évaluation pratique", { align: "left" });
+    .text("Fiche d'évaluation pratique", 120, 48, { align: "left" });
   doc
     .moveDown(0.2)
     .font("Helvetica")
     .fontSize(9)
     .fillColor(COLOR_MUTED)
-    .text("Les Ateliers du Stream", { align: "left" });
+    .text("Les Ateliers du Stream", 120);
 
-  doc.moveDown(0.7);
+  // Repositionne le curseur sous le logo (logo plus haut que le titre)
+  doc.y = Math.max(doc.y, 40 + 48 + 12);
+  doc.x = 50;
+
+  doc.moveDown(0.4);
 
   // -- Bloc info identification --
   const infoY = doc.y;
   drawInfoBox(doc, infoY, [
     { label: "Stagiaire", value: fullName },
-    { label: "Formation", value: `${formation.code} — ${formation.nomLong}` },
+    { label: "Formation", value: formation.nomLong },
     {
       label: "Session",
-      value: `${session.code} (${fmtDate(session.dateDebut)} → ${fmtDate(session.dateFin)})`,
+      value: formatSessionDates(session.dateDebut, session.dateFin),
     },
     {
       label: "Exercice",
@@ -189,30 +211,34 @@ export async function buildEvaluationPdf(evaluationId: string): Promise<PdfBundl
 
   doc.moveDown(0.6);
 
-  // -- Synthèse --
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(11)
-    .fillColor(COLOR_TITLE)
-    .text("Note de synthèse du formateur");
-  doc.moveDown(0.2);
-  drawGlobalScoreLine(doc, evaluation.globalNote);
+  // -- Synthèse globale (uniquement si le formateur l'a renseignée) --
+  const hasGlobalNote = !!(evaluation.globalNote && evaluation.globalNote in SCORE_COLORS);
+  if (hasGlobalNote) {
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(11)
+      .fillColor(COLOR_TITLE)
+      .text("Note de synthèse du formateur");
+    doc.moveDown(0.2);
+    drawGlobalScoreLine(doc, evaluation.globalNote);
+    doc.moveDown(0.5);
+  }
 
-  doc.moveDown(0.5);
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(11)
-    .fillColor(COLOR_TITLE)
-    .text("Observations du formateur");
-  doc.moveDown(0.2);
-  doc
-    .font("Helvetica")
-    .fontSize(10)
-    .fillColor("#1f2244")
-    .text(
-      evaluation.observations.trim() || "—",
-      { align: "justify" }
-    );
+  // -- Observations (uniquement si renseignées) --
+  const obsTrim = evaluation.observations.trim();
+  if (obsTrim) {
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(11)
+      .fillColor(COLOR_TITLE)
+      .text("Observations du formateur");
+    doc.moveDown(0.2);
+    doc
+      .font("Helvetica")
+      .fontSize(10)
+      .fillColor("#1f2244")
+      .text(obsTrim, { align: "justify" });
+  }
 
   // -- Pied de page sur toutes les pages --
   // Identique au footer de la feuille d'émargement (SIRET, APE, NDA, contact).
@@ -410,6 +436,55 @@ function drawGlobalScoreLine(doc: PDFKit.PDFDocument, score: string): void {
   drawScoreChip(doc, startX, y, score, 200);
   // Avance la position Y au-dessous du chip
   doc.y = y + 22;
+}
+
+// Trace le logo LADS depuis le SVG dans le coin supérieur gauche.
+// Si le SVG ne peut pas être chargé, ne fait rien (l'en-tête textuel reste).
+function drawLogo(doc: PDFKit.PDFDocument, x: number, y: number, height: number): void {
+  const svg = loadLogoSvg();
+  if (!svg) return;
+  try {
+    // viewBox du logo : 469.53 x 324.62 → ratio largeur/hauteur ≈ 1.45
+    const aspectRatio = 469.53 / 324.62;
+    const width = height * aspectRatio;
+    SVGtoPDF(doc, svg, x, y, { width, height, preserveAspectRatio: "xMinYMin meet" });
+  } catch (err) {
+    console.warn("[evaluation-pdf] Échec rendu logo SVG :", err);
+  }
+}
+
+// Formatte la période de la session :
+//   - même jour       → "12 mars 2026"
+//   - plusieurs jours → "12 – 14 mars 2026" (idem mois/année) ou "30 mars – 2 avril 2026"
+// Le séparateur est l'en-dash U+2013 (présent dans WinAnsi), pas la flèche
+// U+2192 qui ne s'affiche pas dans Helvetica/Times standard.
+function formatSessionDates(start: Date | null | undefined, end: Date | null | undefined): string {
+  if (!start) return "—";
+  const s = new Date(start);
+  if (!end) return fmtDate(s);
+  const e = new Date(end);
+  const sameDay =
+    s.getUTCFullYear() === e.getUTCFullYear() &&
+    s.getUTCMonth() === e.getUTCMonth() &&
+    s.getUTCDate() === e.getUTCDate();
+  if (sameDay) return fmtDate(s);
+
+  const sameMonthYear =
+    s.getUTCFullYear() === e.getUTCFullYear() && s.getUTCMonth() === e.getUTCMonth();
+  if (sameMonthYear) {
+    const dayStart = s.toLocaleDateString("fr-FR", { day: "numeric", timeZone: "UTC" });
+    return `${dayStart} – ${fmtDate(e)}`;
+  }
+  const sameYear = s.getUTCFullYear() === e.getUTCFullYear();
+  if (sameYear) {
+    const startShort = s.toLocaleDateString("fr-FR", {
+      day: "numeric",
+      month: "long",
+      timeZone: "UTC",
+    });
+    return `${startShort} – ${fmtDate(e)}`;
+  }
+  return `${fmtDate(s)} – ${fmtDate(e)}`;
 }
 
 // Pied de page identique à la feuille d'émargement signée. Trois lignes :
