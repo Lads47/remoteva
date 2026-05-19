@@ -412,6 +412,11 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
             Aucun document généré pour ce stagiaire.
           </p>
         )}
+
+        <UploadSignedForm
+          traineeId={trainee.id}
+          onUploaded={refresh}
+        />
       </div>
 
       {/* Identité */}
@@ -610,6 +615,97 @@ function DocGenerateButton({
     >
       {loading ? "Génération..." : `Générer ${label}`}
     </button>
+  );
+}
+
+function UploadSignedForm({
+  traineeId,
+  onUploaded,
+}: {
+  traineeId: string;
+  onUploaded: () => void | Promise<void>;
+}) {
+  const [type, setType] = useState("convention_signed");
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!file || uploading) return;
+    setUploading(true);
+    setFeedback(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("type", type);
+      const r = await fetch(`/api/admin/trainees/${traineeId}/upload-signed`, {
+        method: "POST",
+        body: form,
+      });
+      const d = await r.json();
+      if (!r.ok || !d.success) {
+        setFeedback({ type: "error", msg: d.error || "Échec de l'upload" });
+        return;
+      }
+      setFeedback({ type: "success", msg: `Document archivé sur Drive ✓` });
+      setFile(null);
+      await onUploaded();
+    } catch {
+      setFeedback({ type: "error", msg: "Erreur réseau" });
+    } finally {
+      setUploading(false);
+      setTimeout(() => setFeedback(null), 6000);
+    }
+  }
+
+  return (
+    <div className="mt-4 pt-4 border-t" style={{ borderColor: "#e5e7eb" }}>
+      <h3 className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: "#1f2244" }}>
+        Déposer un document signé / autre PJ
+      </h3>
+      <form onSubmit={handleSubmit} className="flex gap-2 flex-wrap items-center">
+        <select
+          value={type}
+          onChange={(e) => setType(e.target.value)}
+          className="text-xs font-jetbrains px-2 py-1.5 rounded border"
+          style={{ borderColor: "#e5e7eb", color: "#1f2244" }}
+        >
+          <option value="convention_signed">Convention signée</option>
+          <option value="contrat_signed">Contrat signé</option>
+          <option value="devis_signed">Devis signé</option>
+          <option value="convocation_signed">Convocation signée</option>
+          <option value="attestation">Attestation</option>
+          <option value="other">Autre</option>
+        </select>
+        <input
+          type="file"
+          accept="application/pdf,image/jpeg,image/png,image/heic,image/heif"
+          onChange={(e) => setFile(e.target.files?.[0] || null)}
+          className="text-xs"
+        />
+        <button
+          type="submit"
+          disabled={!file || uploading}
+          className="text-xs px-3 py-1.5 rounded-full cursor-pointer disabled:opacity-50"
+          style={{ backgroundColor: "#7dcef5", color: "#1f2244" }}
+        >
+          {uploading ? "Upload..." : "Déposer"}
+        </button>
+      </form>
+      <p className="text-[10px] font-jetbrains mt-1" style={{ color: "#9ca3af" }}>
+        Le fichier est archivé dans <code>01_INSCRIPTIONS_CONVENTIONS / Prénom Nom</code> sur Drive et apparaît dans la liste ci-dessus. Max 25 MB · PDF, JPEG, PNG ou HEIC.
+      </p>
+      {feedback && (
+        <div
+          className={`mt-2 p-2 rounded-lg text-xs font-jetbrains ${
+            feedback.type === "success" ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"
+          }`}
+        >
+          {feedback.msg}
+        </div>
+      )}
+    </div>
   );
 }
 
