@@ -167,6 +167,13 @@ function FormateurSessionInner({ id }: { id: string }) {
             >
               ★ Évaluations pratiques
             </Link>
+            <Link
+              href={`/formateur/sessions/${id}/satisfaction?token=${encodeURIComponent(token)}`}
+              className="px-4 py-2 rounded-full text-sm font-medium cursor-pointer"
+              style={{ backgroundColor: "#fef3c7", color: "#92400e" }}
+            >
+              📝 Éval à chaud
+            </Link>
           </div>
         </div>
 

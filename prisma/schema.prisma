@@ -156,6 +156,9 @@ model Formation {
   sessions                    Session[]
   evaluationExercises         EvaluationExercise[]
 
+  // Override JSON des questions d'éval à chaud (sinon fallback global AppConfig)
+  satisfactionConfigForm      String   @default("") @map("satisfaction_config_form")
+
   @@map("formations")
   @@index([active])
 }
@@ -182,6 +185,7 @@ model Session {
   trainer          Trainer?  @relation(fields: [trainerId], references: [id], onDelete: SetNull)
   trainees         Trainee[]
   attendanceFiles  AttendanceFile[]
+  satisfactionResponses SatisfactionResponse[]
 
   @@map("formation_sessions")
   @@index([formationId])
@@ -260,6 +264,7 @@ model Trainee {
   events                   TraineeEvent[]
   attendances              Attendance[]
   exerciseEvaluations      TraineeExerciseEvaluation[]
+  satisfactionResponses    SatisfactionResponse[]
 
   @@map("trainees")
   @@index([sessionId])
@@ -470,6 +475,47 @@ model TraineeExerciseEvaluation {
   @@map("trainee_exercise_evaluations")
   @@index([traineeId])
   @@index([exerciseId])
+}
+
+// === ÉVALUATION À CHAUD (satisfaction stagiaire fin de session) ===
+//
+// Une invitation est créée par stagiaire lors de l'envoi de l'enquête (via
+// le bouton du formateur). Le stagiaire répond via un lien magic-token ou
+// après avoir scanné le QR code de la session (qui mène à une page de
+// sélection puis au formulaire personnel).
+//
+// Les questions sont snapshotées au moment de l'envoi pour préserver le
+// contexte de réponse si la config questions évolue ensuite.
+
+model SatisfactionResponse {
+  id                String    @id @default(cuid())
+  sessionId         String    @map("session_id")
+  traineeId         String    @map("trainee_id")
+  magicToken        String    @unique @map("magic_token")
+  questionsSnapshot String    @map("questions_snapshot")   // JSON : array SatisfactionQuestion[]
+  invitedAt         DateTime  @default(now()) @map("invited_at")
+  submittedAt       DateTime? @map("submitted_at")
+
+  session  Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  trainee  Trainee  @relation(fields: [traineeId], references: [id], onDelete: Cascade)
+  answers  SatisfactionAnswer[]
+
+  @@map("satisfaction_responses")
+  @@index([sessionId])
+  @@index([traineeId])
+  @@index([magicToken])
+}
+
+model SatisfactionAnswer {
+  id           String @id @default(cuid())
+  responseId   String @map("response_id")
+  questionName String @map("question_name")   // identifiant interne (cf. SatisfactionQuestion.name)
+  value        String                          // sérialisation : nombre, texte, ou JSON.array
+
+  response SatisfactionResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+
+  @@map("satisfaction_answers")
+  @@index([responseId])
 }
 
 // Note d'un stagiaire sur un critère donné, dans le cadre d'une évaluation d'exercice.

@@ -8,7 +8,7 @@ const nextConfig: NextConfig = {
   // pour qu'il soit utilisé directement depuis node_modules au runtime.
   // svg-to-pdfkit dépend de pdfkit : même externalisation pour éviter un
   // mismatch d'instance entre les deux modules.
-  serverExternalPackages: ["pdfkit", "svg-to-pdfkit"],
+  serverExternalPackages: ["pdfkit", "svg-to-pdfkit", "qrcode"],
 };
 
 export default nextConfig;

@@ -463,6 +463,64 @@ Voir la fiche : ${fichSessionUrl}`;
 }
 
 /**
+ * Mail d'invitation à répondre à l'évaluation à chaud (fin de session).
+ */
+export async function sendSatisfactionSurveyInvite(params: {
+  to: string;
+  prenom: string;
+  formationNomLong: string;
+  surveyUrl: string;
+  replyTo?: string;
+}): Promise<SendEmailResult> {
+  const replyTo = params.replyTo || process.env.ADMIN_NOTIFY_EMAIL;
+  const safe = {
+    prenom: escapeHtml(params.prenom),
+    formation: escapeHtml(params.formationNomLong),
+    url: escapeHtml(params.surveyUrl),
+  };
+  const html = `<!DOCTYPE html>
+<html lang="fr">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #1f2244;">
+  <h1 style="font-size: 22px; margin: 0 0 16px;">Votre avis nous intéresse</h1>
+  <p>Bonjour ${safe.prenom},</p>
+  <p>Vous avez suivi la formation <strong>${safe.formation}</strong>.
+  Pour nous aider à améliorer la qualité de nos prestations, nous vous invitons à répondre à un court
+  questionnaire de satisfaction (≈ 3 minutes).</p>
+  <p style="text-align: center; margin: 32px 0;">
+    <a href="${safe.url}"
+       style="display: inline-block; background: #1f2244; color: white; padding: 12px 24px;
+              border-radius: 999px; text-decoration: none; font-weight: 600;">
+      Répondre au questionnaire
+    </a>
+  </p>
+  <p style="font-size: 12px; color: #727485;">Lien direct : <a href="${safe.url}">${safe.url}</a></p>
+  <p>Merci de votre participation !<br/>Noémie Marphay<br/><em>Les Ateliers du Stream</em></p>
+  <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;"/>
+  <p style="font-size: 11px; color: #9ca3af;">
+    Vos réponses sont traitées dans le cadre du suivi qualité de notre organisme (Qualiopi). Elles peuvent être anonymisées
+    dans nos rapports d'audit.
+  </p>
+</body>
+</html>`;
+  const text = `Bonjour ${params.prenom},
+
+Vous avez suivi la formation ${params.formationNomLong}. Pour nous aider à améliorer la qualité de nos prestations, merci de répondre à notre court questionnaire de satisfaction (≈ 3 min) :
+
+${params.surveyUrl}
+
+Merci de votre participation !
+Noémie Marphay
+Les Ateliers du Stream`;
+  return sendEmail({
+    to: params.to,
+    subject: `Votre avis sur la formation ${params.formationNomLong}`,
+    html,
+    text,
+    replyTo,
+  });
+}
+
+/**
  * Envoi convocation au stagiaire J-15 avant la session.
  * Joint la convocation PDF + le RI (si configuré).
  */
