@@ -121,22 +121,33 @@ export async function buildEvaluationPdf(evaluationId: string): Promise<PdfBundl
   doc.on("data", (c: Buffer) => chunks.push(c));
   const done = new Promise<void>((resolve) => doc.on("end", () => resolve()));
 
-  // -- En-tête avec logo --
-  drawLogo(doc, 50, 40, 48);
+  // -- En-tête : titre à gauche, logo à droite --
+  const headerTop = 40;
+  const logoHeight = 48;
+  const logoAspectRatio = 469.53 / 324.62; // viewBox du SVG
+  const logoWidth = logoHeight * logoAspectRatio;
+  const logoX = doc.page.width - 50 - logoWidth;
+  drawLogo(doc, logoX, headerTop, logoHeight);
+
   doc
     .font("Helvetica-Bold")
     .fontSize(18)
     .fillColor(COLOR_TITLE)
-    .text("Fiche d'évaluation pratique", 120, 48, { align: "left" });
+    .text("Fiche d'évaluation pratique", 50, headerTop + 8, {
+      width: logoX - 60,
+      lineBreak: false,
+    });
   doc
-    .moveDown(0.2)
     .font("Helvetica")
     .fontSize(9)
     .fillColor(COLOR_MUTED)
-    .text("Les Ateliers du Stream", 120);
+    .text("Les Ateliers du Stream", 50, headerTop + 32, {
+      width: logoX - 60,
+      lineBreak: false,
+    });
 
-  // Repositionne le curseur sous le logo (logo plus haut que le titre)
-  doc.y = Math.max(doc.y, 40 + 48 + 12);
+  // Repositionne le curseur sous le bloc en-tête (max entre logo et titre)
+  doc.y = headerTop + logoHeight + 12;
   doc.x = 50;
 
   doc.moveDown(0.4);
@@ -487,25 +498,53 @@ function formatSessionDates(start: Date | null | undefined, end: Date | null | u
   return `${fmtDate(s)} – ${fmtDate(e)}`;
 }
 
-// Pied de page identique à la feuille d'émargement signée. Trois lignes :
-// adresse + SIRET + APE / contact + NDA / horodatage de génération.
+// Pied de page identique à la feuille d'émargement signée. Trois lignes
+// dessinées en position absolue avec lineBreak:false pour empêcher pdfkit
+// d'ajouter une page si la dernière ligne sort de la zone de contenu — sans
+// ça, le footer pouvait se retrouver fragmenté sur 2 pages (une ligne par
+// page). On désactive aussi temporairement les marges via `doc.page.margins`
+// pour permettre d'écrire sous la marge basse définie pour le contenu.
 function drawFooter(doc: PDFKit.PDFDocument): void {
   const leftX = 50;
   const rightX = doc.page.width - 50;
   const width = rightX - leftX;
   const baseY = doc.page.height - 60;
 
+  // Sauvegarde les marges courantes et les met à 0 le temps du dessin :
+  // pdfkit n'auto-paginera plus quand on écrit hors zone de contenu.
+  const savedMargins = doc.page.margins;
+  doc.page.margins = { top: 0, bottom: 0, left: 0, right: 0 };
+
   doc.save();
-  doc.strokeColor(COLOR_BORDER).lineWidth(0.5).moveTo(leftX, baseY).lineTo(rightX, baseY).stroke();
-  doc.font("Helvetica").fontSize(7).fillColor(COLOR_TITLE);
-  doc.text(FOOTER_LINE_1, leftX, baseY + 6, { width, align: "center" });
-  doc.text(FOOTER_LINE_2, leftX, baseY + 16, { width, align: "center" });
   doc
+    .strokeColor(COLOR_BORDER)
+    .lineWidth(0.5)
+    .moveTo(leftX, baseY)
+    .lineTo(rightX, baseY)
+    .stroke();
+
+  doc
+    .font("Helvetica")
+    .fontSize(7)
+    .fillColor(COLOR_TITLE)
+    .text(FOOTER_LINE_1, leftX, baseY + 6, { width, align: "center", lineBreak: false });
+
+  doc
+    .font("Helvetica")
+    .fontSize(7)
+    .fillColor(COLOR_TITLE)
+    .text(FOOTER_LINE_2, leftX, baseY + 18, { width, align: "center", lineBreak: false });
+
+  doc
+    .font("Helvetica")
     .fontSize(6)
     .fillColor(COLOR_MUTED)
-    .text(`Document généré le ${fmtDateTime(new Date())}`, leftX, baseY + 30, {
+    .text(`Document généré le ${fmtDateTime(new Date())}`, leftX, baseY + 32, {
       width,
       align: "center",
+      lineBreak: false,
     });
+
   doc.restore();
+  doc.page.margins = savedMargins;
 }
