@@ -152,13 +152,22 @@ function FormateurSessionInner({ id }: { id: string }) {
               {session.horaires && ` · ${session.horaires}`}
             </p>
           </div>
-          <Link
-            href={`/formateur/sessions/${id}/emargement?token=${encodeURIComponent(token)}`}
-            className="px-4 py-2 rounded-full text-sm font-medium text-white cursor-pointer mt-2"
-            style={{ backgroundColor: "#1f2244" }}
-          >
-            ✓ Émargement
-          </Link>
+          <div className="flex gap-2 flex-wrap mt-2">
+            <Link
+              href={`/formateur/sessions/${id}/emargement?token=${encodeURIComponent(token)}`}
+              className="px-4 py-2 rounded-full text-sm font-medium text-white cursor-pointer"
+              style={{ backgroundColor: "#1f2244" }}
+            >
+              ✓ Émargement
+            </Link>
+            <Link
+              href={`/formateur/sessions/${id}/evaluations?token=${encodeURIComponent(token)}`}
+              className="px-4 py-2 rounded-full text-sm font-medium cursor-pointer"
+              style={{ backgroundColor: "#7dcef5", color: "#1f2244" }}
+            >
+              ★ Évaluations pratiques
+            </Link>
+          </div>
         </div>
 
         {/* Stagiaires */}
