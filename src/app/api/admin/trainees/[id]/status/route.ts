@@ -4,7 +4,8 @@ import { getTraineeById, recordTraineeEvent, updateTrainee, type TraineeUpdateIn
 import { traineeStatusTransitionSchema } from "@/lib/validation";
 import { getSellsyStepMapping, type EvaStatus } from "@/lib/appConfig";
 import { updateOpportunityStep } from "@/lib/sellsy";
-import { generateAndMailContract } from "@/lib/trainee-documents";
+import { generateAndMailContract, generateAndMailEndOfTrainingDocs } from "@/lib/trainee-documents";
+import prisma from "@/lib/db";
 
 async function requireAuth() {
   const session = await getSession();
@@ -122,7 +123,56 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
       }
     }
 
-    return NextResponse.json({ trainee, sellsySynced, sellsyError, contractTriggered });
+    // Trigger : au passage à "termine", génère automatiquement le certificat
+    // de réalisation + l'attestation de fin de formation et les envoie au
+    // stagiaire dans un mail unique avec les 2 PDF en pièces jointes.
+    // Best-effort : on log les erreurs sans bloquer la transition de statut.
+    // Skip si les 2 documents ont déjà été envoyés (cas où on rebascule
+    // un stagiaire qui était déjà "termine" puis a été reset à un autre statut).
+    let endOfTrainingTriggered: {
+      emailSent?: boolean;
+      error?: string;
+      skipped?: boolean;
+    } | null = null;
+    if (newStatus === "termine" && existing.status !== "termine") {
+      const sentDocs = await prisma.traineeDocument.count({
+        where: {
+          traineeId: id,
+          type: { in: ["certificat", "attestation"] },
+          sentAt: { not: null },
+        },
+      });
+      if (sentDocs >= 2) {
+        endOfTrainingTriggered = { skipped: true };
+        await recordTraineeEvent(
+          id,
+          "doc_generated",
+          `Auto-trigger ${newStatus} skipped : certificat + attestation déjà envoyés`,
+          { status: newStatus, autoTrigger: "end_of_training", skipped: true }
+        );
+      } else {
+        try {
+          const res = await generateAndMailEndOfTrainingDocs(id);
+          if (res.ok) {
+            endOfTrainingTriggered = { emailSent: res.emailSent };
+          } else {
+            endOfTrainingTriggered = { error: res.error };
+            await recordTraineeEvent(
+              id,
+              "doc_generated",
+              `Auto-trigger ${newStatus} : ${res.error}`,
+              { status: newStatus, autoTrigger: "end_of_training", error: res.error }
+            );
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : "Erreur inconnue";
+          console.warn("[status] generateAndMailEndOfTrainingDocs a throw:", err);
+          endOfTrainingTriggered = { error: msg };
+        }
+      }
+    }
+
+    return NextResponse.json({ trainee, sellsySynced, sellsyError, contractTriggered, endOfTrainingTriggered });
   } catch (error) {
     console.error("[/api/admin/trainees/[id]/status] POST error:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });

@@ -71,9 +71,20 @@ export default function TraineeStatusDropdown({
         : data.sellsyError
         ? ` · Sellsy en erreur (${String(data.sellsyError).slice(0, 80)})`
         : "";
+      // Auto-trigger fin de formation (statut → "termine") : feedback dédié
+      let endOfTrainingNote = "";
+      const eot = data.endOfTrainingTriggered as
+        | { emailSent?: boolean; error?: string; skipped?: boolean }
+        | null
+        | undefined;
+      if (eot) {
+        if (eot.skipped) endOfTrainingNote = " · Documents fin de formation déjà envoyés (skip)";
+        else if (eot.emailSent) endOfTrainingNote = " · Certificat + attestation envoyés par mail ✓";
+        else if (eot.error) endOfTrainingNote = ` · Échec docs fin de formation : ${String(eot.error).slice(0, 80)}`;
+      }
       onFeedback?.({
         type: "success",
-        text: `Statut → ${EVA_STATUS_LABELS[newStatus]}${sellsyNote}`,
+        text: `Statut → ${EVA_STATUS_LABELS[newStatus]}${sellsyNote}${endOfTrainingNote}`,
       });
       onChanged?.({
         newStatus,
