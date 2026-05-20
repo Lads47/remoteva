@@ -13,14 +13,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { sendColdEvalInvite, sendColdEvalReminder } from "@/lib/mailer";
 
-async function requireAuth() {
+/**
+ * Auth permissive : cookie admin OU header Authorization: Bearer CRON_SECRET.
+ * Permet d'appeler la preview depuis l'admin (cookie) ou depuis un outil de
+ * dev / un script (curl avec Bearer).
+ */
+async function authorize(request: NextRequest): Promise<NextResponse | null> {
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-  return null;
+  if (session) return null;
+  const secret = process.env.CRON_SECRET;
+  if (secret) {
+    const auth = request.headers.get("authorization");
+    if (auth === `Bearer ${secret}`) return null;
+  }
+  return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 }
 
 export async function POST(request: NextRequest) {
-  const authError = await requireAuth();
+  const authError = await authorize(request);
   if (authError) return authError;
   try {
     const body = await request.json();
