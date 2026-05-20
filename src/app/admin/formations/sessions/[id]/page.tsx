@@ -310,91 +310,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         </div>
       </div>
 
-      {/* Bloc Documents fin de formation */}
-      <div className="mb-4 p-5 rounded-xl border" style={{ borderColor: "#e5e7eb", backgroundColor: "#fafbff" }}>
-        <h2 className="text-sm font-semibold uppercase tracking-wide mb-2" style={{ color: "#1f2244" }}>
-          🎓 Documents de fin de formation
-        </h2>
-        <p className="text-xs font-jetbrains mb-3" style={{ color: "#727485" }}>
-          Génère et envoie en lot le <strong>certificat de réalisation</strong> (obligatoire Qualiopi/OPCO)
-          + l&apos;<strong>attestation de fin de formation</strong> (acquis pédagogiques) à tous les stagiaires
-          en statut « Terminé ». Mail unique avec les 2 PDF en pièces jointes. Skip ceux qui les ont déjà reçus.
-        </p>
-        <div className="flex items-center gap-3 flex-wrap">
-          <button
-            onClick={batchEndOfTrainingDocs}
-            disabled={endOfTrainingBatching}
-            className="text-xs px-3 py-2 rounded-full cursor-pointer disabled:opacity-50"
-            style={{ backgroundColor: "#1f2244", color: "white" }}
-          >
-            {endOfTrainingBatching ? "Génération en cours..." : "Générer + envoyer aux stagiaires terminés"}
-          </button>
-          {endOfTrainingFeedback && (
-            <div
-              className={`text-xs font-jetbrains px-3 py-1.5 rounded-full ${
-                endOfTrainingFeedback.type === "success" ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"
-              }`}
-            >
-              {endOfTrainingFeedback.msg}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Bloc Éval à chaud */}
-      <div className="mb-4 p-5 rounded-xl border" style={{ borderColor: "#e5e7eb", backgroundColor: "#fafbff" }}>
-        <h2 className="text-sm font-semibold uppercase tracking-wide mb-2" style={{ color: "#1f2244" }}>
-          📝 Évaluation à chaud (satisfaction stagiaires)
-        </h2>
-        <p className="text-xs font-jetbrains mb-3" style={{ color: "#727485" }}>
-          Consulte les réponses des stagiaires, vois le score NPS, les moyennes par question et les verbatims libres. Le PDF de synthèse peut être archivé dans 03_EVALUATIONS sur Drive.
-        </p>
-        <Link
-          href={`/admin/formations/sessions/${session.id}/satisfaction`}
-          className="text-xs px-3 py-2 rounded-full cursor-pointer inline-block"
-          style={{ backgroundColor: "#1f2244", color: "white" }}
-        >
-          Voir la synthèse →
-        </Link>
-      </div>
-
-      {/* Bloc Éval à froid */}
-      <div className="mb-4 p-5 rounded-xl border" style={{ borderColor: "#e5e7eb", backgroundColor: "#fafbff" }}>
-        <h2 className="text-sm font-semibold uppercase tracking-wide mb-2" style={{ color: "#1f2244" }}>
-          🌬 Évaluation à froid (impact en poste)
-        </h2>
-        <p className="text-xs font-jetbrains mb-3" style={{ color: "#727485" }}>
-          Envoi automatique <strong>3 mois après</strong> la fin de session, avec relances à J+7 et J+14. Suis ici qui a répondu, relance manuellement si besoin, et consulte les statistiques.
-        </p>
-        <Link
-          href={`/admin/formations/sessions/${session.id}/cold-eval`}
-          className="text-xs px-3 py-2 rounded-full cursor-pointer inline-block"
-          style={{ backgroundColor: "#1f2244", color: "white" }}
-        >
-          Voir la synthèse →
-        </Link>
-      </div>
-
-      {/* Bloc Éval formateur */}
-      <div className="mb-8 p-5 rounded-xl border" style={{ borderColor: "#e5e7eb", backgroundColor: "#fafbff" }}>
-        <h2 className="text-sm font-semibold uppercase tracking-wide mb-2" style={{ color: "#1f2244" }}>
-          🎓 Fiche satisfaction formateur
-        </h2>
-        <p className="text-xs font-jetbrains mb-3" style={{ color: "#727485" }}>
-          Envoi automatique au formateur <strong>le lendemain de la fin de session</strong> (J+1), avec relances à J+7 et J+14.
-          Suis ici le statut d&apos;envoi et consulte le bilan une fois reçu.
-        </p>
-        <Link
-          href={`/admin/formations/sessions/${session.id}/trainer-eval`}
-          className="text-xs px-3 py-2 rounded-full cursor-pointer inline-block"
-          style={{ backgroundColor: "#1f2244", color: "white" }}
-        >
-          Voir la synthèse →
-        </Link>
-      </div>
-
-      {/* Tableau stagiaires */}
-      <div>
+      {/* === Tableau stagiaires (priorité visuelle haute) === */}
+      <div className="mb-8">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-xl font-semibold" style={{ color: "#1f2244" }}>
             Stagiaires inscrits
@@ -485,6 +402,88 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
             </table>
           </div>
         )}
+      </div>
+
+      {/* === Documents & évaluations Qualiopi (grille compacte 4 cartes) === */}
+      <div className="mt-10">
+        <h2 className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: "#727485" }}>
+          Documents & évaluations
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {/* Documents fin de formation (action batch) */}
+          <div className="p-4 rounded-xl border flex flex-col gap-2" style={{ borderColor: "#e5e7eb", backgroundColor: "#fafbff" }}>
+            <div className="text-2xl">🎓</div>
+            <div className="text-sm font-semibold" style={{ color: "#1f2244" }}>Documents fin de formation</div>
+            <div className="text-xs font-jetbrains flex-1" style={{ color: "#727485" }}>
+              Certificat + attestation aux stagiaires « Terminé ».
+            </div>
+            <button
+              onClick={batchEndOfTrainingDocs}
+              disabled={endOfTrainingBatching}
+              className="text-xs px-3 py-1.5 rounded-full cursor-pointer disabled:opacity-50 self-start"
+              style={{ backgroundColor: "#1f2244", color: "white" }}
+              title="Génère + envoie pour tous les stagiaires en statut Terminé"
+            >
+              {endOfTrainingBatching ? "Envoi..." : "Envoyer en lot →"}
+            </button>
+            {endOfTrainingFeedback && (
+              <div className={`text-[10px] font-jetbrains px-2 py-1 rounded ${endOfTrainingFeedback.type === "success" ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"}`}>
+                {endOfTrainingFeedback.msg}
+              </div>
+            )}
+          </div>
+
+          {/* Éval à chaud */}
+          <Link
+            href={`/admin/formations/sessions/${session.id}/satisfaction`}
+            className="p-4 rounded-xl border flex flex-col gap-2 hover:shadow-md transition-shadow cursor-pointer"
+            style={{ borderColor: "#e5e7eb", backgroundColor: "#fafbff" }}
+            title="Synthèse des réponses + score NPS + PDF + archive Drive"
+          >
+            <div className="text-2xl">📝</div>
+            <div className="text-sm font-semibold" style={{ color: "#1f2244" }}>Éval à chaud</div>
+            <div className="text-xs font-jetbrains flex-1" style={{ color: "#727485" }}>
+              Satisfaction stagiaires fin de session (anonyme).
+            </div>
+            <span className="text-xs font-medium self-start" style={{ color: "#1f2244" }}>
+              Voir la synthèse →
+            </span>
+          </Link>
+
+          {/* Éval à froid */}
+          <Link
+            href={`/admin/formations/sessions/${session.id}/cold-eval`}
+            className="p-4 rounded-xl border flex flex-col gap-2 hover:shadow-md transition-shadow cursor-pointer"
+            style={{ borderColor: "#e5e7eb", backgroundColor: "#fafbff" }}
+            title="Envoi auto 3 mois après fin de session, relances J+7 / J+14"
+          >
+            <div className="text-2xl">🌬</div>
+            <div className="text-sm font-semibold" style={{ color: "#1f2244" }}>Éval à froid</div>
+            <div className="text-xs font-jetbrains flex-1" style={{ color: "#727485" }}>
+              Impact en poste 3 mois après. Auto + relances.
+            </div>
+            <span className="text-xs font-medium self-start" style={{ color: "#1f2244" }}>
+              Voir la synthèse →
+            </span>
+          </Link>
+
+          {/* Fiche formateur */}
+          <Link
+            href={`/admin/formations/sessions/${session.id}/trainer-eval`}
+            className="p-4 rounded-xl border flex flex-col gap-2 hover:shadow-md transition-shadow cursor-pointer"
+            style={{ borderColor: "#e5e7eb", backgroundColor: "#fafbff" }}
+            title="Envoi auto J+1 après dateFin, relances J+7 / J+14"
+          >
+            <div className="text-2xl">🎓</div>
+            <div className="text-sm font-semibold" style={{ color: "#1f2244" }}>Fiche formateur</div>
+            <div className="text-xs font-jetbrains flex-1" style={{ color: "#727485" }}>
+              Bilan formateur J+1 après fin de session.
+            </div>
+            <span className="text-xs font-medium self-start" style={{ color: "#1f2244" }}>
+              Voir la synthèse →
+            </span>
+          </Link>
+        </div>
       </div>
     </div>
   );
