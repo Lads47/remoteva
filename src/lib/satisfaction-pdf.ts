@@ -7,7 +7,7 @@
 //   - Bloc NPS si présent
 //   - Stats par question (moyennes, distributions)
 //   - Liste des verbatims (textareas / text)
-//   - Footer Qualiopi
+//   - Footer (mentions légales OF)
 //
 // Utilise le même stack que evaluation-pdf.ts : pdfkit + svg-to-pdfkit.
 
@@ -238,8 +238,10 @@ function drawQuestionStat(doc: PDFKit.PDFDocument, stat: StatLike): void {
     const avg = stat.average !== undefined ? stat.average.toFixed(2) : "—";
     doc.font("Helvetica").fontSize(9).fillColor(COLOR_MUTED).text(`Moyenne : ${avg}/10  ·  ${total} réponse${total > 1 ? "s" : ""}`, x);
     doc.x = x;
-    const labels = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
-    drawDistributionBars(doc, labels, dist, total);
+    // Rendu compact en histogramme vertical (11 colonnes côte à côte). Tient
+    // en une seule page contrairement à 11 barres horizontales empilées qui
+    // débordaient et déclenchaient des sauts de page parasites.
+    drawNpsHistogram(doc, dist, total);
   } else if (stat.question.type === "yes_no" || stat.question.type === "single_choice") {
     const dist = stat.distribution || {};
     const total = Object.values(dist).reduce((a, b) => a + b, 0);
@@ -270,6 +272,15 @@ function drawDistributionBars(
   const labelW = 18;
   const barLabelW = 50;
   const barW = widthTotal - labelW - barLabelW;
+  const ROW_H = 12;
+
+  // Saut de page proactif si l'ensemble du bloc ne tient pas sur la page courante.
+  // Sinon pdfkit fait des sauts intempestifs au milieu de la boucle (1 page par ligne).
+  const blockHeight = labels.length * ROW_H + 4;
+  const usableBottom = doc.page.height - doc.page.margins.bottom;
+  if (doc.y + blockHeight > usableBottom) {
+    doc.addPage();
+  }
 
   doc.save();
   for (const lbl of labels) {
@@ -291,10 +302,81 @@ function drawDistributionBars(
       `${count} (${Math.round(pct * 100)}%)`,
       x + labelW + barW + 4, y + 1, { width: barLabelW }
     );
-    doc.y = y + 12;
+    doc.y = y + ROW_H;
   }
   doc.restore();
   doc.x = x;
+}
+
+/**
+ * Histogramme vertical compact pour les questions NPS (échelle 0-10).
+ *
+ * 11 colonnes côte à côte avec colorisation rouge (0-6) / jaune (7-8) /
+ * vert (9-10) cohérente avec le rendu écran du formulaire. Hauteur totale
+ * ~85px, tient sur une page même en bas de section.
+ */
+function drawNpsHistogram(
+  doc: PDFKit.PDFDocument,
+  dist: Record<string, number>,
+  total: number
+): void {
+  const x = 50;
+  const widthTotal = 495;
+  const N = 11;
+  const gap = 3;
+  const colW = (widthTotal - gap * (N - 1)) / N;
+  const pctH = 10;     // ligne pourcentage au-dessus
+  const barH = 50;     // hauteur max de la barre
+  const labelH = 12;   // ligne label en dessous
+  const blockHeight = pctH + barH + labelH + 6;
+
+  // Saut de page si nécessaire
+  const usableBottom = doc.page.height - doc.page.margins.bottom;
+  if (doc.y + blockHeight > usableBottom) {
+    doc.addPage();
+  }
+
+  // Pic max pour normaliser les hauteurs de barres
+  let maxCount = 0;
+  for (let n = 0; n <= 10; n++) {
+    maxCount = Math.max(maxCount, dist[String(n)] || 0);
+  }
+
+  const baseY = doc.y;
+  doc.save();
+  for (let n = 0; n <= 10; n++) {
+    const count = dist[String(n)] || 0;
+    const pct = total > 0 ? count / total : 0;
+    const h = maxCount > 0 ? (count / maxCount) * barH : 0;
+    const colX = x + n * (colW + gap);
+    const bgFill = n <= 6 ? "#fee2e2" : n <= 8 ? "#fef3c7" : "#dcfce7";
+    const fgFill = n <= 6 ? "#991b1b" : n <= 8 ? "#92400e" : "#166534";
+
+    // Pourcentage au-dessus
+    doc.font("Helvetica").fontSize(7).fillColor(COLOR_MUTED).text(
+      `${Math.round(pct * 100)}%`,
+      colX, baseY, { width: colW, align: "center", lineBreak: false }
+    );
+
+    // Couloir vide (zone barre)
+    doc.lineWidth(0).fillColor(bgFill);
+    doc.rect(colX, baseY + pctH, colW, barH).fill();
+
+    // Barre remplie partant du bas
+    if (h > 0) {
+      doc.fillColor(fgFill);
+      doc.rect(colX, baseY + pctH + (barH - h), colW, h).fill();
+    }
+
+    // Label sous la barre
+    doc.font("Helvetica-Bold").fontSize(8).fillColor(COLOR_TITLE).text(
+      String(n),
+      colX, baseY + pctH + barH + 2, { width: colW, align: "center", lineBreak: false }
+    );
+  }
+  doc.restore();
+  doc.x = x;
+  doc.y = baseY + blockHeight;
 }
 
 function drawFooter(doc: PDFKit.PDFDocument): void {
