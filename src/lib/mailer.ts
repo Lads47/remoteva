@@ -465,15 +465,14 @@ Voir la fiche : ${fichSessionUrl}`;
 /**
  * Mail d'invitation à répondre à l'évaluation à chaud (fin de session).
  *
- * Le lien envoyé est l'URL publique de la session (page de sélection), pas
- * un magic-link personnel. Le stagiaire arrive sur la page, choisit son
- * nom dans la liste, puis remplit le questionnaire.
+ * Le lien envoyé est l'URL publique anonyme du formulaire — la même pour tous
+ * les stagiaires de la session. Le formulaire ne demande aucune identification.
  */
 export async function sendSatisfactionSurveyInvite(params: {
   to: string;
   prenom: string;
   formationNomLong: string;
-  surveyUrl: string;             // URL publique de la page de sélection (commune à tous les stagiaires de la session)
+  surveyUrl: string;             // URL publique anonyme du formulaire (commune à tous les stagiaires de la session)
   replyTo?: string;
 }): Promise<SendEmailResult> {
   const replyTo = params.replyTo || process.env.ADMIN_NOTIFY_EMAIL;
@@ -489,7 +488,7 @@ export async function sendSatisfactionSurveyInvite(params: {
   <p>Bonjour ${safe.prenom},</p>
   <p>Vous avez suivi la formation <strong>${safe.formation}</strong>.
   Pour nous aider à améliorer la qualité de nos prestations, nous vous invitons à répondre à un court
-  questionnaire de satisfaction (≈ 3 minutes).</p>
+  questionnaire de satisfaction <strong>anonyme</strong> (≈ 3 minutes).</p>
   <p style="text-align: center; margin: 32px 0;">
     <a href="${safe.url}"
        style="display: inline-block; background: #1f2244; color: white; padding: 12px 24px;
@@ -498,23 +497,22 @@ export async function sendSatisfactionSurveyInvite(params: {
     </a>
   </p>
   <p style="font-size: 12px; color: #727485;">
-    Sur la page, sélectionnez votre nom dans la liste pour commencer.<br/>
     Lien : <a href="${safe.url}">${safe.url}</a>
   </p>
   <p>Merci de votre participation !<br/>Noémie Marphay<br/><em>Les Ateliers du Stream</em></p>
   <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;"/>
   <p style="font-size: 11px; color: #9ca3af;">
-    Vos réponses sont anonymisées dans nos rapports d'analyse — elles nous servent uniquement à améliorer la qualité de nos formations.
+    Le formulaire est anonyme : vos réponses ne sont pas associées à votre identité et nous servent uniquement à améliorer la qualité de nos formations.
   </p>
 </body>
 </html>`;
   const text = `Bonjour ${params.prenom},
 
-Vous avez suivi la formation ${params.formationNomLong}. Pour nous aider à améliorer la qualité de nos prestations, merci de répondre à notre court questionnaire de satisfaction (≈ 3 min) :
+Vous avez suivi la formation ${params.formationNomLong}. Pour nous aider à améliorer la qualité de nos prestations, merci de répondre à notre court questionnaire de satisfaction anonyme (≈ 3 min) :
 
 ${params.surveyUrl}
 
-Sur la page, sélectionnez votre nom dans la liste pour commencer.
+Le formulaire est anonyme : vos réponses ne sont pas associées à votre identité.
 
 Merci de votre participation !
 Noémie Marphay
