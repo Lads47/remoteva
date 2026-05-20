@@ -143,8 +143,9 @@ function SatisfactionPage({ id }: { id: string }) {
             Préparer le questionnaire
           </h2>
           <p className="text-xs font-jetbrains mb-3" style={{ color: "#727485" }}>
-            <strong>Préparer sans mail</strong> : crée les liens des stagiaires pour que le QR code devienne fonctionnel, sans envoyer de mail. Idéal pour une éval en présentiel à scanner.<br/>
-            <strong>Envoyer par mail</strong> : crée les liens ET envoie un mail à chaque stagiaire.
+            <strong>Préparer sans mail</strong> : active la page de sélection des stagiaires (et donc le QR code) sans envoyer de mail. Idéal en présentiel.<br/>
+            <strong>Envoyer par mail</strong> : prévient chaque stagiaire par mail avec le lien public de la session. Le stagiaire arrive sur la page de sélection, choisit son nom, puis répond.<br/>
+            <span style={{ color: "#9ca3af" }}>Note : les stagiaires n&apos;ont pas de lien magique personnel. Tout passe par la page de sélection (commune à la session).</span>
           </p>
           <div className="flex gap-2 flex-wrap">
             <button

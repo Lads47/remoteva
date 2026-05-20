@@ -74,6 +74,12 @@ export async function POST(
     });
     const formationNomLong = session?.formation.nomLong ?? "votre formation";
 
+    // URL de la page de sélection — la même pour tous les stagiaires de la
+    // session. Les stagiaires n'ont pas de magic-link personnel ; ils
+    // arrivent sur cette page (commune) puis choisissent leur nom dans la
+    // liste avant de remplir le formulaire.
+    const selectionUrl = `${publicBaseUrl}/eval-chaud/session/${id}`;
+
     // Envoi des mails (best-effort, on log les échecs mais on continue)
     const sendResults = [];
     for (const inv of invitations) {
@@ -82,7 +88,7 @@ export async function POST(
           to: inv.email,
           prenom: inv.traineeName.split(" ")[0],
           formationNomLong,
-          surveyUrl: inv.surveyUrl,
+          surveyUrl: selectionUrl,
         });
         sendResults.push({
           traineeId: inv.traineeId,

@@ -287,7 +287,8 @@ function SendBlock({ sessionId }: { sessionId: string }) {
         Lancer le questionnaire
       </h2>
       <p className="text-xs font-jetbrains mb-3" style={{ color: "#727485" }}>
-        Trois actions séparées : <strong>préparer</strong> (rend le QR code fonctionnel sans envoyer de mail), <strong>envoyer par mail</strong> à tous les stagiaires, ou utiliser directement le QR code en présentiel.
+        Trois actions séparées : <strong>préparer</strong> (active la page de sélection / QR sans envoyer de mail), <strong>envoyer par mail</strong> à tous les stagiaires avec le lien public de la session, ou utiliser directement le QR code en présentiel.<br/>
+        <span style={{ color: "#9ca3af" }}>Note : les stagiaires n&apos;ont pas de lien magique personnel. Tout passe par la page de sélection commune à la session.</span>
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

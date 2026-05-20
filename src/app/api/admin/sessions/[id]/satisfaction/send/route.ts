@@ -58,6 +58,10 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
     });
     const formationNomLong = session?.formation.nomLong ?? "votre formation";
 
+    // URL de la page de sélection — commune à tous les stagiaires de la
+    // session (pas de magic-link personnel pour les stagiaires).
+    const selectionUrl = `${publicBaseUrl}/eval-chaud/session/${id}`;
+
     const sendResults = [];
     for (const inv of invitations) {
       try {
@@ -65,7 +69,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
           to: inv.email,
           prenom: inv.traineeName.split(" ")[0],
           formationNomLong,
-          surveyUrl: inv.surveyUrl,
+          surveyUrl: selectionUrl,
         });
         sendResults.push({
           traineeId: inv.traineeId,
