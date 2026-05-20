@@ -67,6 +67,8 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
   const [provisioning, setProvisioning] = useState(false);
+  const [endOfTrainingBatching, setEndOfTrainingBatching] = useState(false);
+  const [endOfTrainingFeedback, setEndOfTrainingFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
   async function provisionDrive() {
     if (provisioning) return;
@@ -97,6 +99,40 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     } finally {
       setProvisioning(false);
       setTimeout(() => setFeedback(null), 8000);
+    }
+  }
+
+  async function batchEndOfTrainingDocs() {
+    if (endOfTrainingBatching) return;
+    if (!confirm(
+      "Générer + envoyer le certificat de réalisation et l'attestation de fin de formation à tous les stagiaires en statut « Terminé » qui ne les ont pas encore reçus ?"
+    )) return;
+    setEndOfTrainingBatching(true);
+    setEndOfTrainingFeedback(null);
+    try {
+      const r = await fetch(`/api/admin/sessions/${id}/end-of-training-batch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const d = await r.json();
+      if (!r.ok) {
+        setEndOfTrainingFeedback({ type: "error", msg: d.error || "Échec" });
+        return;
+      }
+      const errors = d.results.filter((x: { ok: boolean }) => !x.ok);
+      const errorMsg = errors.length > 0
+        ? ` · ${errors.length} échec(s) : ${errors.slice(0, 3).map((x: { stagiaire: string; error: string }) => `${x.stagiaire} (${x.error})`).join(", ")}`
+        : "";
+      setEndOfTrainingFeedback({
+        type: errors.length === 0 ? "success" : "error",
+        msg: `✓ ${d.sent}/${d.total} mail(s) envoyé(s)${errorMsg}`,
+      });
+    } catch {
+      setEndOfTrainingFeedback({ type: "error", msg: "Erreur réseau" });
+    } finally {
+      setEndOfTrainingBatching(false);
+      setTimeout(() => setEndOfTrainingFeedback(null), 12000);
     }
   }
 
@@ -270,6 +306,37 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                 {provisioning ? "Création..." : "Créer dossier + arborescence"}
               </button>
             </>
+          )}
+        </div>
+      </div>
+
+      {/* Bloc Documents fin de formation */}
+      <div className="mb-4 p-5 rounded-xl border" style={{ borderColor: "#e5e7eb", backgroundColor: "#fafbff" }}>
+        <h2 className="text-sm font-semibold uppercase tracking-wide mb-2" style={{ color: "#1f2244" }}>
+          🎓 Documents de fin de formation
+        </h2>
+        <p className="text-xs font-jetbrains mb-3" style={{ color: "#727485" }}>
+          Génère et envoie en lot le <strong>certificat de réalisation</strong> (obligatoire Qualiopi/OPCO)
+          + l&apos;<strong>attestation de fin de formation</strong> (acquis pédagogiques) à tous les stagiaires
+          en statut « Terminé ». Mail unique avec les 2 PDF en pièces jointes. Skip ceux qui les ont déjà reçus.
+        </p>
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            onClick={batchEndOfTrainingDocs}
+            disabled={endOfTrainingBatching}
+            className="text-xs px-3 py-2 rounded-full cursor-pointer disabled:opacity-50"
+            style={{ backgroundColor: "#1f2244", color: "white" }}
+          >
+            {endOfTrainingBatching ? "Génération en cours..." : "Générer + envoyer aux stagiaires terminés"}
+          </button>
+          {endOfTrainingFeedback && (
+            <div
+              className={`text-xs font-jetbrains px-3 py-1.5 rounded-full ${
+                endOfTrainingFeedback.type === "success" ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"
+              }`}
+            >
+              {endOfTrainingFeedback.msg}
+            </div>
           )}
         </div>
       </div>

@@ -7,6 +7,8 @@ interface Templates {
   convention?: string;
   contrat?: string;
   convocation?: string;
+  certificat?: string;
+  attestation?: string;
 }
 
 interface Attachments {
@@ -112,6 +114,18 @@ export default function DriveConfigPage() {
           value={templates.convocation ?? ""}
           onChange={(v) => setTemplates({ ...templates, convocation: v })}
           help="ID Google Doc utilisé par défaut pour générer les convocations."
+        />
+        <TemplateField
+          label="Certificat de réalisation (Doc)"
+          value={templates.certificat ?? ""}
+          onChange={(v) => setTemplates({ ...templates, certificat: v })}
+          help="ID Google Doc du certificat de réalisation (obligatoire Qualiopi/OPCO, atteste la réalisation de l'action de formation)."
+        />
+        <TemplateField
+          label="Attestation de fin de formation (Doc)"
+          value={templates.attestation ?? ""}
+          onChange={(v) => setTemplates({ ...templates, attestation: v })}
+          help="ID Google Doc de l'attestation (acquis pédagogiques : compétences acquises, atteinte des objectifs)."
         />
 
         <div className="border-t pt-4 mt-2" style={{ borderColor: "#e5e7eb" }}>

@@ -65,6 +65,8 @@ export interface DriveDefaultTemplates {
   convention?: string;
   contrat?: string;
   convocation?: string;
+  certificat?: string;   // Certificat de réalisation (obligatoire Qualiopi/OPCO)
+  attestation?: string;  // Attestation de fin de formation (acquis pédagogiques)
 }
 
 // IDs Drive des PDF joints automatiquement à certains mails (CGV, RI...).
@@ -111,6 +113,8 @@ export async function setDriveDefaultTemplates(templates: DriveDefaultTemplates)
   if (templates.convention?.trim()) cleaned.convention = templates.convention.trim();
   if (templates.contrat?.trim()) cleaned.contrat = templates.contrat.trim();
   if (templates.convocation?.trim()) cleaned.convocation = templates.convocation.trim();
+  if (templates.certificat?.trim()) cleaned.certificat = templates.certificat.trim();
+  if (templates.attestation?.trim()) cleaned.attestation = templates.attestation.trim();
   await setJsonConfig(CONFIG_KEYS.DRIVE_DEFAULT_TEMPLATES, cleaned);
 }
 

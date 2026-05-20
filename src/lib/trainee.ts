@@ -24,6 +24,7 @@ export interface TraineeInfo {
   montantHT: number | null;
   psh: boolean;
   besoinsAdaptation: string;
+  objectifsAtteintsOverride: string;
   sellsyCompanyId: number | null;
   sellsyIndividualId: number | null;
   sellsyOpportunityId: number | null;
@@ -105,6 +106,8 @@ export interface TraineeWithDetails extends TraineeInfo {
     hasTemplateConvention: boolean;
     hasTemplateContrat: boolean;
     hasTemplateConvocation: boolean;
+    hasTemplateCertificat: boolean;
+    hasTemplateAttestation: boolean;
   };
   events: TraineeEventInfo[];
   documents: TraineeDocumentInfo[];
@@ -143,6 +146,8 @@ export async function getTraineeWithDetails(id: string): Promise<TraineeWithDeta
       hasTemplateConvention: Boolean(globalTemplates.convention),
       hasTemplateContrat: Boolean(globalTemplates.contrat),
       hasTemplateConvocation: Boolean(globalTemplates.convocation),
+      hasTemplateCertificat: Boolean(globalTemplates.certificat),
+      hasTemplateAttestation: Boolean(globalTemplates.attestation),
     },
     events: t.events.map((e) => ({
       id: e.id,
@@ -308,6 +313,7 @@ function toInfo(t: TraineeRow): TraineeInfo {
     montantHT: t.montantHT,
     psh: t.psh,
     besoinsAdaptation: t.besoinsAdaptation,
+    objectifsAtteintsOverride: t.objectifsAtteintsOverride,
     sellsyCompanyId: t.sellsyCompanyId,
     sellsyIndividualId: t.sellsyIndividualId,
     sellsyOpportunityId: t.sellsyOpportunityId,

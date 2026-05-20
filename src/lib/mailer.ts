@@ -878,3 +878,78 @@ Les Ateliers du Stream`;
     attachments,
   });
 }
+
+/**
+ * Mail unique de fin de formation : envoie au stagiaire son certificat de
+ * réalisation (obligatoire Qualiopi/OPCO) + son attestation de fin de
+ * formation (acquis pédagogiques) en pièces jointes PDF.
+ */
+export async function sendEndOfTrainingDocs(params: {
+  to: string;
+  prenom: string;
+  formationNomLong: string;
+  sessionDateDebut: Date | string;
+  sessionDateFin: Date | string;
+  certificatPdfBuffer: Buffer;
+  certificatPdfFilename: string;
+  attestationPdfBuffer: Buffer;
+  attestationPdfFilename: string;
+  replyTo?: string;
+}): Promise<SendEmailResult> {
+  const replyTo = params.replyTo || process.env.ADMIN_NOTIFY_EMAIL;
+  const safe = {
+    prenom: escapeHtml(params.prenom),
+    formation: escapeHtml(params.formationNomLong),
+  };
+  const dateDebut = fmtDateFr(params.sessionDateDebut);
+  const dateFin = fmtDateFr(params.sessionDateFin);
+
+  const html = `<!DOCTYPE html>
+<html lang="fr">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #1f2244;">
+  <h1 style="font-size: 22px; margin: 0 0 16px;">Vos documents de fin de formation</h1>
+  <p>Bonjour ${safe.prenom},</p>
+  <p>Vous venez de terminer la formation <strong>${safe.formation}</strong>
+  (du ${dateDebut} au ${dateFin}). Merci pour votre engagement&nbsp;!</p>
+  <p>Vous trouverez en pièces jointes&nbsp;:</p>
+  <ul style="padding-left: 20px;">
+    <li><strong>Certificat de réalisation</strong> — à transmettre à votre financeur (OPCO, AFDAS, France Travail…) pour clôturer votre dossier.</li>
+    <li><strong>Attestation de fin de formation</strong> — qui détaille les compétences que vous avez acquises pendant la formation.</li>
+  </ul>
+  <p>Pour toute question, vous pouvez simplement répondre à ce mail.</p>
+  <p>Bien cordialement,<br/>Noémie Marphay<br/><em>Les Ateliers du Stream</em></p>
+  <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;"/>
+  <p style="font-size: 11px; color: #9ca3af;">
+    Les Ateliers du Stream — Organisme de formation professionnelle continue, NDA N°75470196847.
+  </p>
+</body>
+</html>`;
+
+  const text = `Bonjour ${params.prenom},
+
+Vous venez de terminer la formation ${params.formationNomLong} (du ${dateDebut} au ${dateFin}). Merci pour votre engagement !
+
+Vous trouverez en pièces jointes :
+- Certificat de réalisation — à transmettre à votre financeur (OPCO, AFDAS, France Travail…) pour clôturer votre dossier.
+- Attestation de fin de formation — qui détaille les compétences que vous avez acquises.
+
+Pour toute question, répondez simplement à ce mail.
+
+Bien cordialement,
+Noémie Marphay
+Les Ateliers du Stream`;
+
+  const attachments: EmailAttachment[] = [
+    { filename: params.certificatPdfFilename, content: params.certificatPdfBuffer.toString("base64") },
+    { filename: params.attestationPdfFilename, content: params.attestationPdfBuffer.toString("base64") },
+  ];
+
+  return sendEmail({
+    to: params.to,
+    subject: `Vos documents de fin de formation — ${params.formationNomLong}`,
+    html,
+    text,
+    replyTo,
+    attachments,
+  });
+}

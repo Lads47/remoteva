@@ -11,7 +11,7 @@ async function requireAuth() {
   return null;
 }
 
-const ALLOWED: DocumentType[] = ["convention", "contrat", "convocation"];
+const ALLOWED: DocumentType[] = ["convention", "contrat", "convocation", "certificat", "attestation"];
 
 // POST /api/admin/trainees/[id]/generate-document
 // Body : { type: "convention" | "contrat" | "convocation" }

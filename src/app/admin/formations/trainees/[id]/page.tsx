@@ -44,6 +44,7 @@ interface TraineeDetail {
   opcoDetecte: string;
   psh: boolean;
   besoinsAdaptation: string;
+  objectifsAtteintsOverride: string;
   evalEntree: string;
   attentes: string;
   sellsyCompanyId: number | null;
@@ -70,6 +71,8 @@ interface TraineeDetail {
     hasTemplateConvention: boolean;
     hasTemplateContrat: boolean;
     hasTemplateConvocation: boolean;
+    hasTemplateCertificat: boolean;
+    hasTemplateAttestation: boolean;
   };
   events: TraineeEvent[];
   documents: TraineeDocument[];
@@ -141,7 +144,7 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
       .finally(() => setLoading(false));
   }, [id]);
 
-  async function handleGenerateDoc(type: "convention" | "contrat" | "convocation") {
+  async function handleGenerateDoc(type: "convention" | "contrat" | "convocation" | "certificat" | "attestation") {
     if (!trainee || generating) return;
     setGenerating(type);
     setDocFeedback(null);
@@ -166,6 +169,52 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
     } finally {
       setGenerating(null);
       setTimeout(() => setDocFeedback(null), 8000);
+    }
+  }
+
+  async function handleSendEndOfTraining() {
+    if (!trainee || generating) return;
+    if (!confirm(`Générer le certificat de réalisation + l'attestation de fin de formation pour ${trainee.prenom} ${trainee.nom} et lui envoyer par mail ?`)) return;
+    setGenerating("end_of_training");
+    setDocFeedback(null);
+    try {
+      const res = await fetch(`/api/admin/trainees/${id}/send-end-of-training`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setDocFeedback({ type: "error", msg: data.error || "Échec" });
+        return;
+      }
+      setDocFeedback({
+        type: "success",
+        msg: data.emailSent
+          ? "Documents fin de formation envoyés par mail ✓"
+          : "Documents générés mais l'envoi du mail a échoué — vérifie les logs.",
+      });
+      await refresh();
+    } catch {
+      setDocFeedback({ type: "error", msg: "Erreur réseau" });
+    } finally {
+      setGenerating(null);
+      setTimeout(() => setDocFeedback(null), 8000);
+    }
+  }
+
+  async function handleUpdateObjectifs(value: string) {
+    if (!trainee) return;
+    try {
+      const res = await fetch(`/api/admin/trainees/${id}/objectifs-atteints`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setDocFeedback({ type: "error", msg: data.error || "Échec" });
+        return;
+      }
+      await refresh();
+    } catch {
+      setDocFeedback({ type: "error", msg: "Erreur réseau" });
     }
   }
 
@@ -365,6 +414,57 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
             loading={generating === "convocation"}
             onClick={() => handleGenerateDoc("convocation")}
           />
+          <DocGenerateButton
+            label="Certificat"
+            available={trainee.formation.hasTemplateCertificat}
+            disabled={generating !== null}
+            loading={generating === "certificat"}
+            onClick={() => handleGenerateDoc("certificat")}
+          />
+          <DocGenerateButton
+            label="Attestation"
+            available={trainee.formation.hasTemplateAttestation}
+            disabled={generating !== null}
+            loading={generating === "attestation"}
+            onClick={() => handleGenerateDoc("attestation")}
+          />
+          <button
+            type="button"
+            onClick={handleSendEndOfTraining}
+            disabled={
+              generating !== null ||
+              !trainee.formation.hasTemplateCertificat ||
+              !trainee.formation.hasTemplateAttestation
+            }
+            className="text-xs px-3 py-1.5 rounded-full cursor-pointer disabled:opacity-50"
+            style={{ backgroundColor: "#7dcef5", color: "#1f2244" }}
+            title="Génère certificat + attestation et envoie en un mail unique"
+          >
+            {generating === "end_of_training" ? "Envoi..." : "🎓 Envoyer fin de formation"}
+          </button>
+        </div>
+
+        {/* Bloc objectifs atteints — utilisé par certificat / attestation */}
+        <div className="mb-3 p-3 rounded-lg border" style={{ borderColor: "#e5e7eb", backgroundColor: "#fafbff" }}>
+          <label className="block text-xs font-medium mb-1" style={{ color: "#374151" }}>
+            Atteinte des objectifs pédagogiques (utilisé sur l&apos;attestation)
+          </label>
+          <select
+            value={trainee.objectifsAtteintsOverride}
+            onChange={(e) => handleUpdateObjectifs(e.target.value)}
+            className="px-3 py-1.5 border rounded-lg text-sm"
+            style={{ borderColor: "#d1d5db", backgroundColor: "white" }}
+          >
+            <option value="">⚙ Auto (depuis les grilles d&apos;éval pratique)</option>
+            <option value="atteints">Objectifs atteints</option>
+            <option value="partiellement_atteints">Objectifs partiellement atteints</option>
+            <option value="non_atteints">Objectifs non atteints</option>
+          </select>
+          <p className="text-xs font-jetbrains mt-1" style={{ color: "#9ca3af" }}>
+            « Auto » utilise les notes des grilles d&apos;évaluation pratique :
+            tous « acquis » → atteints, mix → partiellement, au moins un « non_acquis » → non atteints.
+            Si tu choisis une valeur ici, elle force cette mention sur le PDF de l&apos;attestation.
+          </p>
         </div>
         {docFeedback && (
           <div

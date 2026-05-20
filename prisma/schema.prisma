@@ -239,6 +239,13 @@ model Trainee {
   psh                      Boolean  @default(false)
   besoinsAdaptation        String   @default("") @map("besoins_adaptation")
 
+  // Atteinte des objectifs pédagogiques (utilisé pour l'attestation de fin
+  // de formation). Si vide, calculé automatiquement depuis les grilles
+  // d'évaluation pratique. Sinon, l'admin/formateur a saisi un override
+  // manuel ici (cas où les grilles ne reflètent pas la situation réelle).
+  // Valeurs : "" (auto) | "atteints" | "partiellement_atteints" | "non_atteints"
+  objectifsAtteintsOverride String  @default("") @map("objectifs_atteints_override")
+
   // Sellsy
   sellsyCompanyId          Int?     @map("sellsy_company_id")
   sellsyIndividualId       Int?     @map("sellsy_individual_id")

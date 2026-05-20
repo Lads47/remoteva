@@ -25,17 +25,19 @@ import {
   isDriveConfigured,
   uploadFile,
 } from "./google-drive";
-import { sendContractToStagiaire, sendConvocationToStagiaire } from "./mailer";
+import { sendContractToStagiaire, sendConvocationToStagiaire, sendEndOfTrainingDocs } from "./mailer";
 import { recordTraineeEvent } from "./trainee";
 
 const INSCRIPTIONS_FOLDER_NAME = "01_INSCRIPTIONS_CONVENTIONS";
 
-export type DocumentType = "convention" | "contrat" | "convocation";
+export type DocumentType = "convention" | "contrat" | "convocation" | "certificat" | "attestation";
 
 export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
   convention: "Convention de formation",
   contrat: "Contrat de formation",
   convocation: "Convocation",
+  certificat: "Certificat de réalisation",
+  attestation: "Attestation de fin de formation",
 };
 
 /**
@@ -89,6 +91,13 @@ export const DOCUMENT_VARIABLES: { key: string; description: string; example: st
   // Divers
   { key: "DATE_AUJOURDHUI", description: "Date du jour de génération", example: "19 mai 2026" },
   { key: "ORGANISME", description: "Nom de l'organisme (LADS)", example: "Les Ateliers du Stream" },
+  // Spécifiques certificat de réalisation + attestation de fin de formation
+  { key: "NB_HEURES_PRESENCE", description: "Nombre d'heures de présence (calculé depuis les émargements)", example: "14" },
+  { key: "TAUX_PRESENCE", description: "Pourcentage de présence", example: "100 %" },
+  { key: "OBJECTIFS_ATTEINTS", description: "Mention d'atteinte des objectifs (auto depuis grilles d'éval, ou override manuel)", example: "atteints" },
+  { key: "OBJECTIFS_ATTEINTS_PHRASE", description: "Phrase complète sur l'atteinte des objectifs", example: "Les objectifs pédagogiques ont été atteints." },
+  { key: "LISTE_COMPETENCES_ACQUISES", description: "Liste à puces des compétences acquises (extraite des exercices notés acquis)", example: "• Maîtrise des transitions vMix\n• Configuration multicaméra" },
+  { key: "MODALITE_EVALUATION", description: "Description des modalités d'évaluation utilisées", example: "Évaluation continue par mises en situation pratiques" },
 ];
 
 function fmtDate(d: Date | string): string {
@@ -139,11 +148,15 @@ async function resolveTemplateId(type: DocumentType): Promise<string | null> {
 }
 
 /**
- * Génère un document administratif (convention | contrat | convocation) pour
- * un stagiaire en copiant le template Drive de la formation puis en
- * remplaçant les variables `{{XXX}}` par les valeurs réelles. Le fichier
- * résultant est rangé dans 01_INSCRIPTIONS_CONVENTIONS/<Stagiaire>/ du
- * dossier Drive de la session, et tracé en BDD via TraineeDocument.
+ * Génère un document administratif (convention | contrat | convocation |
+ * certificat | attestation) pour un stagiaire en copiant le template Drive
+ * et en remplaçant les variables `{{XXX}}`. Le fichier résultant est rangé
+ * dans 01_INSCRIPTIONS_CONVENTIONS/<Stagiaire>/ du dossier Drive de la
+ * session, et tracé en BDD via TraineeDocument.
+ *
+ * Pour `certificat` et `attestation`, des variables supplémentaires sont
+ * calculées (heures de présence, atteinte des objectifs, compétences
+ * acquises) à partir des Attendance + grilles d'évaluation pratique.
  */
 export async function generateTraineeDocument(
   traineeId: string,
@@ -168,6 +181,13 @@ export async function generateTraineeDocument(
       ok: false,
       error: `Pas de template ${DOCUMENT_TYPE_LABELS[type]} configuré. À renseigner dans /admin/formations/parametres-communs/drive.`,
     };
+  }
+
+  // Calcul des variables fin de formation (uniquement pour certificat / attestation
+  // — pour éviter les requêtes inutiles sur les autres types).
+  let endOfTrainingExtras: Record<string, string> = {};
+  if (type === "certificat" || type === "attestation") {
+    endOfTrainingExtras = await computeEndOfTrainingVariables(traineeId);
   }
 
   // Provisionne le dossier Drive de la session si besoin
@@ -196,7 +216,7 @@ export async function generateTraineeDocument(
     });
 
     // 2. Substitution des variables via Docs API
-    const variables = buildVariablesForTrainee(trainee);
+    const variables = buildVariablesForTrainee(trainee, endOfTrainingExtras);
     await replaceTextInDoc(copy.id, variables);
 
     // 3. Enregistrement BDD
@@ -229,7 +249,8 @@ type TraineeWithRelations = Awaited<ReturnType<typeof prisma.trainee.findUnique>
 function buildVariablesForTrainee(
   t: NonNullable<TraineeWithRelations> & {
     session: { formation: { code: string; nomLong: string; dureeJours: number; prixHT: number; description: string }; trainer: { prenom: string; nom: string; email: string } | null; code: string; dateDebut: Date; dateFin: Date; lieu: string; horaires: string; capacite: number };
-  }
+  },
+  extras: Record<string, string> = {}
 ): Record<string, string> {
   const formation = t.session.formation;
   const session = t.session;
@@ -289,6 +310,195 @@ function buildVariablesForTrainee(
     // Divers
     DATE_AUJOURDHUI: fmtDate(new Date()),
     ORGANISME: "Les Ateliers du Stream",
+    // Variables fin de formation (présentes uniquement si extras a été calculé) :
+    // OBJECTIFS_ATTEINTS, OBJECTIFS_ATTEINTS_PHRASE, NB_HEURES_PRESENCE,
+    // TAUX_PRESENCE, LISTE_COMPETENCES_ACQUISES, MODALITE_EVALUATION.
+    // Par défaut on met "" pour qu'elles disparaissent du template si non calculées.
+    OBJECTIFS_ATTEINTS: extras.OBJECTIFS_ATTEINTS ?? "",
+    OBJECTIFS_ATTEINTS_PHRASE: extras.OBJECTIFS_ATTEINTS_PHRASE ?? "",
+    NB_HEURES_PRESENCE: extras.NB_HEURES_PRESENCE ?? "",
+    TAUX_PRESENCE: extras.TAUX_PRESENCE ?? "",
+    LISTE_COMPETENCES_ACQUISES: extras.LISTE_COMPETENCES_ACQUISES ?? "",
+    MODALITE_EVALUATION: extras.MODALITE_EVALUATION ?? "",
+  };
+}
+
+// =========================================================================
+// Calcul des variables spécifiques aux documents de fin de formation
+// =========================================================================
+
+/**
+ * Calcul de l'atteinte des objectifs pédagogiques à partir des grilles d'éval :
+ *   - tous les exercices notés "acquis" → "atteints"
+ *   - mix "acquis" + "en_cours" → "partiellement_atteints"
+ *   - au moins un "non_acquis" → "non_atteints"
+ *   - pas de grille / pas de note → "" (vide)
+ *
+ * Si le trainee a un objectifsAtteintsOverride non vide, c'est lui qui prime
+ * (saisie manuelle de l'admin/formateur).
+ */
+type ObjectifsAtteintsValue = "atteints" | "partiellement_atteints" | "non_atteints" | "";
+
+const OBJECTIFS_ATTEINTS_PHRASES: Record<ObjectifsAtteintsValue, string> = {
+  atteints: "Les objectifs pédagogiques ont été atteints.",
+  partiellement_atteints: "Les objectifs pédagogiques ont été partiellement atteints.",
+  non_atteints: "Les objectifs pédagogiques n'ont pas été atteints.",
+  "": "",
+};
+
+const OBJECTIFS_ATTEINTS_LABELS: Record<ObjectifsAtteintsValue, string> = {
+  atteints: "atteints",
+  partiellement_atteints: "partiellement atteints",
+  non_atteints: "non atteints",
+  "": "",
+};
+
+export async function computeObjectifsAtteints(traineeId: string): Promise<ObjectifsAtteintsValue> {
+  const trainee = await prisma.trainee.findUnique({
+    where: { id: traineeId },
+    select: {
+      objectifsAtteintsOverride: true,
+      session: {
+        select: {
+          formation: {
+            select: {
+              evaluationExercises: {
+                where: { active: true },
+                select: {
+                  id: true,
+                  evaluations: {
+                    where: { traineeId },
+                    select: { globalNote: true },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!trainee) return "";
+
+  // Override manuel : prime sur le calcul auto
+  const override = trainee.objectifsAtteintsOverride;
+  if (override === "atteints" || override === "partiellement_atteints" || override === "non_atteints") {
+    return override;
+  }
+
+  // Calcul auto depuis les grilles
+  const exercises = trainee.session.formation.evaluationExercises;
+  if (exercises.length === 0) return "";
+
+  let countAcquis = 0;
+  let countEnCours = 0;
+  let countNonAcquis = 0;
+  let countSansNote = 0;
+  for (const ex of exercises) {
+    const note = ex.evaluations[0]?.globalNote;
+    if (!note) { countSansNote++; continue; }
+    if (note === "acquis") countAcquis++;
+    else if (note === "en_cours") countEnCours++;
+    else if (note === "non_acquis") countNonAcquis++;
+  }
+
+  // Si aucun exercice n'a été noté → vide (auto inconclusif)
+  if (countAcquis + countEnCours + countNonAcquis === 0) return "";
+  if (countNonAcquis > 0) return "non_atteints";
+  if (countEnCours > 0 || countSansNote > 0) return "partiellement_atteints";
+  return "atteints";
+}
+
+/**
+ * Récupère les libellés des exercices notés "acquis" pour la liste à puces
+ * des compétences validées (variable LISTE_COMPETENCES_ACQUISES).
+ */
+async function listeCompetencesAcquises(traineeId: string): Promise<string> {
+  const trainee = await prisma.trainee.findUnique({
+    where: { id: traineeId },
+    select: {
+      session: {
+        select: {
+          formation: {
+            select: {
+              evaluationExercises: {
+                where: { active: true },
+                orderBy: { ordre: "asc" },
+                select: {
+                  titre: true,
+                  evaluations: {
+                    where: { traineeId },
+                    select: { globalNote: true },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!trainee) return "";
+  const acquis = trainee.session.formation.evaluationExercises
+    .filter((ex) => ex.evaluations[0]?.globalNote === "acquis")
+    .map((ex) => `•  ${ex.titre}`);
+  return acquis.join("\n");
+}
+
+/**
+ * Calcule le nombre d'heures de présence du stagiaire à partir des
+ * émargements (Attendance). 1 demi-journée présente = 3.5h.
+ * Retourne aussi le taux par rapport à la durée nominale de la formation.
+ */
+async function computePresenceVariables(traineeId: string): Promise<{
+  nbHeures: string;
+  taux: string;
+}> {
+  const trainee = await prisma.trainee.findUnique({
+    where: { id: traineeId },
+    select: {
+      attendances: { where: { status: "present" } },
+      session: { select: { formation: { select: { dureeJours: true } } } },
+    },
+  });
+  if (!trainee) return { nbHeures: "", taux: "" };
+  const nbSlots = trainee.attendances.length;
+  const heures = nbSlots * 3.5;
+  const nbHeuresExpected = trainee.session.formation.dureeJours * 7;
+  const taux = nbHeuresExpected > 0 ? Math.round((heures / nbHeuresExpected) * 100) : 0;
+
+  // Si aucun émargement : on retombe sur la durée nominale (cas où la formation
+  // s'est bien déroulée mais que l'admin n'a pas encore renseigné les
+  // émargements en BDD — fréquent pour les petites structures).
+  if (nbSlots === 0) {
+    return {
+      nbHeures: String(nbHeuresExpected),
+      taux: "100 %",
+    };
+  }
+  return {
+    nbHeures: heures % 1 === 0 ? String(heures) : heures.toFixed(1),
+    taux: `${taux} %`,
+  };
+}
+
+/**
+ * Construit toutes les variables additionnelles utilisées par le certificat
+ * de réalisation et l'attestation de fin de formation.
+ */
+export async function computeEndOfTrainingVariables(traineeId: string): Promise<Record<string, string>> {
+  const [objectifs, competences, presence] = await Promise.all([
+    computeObjectifsAtteints(traineeId),
+    listeCompetencesAcquises(traineeId),
+    computePresenceVariables(traineeId),
+  ]);
+  return {
+    OBJECTIFS_ATTEINTS: OBJECTIFS_ATTEINTS_LABELS[objectifs],
+    OBJECTIFS_ATTEINTS_PHRASE: OBJECTIFS_ATTEINTS_PHRASES[objectifs],
+    NB_HEURES_PRESENCE: presence.nbHeures,
+    TAUX_PRESENCE: presence.taux,
+    LISTE_COMPETENCES_ACQUISES: competences,
+    MODALITE_EVALUATION: "Évaluation continue par mises en situation pratiques (exercices notés acquis / en cours / non acquis sur grilles critères).",
   };
 }
 
@@ -580,6 +790,99 @@ export async function generateAndMailConvocation(traineeId: string): Promise<Gen
     ok: true,
     driveFileId: gen.driveFileId,
     driveWebUrl: gen.driveWebUrl,
+    emailSent: mailRes.success,
+    emailError: mailRes.error || null,
+  };
+}
+
+// =========================================================================
+// Documents de fin de formation : certificat de réalisation + attestation
+// =========================================================================
+
+export interface GenerateAndMailEndOfTrainingResult {
+  ok: true;
+  certificatDriveFileId: string;
+  attestationDriveFileId: string;
+  emailSent: boolean;
+  emailError: string | null;
+}
+export type GenerateAndMailEndOfTrainingError = { ok: false; error: string };
+
+/**
+ * Génère le certificat de réalisation + l'attestation de fin de formation
+ * pour un stagiaire, les archive dans son dossier Drive, puis envoie un
+ * mail unique avec les 2 PDF en pièces jointes.
+ *
+ * Utilisé par le batch fin de session et accessible aussi via un bouton
+ * individuel sur la fiche stagiaire.
+ */
+export async function generateAndMailEndOfTrainingDocs(
+  traineeId: string
+): Promise<GenerateAndMailEndOfTrainingResult | GenerateAndMailEndOfTrainingError> {
+  const trainee = await prisma.trainee.findUnique({
+    where: { id: traineeId },
+    include: { session: { include: { formation: true } } },
+  });
+  if (!trainee) return { ok: false, error: "Stagiaire introuvable" };
+  if (!trainee.email) return { ok: false, error: "Email stagiaire manquant" };
+
+  // 1. Génère le certificat
+  const certGen = await generateTraineeDocument(traineeId, "certificat");
+  if (!certGen.ok) return { ok: false, error: `Certificat : ${certGen.error}` };
+
+  // 2. Génère l'attestation
+  const attGen = await generateTraineeDocument(traineeId, "attestation");
+  if (!attGen.ok) return { ok: false, error: `Attestation : ${attGen.error}` };
+
+  // 3. Exporte les 2 docs en PDF (PJ mail)
+  let certificatPdfBuffer: Buffer;
+  let attestationPdfBuffer: Buffer;
+  try {
+    const certPdf = await exportDriveDocAsPdf(certGen.driveFileId);
+    const attPdf = await exportDriveDocAsPdf(attGen.driveFileId);
+    certificatPdfBuffer = certPdf.buffer;
+    attestationPdfBuffer = attPdf.buffer;
+  } catch (err) {
+    const error = err instanceof Error ? err.message : "Erreur inconnue";
+    return { ok: false, error: `Export PDF : ${error}` };
+  }
+  const certificatPdfFilename = `${certGen.fileName}.pdf`;
+  const attestationPdfFilename = `${attGen.fileName}.pdf`;
+
+  // 4. Envoi mail unique avec les 2 PJ
+  const mailRes = await sendEndOfTrainingDocs({
+    to: trainee.email,
+    prenom: trainee.prenom,
+    formationNomLong: trainee.session.formation.nomLong,
+    sessionDateDebut: trainee.session.dateDebut,
+    sessionDateFin: trainee.session.dateFin,
+    certificatPdfBuffer,
+    certificatPdfFilename,
+    attestationPdfBuffer,
+    attestationPdfFilename,
+  });
+
+  // 5. Marque sentAt sur les 2 TraineeDocument si mail envoyé
+  if (mailRes.success) {
+    await prisma.traineeDocument.updateMany({
+      where: { id: { in: [certGen.documentId, attGen.documentId] } },
+      data: { sentAt: new Date() },
+    });
+  }
+
+  await recordTraineeEvent(
+    traineeId,
+    mailRes.success ? "email_sent" : "email_failed",
+    mailRes.success
+      ? `Documents fin de formation envoyés (${trainee.email}) — certificat + attestation`
+      : `Échec mail fin de formation : ${mailRes.error}`,
+    { type: "end_of_training", to: trainee.email, messageId: mailRes.messageId }
+  );
+
+  return {
+    ok: true,
+    certificatDriveFileId: certGen.driveFileId,
+    attestationDriveFileId: attGen.driveFileId,
     emailSent: mailRes.success,
     emailError: mailRes.error || null,
   };
