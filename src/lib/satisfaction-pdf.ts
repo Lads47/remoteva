@@ -68,7 +68,7 @@ export async function buildSatisfactionPdf(synthesis: SatisfactionSynthesis): Pr
   // Bloc info session
   drawInfoBox(doc, doc.y, [
     { label: "Formation", value: synthesis.formation.nomLong },
-    { label: "Session", value: `${synthesis.session.code} (${fmtDate(synthesis.session.dateDebut)} → ${fmtDate(synthesis.session.dateFin)})` },
+    { label: "Session", value: `${synthesis.session.code} (du ${fmtDate(synthesis.session.dateDebut)} au ${fmtDate(synthesis.session.dateFin)})` },
     { label: "Lieu", value: synthesis.session.lieu || "—" },
     {
       label: "Taux de réponse",
