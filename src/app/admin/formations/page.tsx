@@ -242,6 +242,13 @@ export default function FormationsPage() {
             📄 Templates Drive
           </Link>
           <Link
+            href="/admin/formations/satisfaction-config"
+            className="px-4 py-2 rounded-full text-sm font-medium border transition-colors cursor-pointer"
+            style={{ borderColor: "#1f2244", color: "#1f2244" }}
+          >
+            📝 Questionnaire éval à chaud
+          </Link>
+          <Link
             href="/admin/formations/sessions"
             className="px-4 py-2 rounded-full text-sm font-medium border transition-colors cursor-pointer"
             style={{ borderColor: "#1f2244", color: "#1f2244" }}

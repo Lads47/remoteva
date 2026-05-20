@@ -102,6 +102,9 @@ export default function SatisfactionAdminPage({ params }: { params: Promise<{ id
         <Stat label="Taux de réponse" value={`${Math.round(data.totals.responseRate * 100)} %`} color="#3730a3" />
       </div>
 
+      {/* Bloc envoi enquête */}
+      <SendBlock sessionId={id} />
+
       {/* Actions PDF */}
       <div className="mb-6 p-4 rounded-xl border flex gap-2 flex-wrap items-center" style={{ borderColor: "#e5e7eb", backgroundColor: "#fafbff" }}>
         <a
@@ -226,6 +229,123 @@ function QuestionStatCard({ stat }: { stat: Stat }) {
           Aucune réponse.
         </p>
       )}
+    </div>
+  );
+}
+
+
+interface SendResult {
+  traineeId: string;
+  traineeName: string;
+  email: string;
+  ok: boolean;
+  alreadyExisted: boolean;
+  error?: string;
+}
+
+function SendBlock({ sessionId }: { sessionId: string }) {
+  const [sending, setSending] = useState<"send" | "prepare" | null>(null);
+  const [result, setResult] = useState<{ mode: string; mailsSent: number; totalInvitations: number; invitations: SendResult[] } | null>(null);
+  const [error, setError] = useState("");
+
+  const qrUrl = `/api/admin/sessions/${sessionId}/satisfaction/qr?size=400`;
+  const selectionUrl = typeof window !== "undefined"
+    ? `${window.location.origin}/eval-chaud/session/${sessionId}`
+    : `https://evaremote.com/eval-chaud/session/${sessionId}`;
+
+  async function callSend(sendEmails: boolean) {
+    if (sending) return;
+    if (sendEmails && !confirm("Envoyer le questionnaire à tous les stagiaires par mail ?")) return;
+    setSending(sendEmails ? "send" : "prepare");
+    setError("");
+    try {
+      const r = await fetch(`/api/admin/sessions/${sessionId}/satisfaction/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sendEmails }),
+      });
+      const d = await r.json();
+      if (!r.ok) {
+        setError(d.error || "Erreur");
+        return;
+      }
+      setResult(d);
+    } catch {
+      setError("Erreur réseau");
+    } finally {
+      setSending(null);
+    }
+  }
+
+  function copyUrl() {
+    navigator.clipboard.writeText(selectionUrl).catch(() => {});
+  }
+
+  return (
+    <div className="mb-6 p-5 rounded-xl border" style={{ borderColor: "#e5e7eb", backgroundColor: "white" }}>
+      <h2 className="text-sm font-semibold uppercase tracking-wide mb-2" style={{ color: "#1f2244" }}>
+        Lancer le questionnaire
+      </h2>
+      <p className="text-xs font-jetbrains mb-3" style={{ color: "#727485" }}>
+        Trois actions séparées : <strong>préparer</strong> (rend le QR code fonctionnel sans envoyer de mail), <strong>envoyer par mail</strong> à tous les stagiaires, ou utiliser directement le QR code en présentiel.
+      </p>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <div className="flex gap-2 flex-wrap mb-3">
+            <button
+              onClick={() => callSend(false)}
+              disabled={sending !== null}
+              className="px-3 py-2 rounded-full text-sm font-medium border cursor-pointer disabled:opacity-50"
+              style={{ borderColor: "#1f2244", color: "#1f2244" }}
+            >
+              {sending === "prepare" ? "Préparation..." : "Préparer (sans mail)"}
+            </button>
+            <button
+              onClick={() => callSend(true)}
+              disabled={sending !== null}
+              className="px-4 py-2 rounded-full text-sm font-medium text-white cursor-pointer disabled:opacity-50"
+              style={{ backgroundColor: "#1f2244" }}
+            >
+              {sending === "send" ? "Envoi..." : "Envoyer par mail"}
+            </button>
+          </div>
+          {error && <div className="p-2.5 rounded text-xs font-jetbrains bg-red-50 text-red-800 mb-2">{error}</div>}
+          {result && (
+            <div>
+              <div className="p-2.5 rounded text-xs font-jetbrains bg-green-50 text-green-800 mb-2">
+                {result.mode === "prepared"
+                  ? `✓ ${result.totalInvitations} lien(s) prêt(s) — QR fonctionnel`
+                  : `✓ ${result.mailsSent}/${result.totalInvitations} mail(s) envoyé(s)`}
+              </div>
+              <ul className="space-y-1 text-xs max-h-40 overflow-y-auto">
+                {result.invitations.map((i) => (
+                  <li key={i.traineeId} className="font-jetbrains" style={{ color: i.ok ? "#166534" : "#991b1b" }}>
+                    {i.ok ? "✓" : "✗"} {i.traineeName} {i.alreadyExisted && <span style={{ color: "#9ca3af" }}>(existant)</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col items-center gap-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={qrUrl} alt="QR code" width={180} height={180} style={{ border: "1px solid #e5e7eb", borderRadius: 8 }} />
+          <div className="flex gap-1 items-center w-full">
+            <code className="flex-1 text-[10px] font-jetbrains px-2 py-1 rounded border break-all" style={{ borderColor: "#e5e7eb", color: "#1f2244", backgroundColor: "#f9fafb" }}>
+              {selectionUrl}
+            </code>
+            <button
+              onClick={copyUrl}
+              className="text-xs px-2 py-1 rounded cursor-pointer"
+              style={{ backgroundColor: "#7dcef5", color: "#1f2244" }}
+            >
+              Copier
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
