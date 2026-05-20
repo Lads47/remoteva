@@ -57,6 +57,8 @@ export default function ColdEvalSessionAdminPage({ params }: { params: Promise<{
   const [error, setError] = useState("");
   const [acting, setActing] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+  const [archiving, setArchiving] = useState(false);
+  const [pdfFeedback, setPdfFeedback] = useState<{ type: "success" | "error"; msg: string; url?: string } | null>(null);
 
   function load() {
     setLoading(true);
@@ -95,6 +97,29 @@ export default function ColdEvalSessionAdminPage({ params }: { params: Promise<{
       setFeedback({ type: "error", msg: "Erreur réseau" });
     } finally {
       setActing(null);
+    }
+  }
+
+  async function archive() {
+    if (archiving) return;
+    setArchiving(true);
+    setPdfFeedback(null);
+    try {
+      const r = await fetch(`/api/admin/sessions/${id}/cold-eval`, { method: "POST" });
+      const d = await r.json();
+      if (!r.ok) {
+        setPdfFeedback({ type: "error", msg: d.error || "Échec" });
+        return;
+      }
+      setPdfFeedback({
+        type: "success",
+        msg: "PDF archivé dans Drive (03_EVALUATIONS)",
+        url: d.driveWebUrl,
+      });
+    } catch {
+      setPdfFeedback({ type: "error", msg: "Erreur réseau" });
+    } finally {
+      setArchiving(false);
     }
   }
 
@@ -155,6 +180,43 @@ export default function ColdEvalSessionAdminPage({ params }: { params: Promise<{
         <StatCard label="Réponses reçues" value={String(data.totals.submitted)} color="#166534" />
         <StatCard label="En attente" value={String(data.totals.pending)} color="#92400e" />
         <StatCard label="Taux de réponse" value={`${Math.round(data.totals.responseRate * 100)} %`} color="#3730a3" />
+      </div>
+
+      {/* Actions PDF */}
+      <div className="mb-6 p-4 rounded-xl border flex gap-2 flex-wrap items-center" style={{ borderColor: "#e5e7eb", backgroundColor: "#fafbff" }}>
+        <a
+          href={`/api/admin/sessions/${id}/cold-eval`}
+          onClick={(e) => {
+            e.preventDefault();
+            fetch(`/api/admin/sessions/${id}/cold-eval`, { method: "PUT" })
+              .then((r) => r.blob())
+              .then((blob) => window.open(URL.createObjectURL(blob), "_blank"));
+          }}
+          className="text-xs px-3 py-1.5 rounded-full border cursor-pointer"
+          style={{ borderColor: "#1f2244", color: "#1f2244" }}
+        >
+          📄 Aperçu PDF
+        </a>
+        <button
+          onClick={archive}
+          disabled={archiving || data.totals.submitted === 0}
+          className="text-xs px-3 py-1.5 rounded-full cursor-pointer disabled:opacity-50"
+          style={{ backgroundColor: "#7dcef5", color: "#1f2244" }}
+        >
+          {archiving ? "Génération..." : "Générer & archiver dans Drive (03_EVALUATIONS)"}
+        </button>
+        {pdfFeedback && (
+          <div
+            className={`text-xs font-jetbrains px-3 py-1.5 rounded-full ${
+              pdfFeedback.type === "success" ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"
+            }`}
+          >
+            {pdfFeedback.msg}
+            {pdfFeedback.url && (
+              <a href={pdfFeedback.url} target="_blank" rel="noreferrer" className="ml-2 underline">Drive ↗</a>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Tableau par stagiaire */}

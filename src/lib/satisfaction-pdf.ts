@@ -47,14 +47,35 @@ function fmtDateTime(d: Date): string {
   });
 }
 
-export async function buildSatisfactionPdf(synthesis: SatisfactionSynthesis): Promise<{ buffer: Buffer; filename: string }> {
+export interface BuildSatisfactionPdfOptions {
+  // Titre affiché dans l'en-tête (page 1 et pages de continuation)
+  title?: string;
+  // Sous-titre du PDF (méta Subject) — utile pour distinguer chaud / froid
+  subject?: string;
+  // Préfixe du nom de fichier (default: "Synthese_eval_a_chaud_")
+  filenamePrefix?: string;
+  // Préfixe du titre PDF (méta Title)
+  metaTitlePrefix?: string;
+}
+
+export async function buildSatisfactionPdf(
+  synthesis: SatisfactionSynthesis,
+  options: BuildSatisfactionPdfOptions = {}
+): Promise<{ buffer: Buffer; filename: string }> {
+  const title = options.title || "Évaluation à chaud — Synthèse";
+  const subject = options.subject || `Évaluation à chaud — ${synthesis.formation.nomLong}`;
+  const filenamePrefix = options.filenamePrefix || "Synthese_eval_a_chaud_";
+  const metaTitlePrefix = options.metaTitlePrefix || "Synthèse satisfaction — ";
+  // Le titre de continuation est "<title> (suite)" pour rester cohérent
+  CURRENT_CONTINUATION_TITLE = `${title} (suite)`;
+
   const doc = new PDFDocument({
     size: "A4",
     margins: { top: 50, bottom: 75, left: 50, right: 50 },
     info: {
-      Title: `Synthèse satisfaction — ${synthesis.session.code}`,
+      Title: `${metaTitlePrefix}${synthesis.session.code}`,
       Author: "Les Ateliers du Stream",
-      Subject: `Évaluation à chaud — ${synthesis.formation.nomLong}`,
+      Subject: subject,
     },
     bufferPages: true,
   });
@@ -62,8 +83,8 @@ export async function buildSatisfactionPdf(synthesis: SatisfactionSynthesis): Pr
   doc.on("data", (c: Buffer) => chunks.push(c));
   const done = new Promise<void>((r) => doc.on("end", () => r()));
 
-  // En-tête
-  drawHeader(doc, "Évaluation à chaud — Synthèse");
+  // En-tête (paramétrable pour pouvoir réutiliser le générateur en éval à froid)
+  drawHeader(doc, title);
 
   // Bloc info session
   drawInfoBox(doc, doc.y, [
@@ -130,7 +151,7 @@ export async function buildSatisfactionPdf(synthesis: SatisfactionSynthesis): Pr
   await done;
   return {
     buffer: Buffer.concat(chunks),
-    filename: `Synthese_eval_a_chaud_${synthesis.session.code}.pdf`,
+    filename: `${filenamePrefix}${synthesis.session.code}.pdf`,
   };
 }
 
@@ -214,6 +235,10 @@ function drawNpsBlock(doc: PDFKit.PDFDocument, stat: StatLike): void {
   doc.x = x;
 }
 
+// Titre de continuation mémorisé pour les pages internes créées via
+// ensureSpaceFor(). Mis à jour à chaque buildSatisfactionPdf().
+let CURRENT_CONTINUATION_TITLE = "Évaluation à chaud — Synthèse (suite)";
+
 /**
  * Garantit qu'il reste `requiredHeight` px sur la page courante. Sinon, crée
  * une nouvelle page et y redessine un header de continuation. Empêche les
@@ -224,7 +249,7 @@ function ensureSpaceFor(doc: PDFKit.PDFDocument, requiredHeight: number): void {
   const usableBottom = doc.page.height - doc.page.margins.bottom;
   if (doc.y + requiredHeight > usableBottom) {
     doc.addPage();
-    drawHeader(doc, "Évaluation à chaud — Synthèse (suite)");
+    drawHeader(doc, CURRENT_CONTINUATION_TITLE);
   }
 }
 
