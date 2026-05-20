@@ -15,45 +15,90 @@ interface InvitationResult {
 
 interface SendResponse {
   success: boolean;
+  mode: "prepared" | "sent";
   invitations: InvitationResult[];
   totalInvitations: number;
   mailsSent: number;
 }
 
+interface PreviewQuestion {
+  name: string;
+  type: string;
+  label: string;
+  description?: string;
+  required: boolean;
+  options?: string[];
+  leftLabel?: string;
+  rightLabel?: string;
+  placeholder?: string;
+}
+
+interface PreviewData {
+  session: { code: string; dateDebut: string; dateFin: string };
+  formation: { nomLong: string };
+  questions: PreviewQuestion[];
+}
+
 function SatisfactionPage({ id }: { id: string }) {
   const params = useSearchParams();
   const token = params.get("token") || "";
-  const [sending, setSending] = useState(false);
+  const [sending, setSending] = useState<"send" | "prepare" | null>(null);
   const [result, setResult] = useState<SendResponse | null>(null);
   const [error, setError] = useState("");
+  const [showPreview, setShowPreview] = useState(false);
+  const [preview, setPreview] = useState<PreviewData | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   const qrUrl = `/api/formateur/sessions/${id}/satisfaction/qr?token=${encodeURIComponent(token)}&size=400`;
   const selectionUrl = typeof window !== "undefined"
     ? `${window.location.origin}/eval-chaud/session/${id}`
     : `https://evaremote.com/eval-chaud/session/${id}`;
 
-  async function handleSend() {
+  async function callSend(sendEmails: boolean) {
     if (sending) return;
-    if (!confirm("Envoyer le questionnaire d'évaluation à chaud à TOUS les stagiaires de cette session par mail ?")) {
+    if (sendEmails && !confirm("Envoyer le questionnaire d'évaluation à chaud à TOUS les stagiaires de cette session par mail ?")) {
       return;
     }
-    setSending(true);
+    setSending(sendEmails ? "send" : "prepare");
     setError("");
     try {
       const r = await fetch(
         `/api/formateur/sessions/${id}/satisfaction/send?token=${encodeURIComponent(token)}`,
-        { method: "POST" }
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sendEmails }),
+        }
       );
       const d = await r.json();
       if (!r.ok) {
-        setError(d.error || "Erreur lors de l'envoi");
+        setError(d.error || "Erreur");
         return;
       }
       setResult(d);
     } catch {
       setError("Erreur réseau");
     } finally {
-      setSending(false);
+      setSending(null);
+    }
+  }
+
+  async function openPreview() {
+    setShowPreview(true);
+    if (preview) return;
+    setPreviewLoading(true);
+    try {
+      const r = await fetch(`/api/formateur/sessions/${id}/satisfaction/preview?token=${encodeURIComponent(token)}`);
+      if (!r.ok) {
+        const d = await r.json().catch(() => null);
+        setError(d?.error || "Erreur de chargement");
+        return;
+      }
+      setPreview(await r.json());
+    } catch {
+      setError("Erreur réseau");
+    } finally {
+      setPreviewLoading(false);
     }
   }
 
@@ -75,36 +120,61 @@ function SatisfactionPage({ id }: { id: string }) {
       </h1>
 
       <div className="mb-6 p-4 rounded-xl text-sm font-jetbrains" style={{ backgroundColor: "#fafbff", color: "#727485" }}>
-        Envoie le questionnaire de satisfaction (≈ 3 min, ~10 questions Qualiopi) aux stagiaires de la session.
-        Tu peux soit déclencher l&apos;<strong>envoi par mail</strong> à tous, soit <strong>afficher le QR code</strong>{" "}
-        à scanner au téléphone — les deux mènent au même formulaire.
+        Questionnaire de satisfaction (≈ 3 min, 13 questions Qualiopi en 5 sections).
+        Trois actions possibles : <strong>aperçu</strong> du formulaire pour vérifier les questions,{" "}
+        <strong>préparation</strong> du QR code sans envoyer de mail (utile en présentiel), ou{" "}
+        <strong>envoi par mail</strong> à tous les stagiaires.
+      </div>
+
+      <div className="mb-4 flex gap-2 flex-wrap">
+        <button
+          onClick={openPreview}
+          className="px-3 py-1.5 rounded-full text-xs font-medium border cursor-pointer"
+          style={{ borderColor: "#1f2244", color: "#1f2244" }}
+        >
+          👁 Aperçu du formulaire
+        </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Bloc envoi mail */}
         <div className="p-5 rounded-xl border" style={{ borderColor: "#e5e7eb", backgroundColor: "white" }}>
           <h2 className="text-sm font-semibold uppercase tracking-wide mb-2" style={{ color: "#1f2244" }}>
-            Envoi par mail
+            Préparer le questionnaire
           </h2>
           <p className="text-xs font-jetbrains mb-3" style={{ color: "#727485" }}>
-            Génère un lien personnel par stagiaire et lui envoie un mail d&apos;invitation. Idempotent : un stagiaire
-            qui a déjà reçu un lien le réutilise.
+            <strong>Préparer sans mail</strong> : crée les liens des stagiaires pour que le QR code devienne fonctionnel, sans envoyer de mail. Idéal pour une éval en présentiel à scanner.<br/>
+            <strong>Envoyer par mail</strong> : crée les liens ET envoie un mail à chaque stagiaire.
           </p>
-          <button
-            onClick={handleSend}
-            disabled={sending}
-            className="px-4 py-2 rounded-full text-sm font-medium text-white cursor-pointer disabled:opacity-50"
-            style={{ backgroundColor: "#1f2244" }}
-          >
-            {sending ? "Envoi..." : "Envoyer le questionnaire à tous"}
-          </button>
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={() => callSend(false)}
+              disabled={sending !== null}
+              className="px-3 py-2 rounded-full text-sm font-medium border cursor-pointer disabled:opacity-50"
+              style={{ borderColor: "#1f2244", color: "#1f2244" }}
+            >
+              {sending === "prepare" ? "Préparation..." : "Préparer (sans mail)"}
+            </button>
+            <button
+              onClick={() => callSend(true)}
+              disabled={sending !== null}
+              className="px-4 py-2 rounded-full text-sm font-medium text-white cursor-pointer disabled:opacity-50"
+              style={{ backgroundColor: "#1f2244" }}
+            >
+              {sending === "send" ? "Envoi..." : "Envoyer par mail"}
+            </button>
+          </div>
           {error && (
             <div className="mt-3 p-2.5 rounded text-xs font-jetbrains bg-red-50 text-red-800">{error}</div>
           )}
           {result && (
             <div className="mt-3">
               <div className="p-2.5 rounded text-xs font-jetbrains bg-green-50 text-green-800 mb-2">
-                ✓ {result.mailsSent}/{result.totalInvitations} mail{result.totalInvitations > 1 ? "s" : ""} envoyé{result.mailsSent > 1 ? "s" : ""}
+                {result.mode === "prepared" ? (
+                  <>✓ {result.totalInvitations} lien{result.totalInvitations > 1 ? "s" : ""} prêt{result.totalInvitations > 1 ? "s" : ""} — le QR code est maintenant fonctionnel</>
+                ) : (
+                  <>✓ {result.mailsSent}/{result.totalInvitations} mail{result.totalInvitations > 1 ? "s" : ""} envoyé{result.mailsSent > 1 ? "s" : ""}</>
+                )}
               </div>
               <ul className="space-y-1 text-xs">
                 {result.invitations.map((i) => (
@@ -116,7 +186,7 @@ function SatisfactionPage({ id }: { id: string }) {
                     <span>{i.ok ? "✓" : "✗"}</span>
                     <span>{i.traineeName}</span>
                     <span style={{ color: "#9ca3af" }}>{i.email}</span>
-                    {i.alreadyExisted && <span style={{ color: "#9ca3af" }}>(relance)</span>}
+                    {i.alreadyExisted && <span style={{ color: "#9ca3af" }}>(existant)</span>}
                     {!i.ok && i.error && <span style={{ color: "#991b1b" }}>· {i.error}</span>}
                   </li>
                 ))}
@@ -124,6 +194,14 @@ function SatisfactionPage({ id }: { id: string }) {
             </div>
           )}
         </div>
+
+        {showPreview && (
+          <PreviewModal
+            onClose={() => setShowPreview(false)}
+            preview={preview}
+            loading={previewLoading}
+          />
+        )}
 
         {/* Bloc QR code */}
         <div className="p-5 rounded-xl border" style={{ borderColor: "#e5e7eb", backgroundColor: "white" }}>
@@ -174,6 +252,125 @@ function SatisfactionPage({ id }: { id: string }) {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function PreviewModal({
+  onClose,
+  preview,
+  loading,
+}: {
+  onClose: () => void;
+  preview: PreviewData | null;
+  loading: boolean;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: "rgba(31, 34, 68, 0.5)" }}
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-6 py-4 border-b flex items-center justify-between" style={{ borderColor: "#e5e7eb" }}>
+          <div>
+            <h2 className="text-lg font-bold" style={{ color: "#1f2244" }}>
+              Aperçu du formulaire stagiaire
+            </h2>
+            <p className="text-xs font-jetbrains mt-0.5" style={{ color: "#727485" }}>
+              Lecture seule — aucune action n&apos;est enregistrée.
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-2xl cursor-pointer w-8 h-8 rounded-full flex items-center justify-center"
+            style={{ color: "#727485", backgroundColor: "#f3f4f6" }}
+            aria-label="Fermer"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="overflow-y-auto p-6">
+          {loading && (
+            <p className="text-sm font-jetbrains text-center py-12" style={{ color: "#727485" }}>
+              Chargement...
+            </p>
+          )}
+          {!loading && !preview && (
+            <p className="text-sm font-jetbrains text-center py-12" style={{ color: "#991b1b" }}>
+              Impossible de charger l&apos;aperçu.
+            </p>
+          )}
+          {!loading && preview && <PreviewContent preview={preview} />}
+        </div>
+
+        <div className="px-6 py-3 border-t flex justify-end" style={{ borderColor: "#e5e7eb" }}>
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-full text-sm font-medium cursor-pointer"
+            style={{ backgroundColor: "#1f2244", color: "white" }}
+          >
+            Fermer
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PreviewContent({ preview }: { preview: PreviewData }) {
+  let questionIndex = 0;
+  return (
+    <div className="space-y-5">
+      <div className="p-3 rounded-lg text-xs font-jetbrains" style={{ backgroundColor: "#fafbff", color: "#727485" }}>
+        <strong style={{ color: "#1f2244" }}>{preview.formation.nomLong}</strong> · Session {preview.session.code}
+      </div>
+      {preview.questions.map((q) => {
+        if (q.type === "section_header") {
+          return (
+            <div key={q.name} className="pt-3 pb-1 border-b" style={{ borderColor: "#e5e7eb" }}>
+              <h3 className="text-base font-bold" style={{ color: "#1f2244" }}>{q.label}</h3>
+              {q.description && (
+                <p className="text-xs font-jetbrains mt-1" style={{ color: "#727485" }}>{q.description}</p>
+              )}
+            </div>
+          );
+        }
+        questionIndex++;
+        return (
+          <div key={q.name}>
+            <div className="text-sm font-medium" style={{ color: "#1f2244" }}>
+              <span style={{ color: "#9ca3af" }}>{questionIndex}.</span> {q.label}
+              {q.required && <span style={{ color: "#ef4444" }}> *</span>}
+            </div>
+            {q.description && (
+              <p className="text-xs font-jetbrains mt-1" style={{ color: "#9ca3af" }}>{q.description}</p>
+            )}
+            <div className="mt-2 text-xs font-jetbrains" style={{ color: "#727485" }}>
+              {q.type === "likert_5" && (
+                <span>
+                  Échelle 1 à 5 ({q.leftLabel || "min"} → {q.rightLabel || "max"})
+                </span>
+              )}
+              {q.type === "scale_nps" && (
+                <span>
+                  Échelle NPS 0 à 10 ({q.leftLabel || "min"} → {q.rightLabel || "max"})
+                </span>
+              )}
+              {q.type === "yes_no" && <span>Oui / Non</span>}
+              {q.type === "single_choice" && q.options && (
+                <span>Choix : {q.options.join(" · ")}</span>
+              )}
+              {q.type === "text" && <span>Réponse courte (1 ligne)</span>}
+              {q.type === "textarea" && <span>Réponse libre (plusieurs lignes)</span>}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -35,8 +35,37 @@ export async function POST(
     const trainer = await authTrainerForSession(token, id);
     if (!trainer) return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
 
+    // Body optionnel : { sendEmails?: boolean }. Si false → on crée juste les
+    // invitations (donc QR fonctionnel) sans envoyer de mail aux stagiaires.
+    let sendEmails = true;
+    try {
+      const body = await request.json();
+      if (body && typeof body.sendEmails === "boolean") sendEmails = body.sendEmails;
+    } catch {
+      // pas de body : comportement par défaut (envoi mails)
+    }
+
     const publicBaseUrl = process.env.PUBLIC_BASE_URL || "https://evaremote.com";
     const invitations = await createOrReuseInvitations(id, publicBaseUrl);
+
+    if (!sendEmails) {
+      // Mode "préparation" : invitations créées, QR code utilisable, aucun
+      // mail envoyé. Pratique pour partager le QR en présentiel.
+      return NextResponse.json({
+        success: true,
+        sessionId: id,
+        mode: "prepared",
+        invitations: invitations.map((inv) => ({
+          traineeId: inv.traineeId,
+          traineeName: inv.traineeName,
+          email: inv.email,
+          ok: true,
+          alreadyExisted: inv.alreadyExisted,
+        })),
+        totalInvitations: invitations.length,
+        mailsSent: 0,
+      });
+    }
 
     // Charge la formation pour le label dans le mail
     const session = await prisma.session.findUnique({
@@ -78,6 +107,7 @@ export async function POST(
     return NextResponse.json({
       success: true,
       sessionId: id,
+      mode: "sent",
       invitations: sendResults,
       totalInvitations: invitations.length,
       mailsSent: sendResults.filter((r) => r.ok).length,
