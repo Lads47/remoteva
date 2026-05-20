@@ -120,7 +120,7 @@ function SatisfactionPage({ id }: { id: string }) {
       </h1>
 
       <div className="mb-6 p-4 rounded-xl text-sm font-jetbrains" style={{ backgroundColor: "#fafbff", color: "#727485" }}>
-        Questionnaire de satisfaction (≈ 3 min, 13 questions Qualiopi en 5 sections).
+        Questionnaire de satisfaction (≈ 3 min, 13 questions en 5 sections).
         Trois actions possibles : <strong>aperçu</strong> du formulaire pour vérifier les questions,{" "}
         <strong>préparation</strong> du QR code sans envoyer de mail (utile en présentiel), ou{" "}
         <strong>envoi par mail</strong> à tous les stagiaires.

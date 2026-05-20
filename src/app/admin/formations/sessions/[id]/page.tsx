@@ -84,7 +84,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         type: "success",
         msg:
           subs.length > 0
-            ? `Dossier Drive OK · ${subs.length} sous-dossier(s) Qualiopi créé(s) : ${subs.join(", ")}`
+            ? `Dossier Drive OK · ${subs.length} sous-dossier(s) créé(s) : ${subs.join(", ")}`
             : `Dossier Drive OK · arborescence déjà complète`,
       });
       // Refresh session to update driveFolderId in UI
@@ -230,7 +230,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
           Dossier Google Drive
         </h2>
         <p className="text-xs font-jetbrains mb-3" style={{ color: "#727485" }}>
-          Arborescence Qualiopi : 01_INSCRIPTIONS_CONVENTIONS · 02_SUIVI_ET_INCIDENTS · 03_EVALUATIONS · 04_ATTESTATIONS_BILAN · 05_PROGRAMME_SUPPORTS
+          Arborescence : 01_INSCRIPTIONS_CONVENTIONS · 02_SUIVI_ET_INCIDENTS · 03_EVALUATIONS · 04_ATTESTATIONS_BILAN · 05_PROGRAMME_SUPPORTS
         </p>
         <div className="flex gap-2 items-center flex-wrap">
           {session.driveFolderId ? (
@@ -267,7 +267,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
                 className="text-xs px-3 py-2 rounded-full cursor-pointer disabled:opacity-50"
                 style={{ backgroundColor: "#1f2244", color: "white" }}
               >
-                {provisioning ? "Création..." : "Créer dossier + arborescence Qualiopi"}
+                {provisioning ? "Création..." : "Créer dossier + arborescence"}
               </button>
             </>
           )}

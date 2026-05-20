@@ -621,7 +621,7 @@ export default function PublicInscriptionPage({ params }: { params: Promise<{ co
             </button>
 
             <p className="text-xs text-center font-jetbrains" style={{ color: "#9ca3af" }}>
-              Formation référencée Qualiopi. Vos données sont utilisées uniquement pour le traitement de votre inscription.
+              Vos données sont utilisées uniquement pour le traitement de votre inscription, conformément au RGPD.
             </p>
           </form>
         )}

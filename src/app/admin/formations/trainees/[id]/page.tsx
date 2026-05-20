@@ -521,7 +521,7 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
       )}
 
       {/* Timeline événements */}
-      <Section title="Historique (audit Qualiopi)">
+      <Section title="Historique (audit interne)">
         {trainee.events.length === 0 ? (
           <p className="text-sm font-jetbrains" style={{ color: "#727485" }}>
             Aucun événement enregistré.

@@ -216,7 +216,7 @@ export default function FormationsPage() {
             Catalogue des formations
           </h1>
           <p className="text-sm mt-1 font-jetbrains" style={{ color: "#727485" }}>
-            Configure le catalogue Qualiopi (paramètres Sellsy + templates Drive)
+            Configure le catalogue de formations (paramètres Sellsy + templates Drive)
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -338,7 +338,7 @@ export default function FormationsPage() {
                 placeholder={`Ex :\nÀ l'issue de la formation, le stagiaire sera capable de :\n— Configurer une régie multicaméra dans vMix\n— Gérer les transitions et l'incrustation en direct\n— Diffuser un live multi-plateformes`}
               />
               <p className="mt-1 text-xs font-jetbrains" style={{ color: "#727485" }}>
-                Ce texte est repris dans la convocation à la place de <code>{"{{FORMATION_DESCRIPTION}}"}</code>, et dans le PDF d&apos;évaluation. Soigne-le : c&apos;est ce qui couvre l&apos;exigence Qualiopi 2.3 (information préalable, objectifs de la formation).
+                Ce texte est repris dans la convocation à la place de <code>{"{{FORMATION_DESCRIPTION}}"}</code>, et dans le PDF d&apos;évaluation. Soigne-le : c&apos;est ce qui décrit les objectifs pédagogiques aux stagiaires en amont de la formation.
               </p>
             </Field>
             <Field label="Active" full>
@@ -493,6 +493,13 @@ export default function FormationsPage() {
                   style={{ borderColor: "#1f2244", color: "#1f2244" }}
                 >
                   Grille éval
+                </Link>
+                <Link
+                  href={`/admin/formations/${f.id}/satisfaction-config`}
+                  className="text-xs px-3 py-1.5 rounded-full border cursor-pointer"
+                  style={{ borderColor: "#1f2244", color: "#1f2244" }}
+                >
+                  Questionnaire éval
                 </Link>
                 <Link
                   href={`/admin/formations/sessions?formationId=${f.id}`}

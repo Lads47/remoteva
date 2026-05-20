@@ -369,7 +369,7 @@ function EmargementInner({ id }: { id: string }) {
           </h2>
           <p className="text-xs mt-1 font-jetbrains" style={{ color: "#727485" }}>
             Déposez ici les scans / photos des feuilles d&apos;émargement signées par les stagiaires
-            pour archivage Qualiopi. Formats acceptés : PDF, JPEG, PNG, HEIC, WebP (max 15 Mo).
+            pour archivage. Formats acceptés : PDF, JPEG, PNG, HEIC, WebP (max 15 Mo).
           </p>
 
           {/* Upload */}

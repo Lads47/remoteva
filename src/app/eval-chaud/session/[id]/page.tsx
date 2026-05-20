@@ -104,7 +104,7 @@ export default function SelectionPage({ params }: { params: Promise<{ id: string
           )}
         </div>
         <p className="text-center text-xs font-jetbrains mt-4" style={{ color: "#9ca3af" }}>
-          Vos réponses sont confidentielles et utilisées dans le cadre du suivi qualité Qualiopi.
+          Vos réponses sont confidentielles et anonymisées dans nos rapports d&apos;analyse — utilisées uniquement pour améliorer la qualité de nos formations.
         </p>
       </div>
     </div>

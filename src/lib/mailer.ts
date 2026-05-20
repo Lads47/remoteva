@@ -182,7 +182,7 @@ export async function sendInscriptionConfirmation(params: {
   <p>Bien cordialement,<br/>Noémie Marphay<br/><em>Les Ateliers du Stream</em></p>
   <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;"/>
   <p style="font-size: 11px; color: #9ca3af;">
-    Formation référencée Qualiopi. Vos données sont utilisées uniquement pour le traitement de votre inscription, conformément au RGPD.
+    Vos données sont utilisées uniquement pour le traitement de votre inscription, conformément au RGPD.
   </p>
 </body>
 </html>`;
@@ -276,7 +276,7 @@ export async function sendDevisToStagiaire(params: {
   <p>Bien cordialement,<br/>Noémie Marphay<br/><em>Les Ateliers du Stream</em></p>
   <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;"/>
   <p style="font-size: 11px; color: #9ca3af;">
-    Formation référencée Qualiopi. Vos données sont utilisées uniquement pour le traitement de votre inscription, conformément au RGPD.
+    Vos données sont utilisées uniquement pour le traitement de votre inscription, conformément au RGPD.
   </p>
 </body>
 </html>`;
@@ -497,8 +497,7 @@ export async function sendSatisfactionSurveyInvite(params: {
   <p>Merci de votre participation !<br/>Noémie Marphay<br/><em>Les Ateliers du Stream</em></p>
   <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;"/>
   <p style="font-size: 11px; color: #9ca3af;">
-    Vos réponses sont traitées dans le cadre du suivi qualité de notre organisme (Qualiopi). Elles peuvent être anonymisées
-    dans nos rapports d'audit.
+    Vos réponses sont anonymisées dans nos rapports d'analyse — elles nous servent uniquement à améliorer la qualité de nos formations.
   </p>
 </body>
 </html>`;
@@ -574,7 +573,7 @@ export async function sendConvocationToStagiaire(params: {
   <p>À très bientôt !<br/>Noémie Marphay<br/><em>Les Ateliers du Stream</em></p>
   <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;"/>
   <p style="font-size: 11px; color: #9ca3af;">
-    Les Ateliers du Stream — NDA N°75470196847. Organisme de formation référencé Qualiopi.
+    Les Ateliers du Stream — Organisme de formation professionnelle continue, NDA N°75470196847.
   </p>
 </body>
 </html>`;
@@ -690,7 +689,7 @@ export async function sendContractToStagiaire(params: {
   <p>Bien cordialement,<br/>Noémie Marphay<br/><em>Les Ateliers du Stream</em></p>
   <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;"/>
   <p style="font-size: 11px; color: #9ca3af;">
-    Les Ateliers du Stream — NDA N°75470196847. Organisme de formation référencé Qualiopi.
+    Les Ateliers du Stream — Organisme de formation professionnelle continue, NDA N°75470196847.
   </p>
 </body>
 </html>`;

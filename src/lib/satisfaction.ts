@@ -201,7 +201,7 @@ export const DEFAULT_QUESTIONS: SatisfactionQuestion[] = [
     name: "recommandation_nps",
     type: "scale_nps",
     label: "Sur une échelle de 0 à 10, recommanderiez-vous cette formation à un collègue ou un ami ?",
-    description: "Note Qualiopi 'Net Promoter Score' : 0 = pas du tout, 10 = je recommande vivement.",
+    description: "Net Promoter Score : 0 = je ne recommande pas du tout, 10 = je recommande vivement.",
     required: true,
     leftLabel: "Pas du tout",
     rightLabel: "Très probablement",

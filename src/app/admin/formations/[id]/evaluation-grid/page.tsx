@@ -267,7 +267,7 @@ export default function EvaluationGridEditorPage({ params }: { params: Promise<{
       <div className="mb-6 p-4 rounded-xl text-xs font-jetbrains" style={{ backgroundColor: "#fafbff", color: "#727485" }}>
         Configure ici les <strong style={{ color: "#1f2244" }}>exercices pratiques</strong> évalués pendant la formation,
         et pour chaque exercice les <strong style={{ color: "#1f2244" }}>critères</strong> que le formateur notera.
-        Pendant la session, chaque stagiaire sera noté sur chaque critère selon l&apos;échelle Qualiopi
+        Pendant la session, chaque stagiaire sera noté sur chaque critère selon l&apos;échelle
         <span className="mx-1 px-1.5 py-0.5 rounded bg-green-50 text-green-800">Acquis</span>
         /
         <span className="mx-1 px-1.5 py-0.5 rounded bg-amber-50 text-amber-800">En cours</span>
