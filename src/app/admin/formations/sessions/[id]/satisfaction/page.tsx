@@ -239,31 +239,28 @@ interface SendResult {
   traineeName: string;
   email: string;
   ok: boolean;
-  alreadyExisted: boolean;
   error?: string;
 }
 
 function SendBlock({ sessionId }: { sessionId: string }) {
-  const [sending, setSending] = useState<"send" | "prepare" | null>(null);
-  const [result, setResult] = useState<{ mode: string; mailsSent: number; totalInvitations: number; invitations: SendResult[] } | null>(null);
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<{ mailsSent: number; total: number; results: SendResult[]; surveyUrl: string } | null>(null);
   const [error, setError] = useState("");
 
   const qrUrl = `/api/admin/sessions/${sessionId}/satisfaction/qr?size=400`;
-  const selectionUrl = typeof window !== "undefined"
-    ? `${window.location.origin}/eval-chaud/session/${sessionId}`
-    : `https://evaremote.com/eval-chaud/session/${sessionId}`;
+  // URL affichée / copiable : page de présentation (gros QR + invitation),
+  // pratique à vidéoprojeter en salle. Le QR encode l'URL directe du formulaire.
+  const surveyUrl = typeof window !== "undefined"
+    ? `${window.location.origin}/eval-chaud/session/${sessionId}/presentation`
+    : `https://evaremote.com/eval-chaud/session/${sessionId}/presentation`;
 
-  async function callSend(sendEmails: boolean) {
+  async function sendMail() {
     if (sending) return;
-    if (sendEmails && !confirm("Envoyer le questionnaire à tous les stagiaires par mail ?")) return;
-    setSending(sendEmails ? "send" : "prepare");
+    if (!confirm("Envoyer le questionnaire d'évaluation à chaud à TOUS les stagiaires de cette session par mail ?")) return;
+    setSending(true);
     setError("");
     try {
-      const r = await fetch(`/api/admin/sessions/${sessionId}/satisfaction/send`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sendEmails }),
-      });
+      const r = await fetch(`/api/admin/sessions/${sessionId}/satisfaction/send`, { method: "POST" });
       const d = await r.json();
       if (!r.ok) {
         setError(d.error || "Erreur");
@@ -273,12 +270,12 @@ function SendBlock({ sessionId }: { sessionId: string }) {
     } catch {
       setError("Erreur réseau");
     } finally {
-      setSending(null);
+      setSending(false);
     }
   }
 
   function copyUrl() {
-    navigator.clipboard.writeText(selectionUrl).catch(() => {});
+    navigator.clipboard.writeText(surveyUrl).catch(() => {});
   }
 
   return (
@@ -287,42 +284,33 @@ function SendBlock({ sessionId }: { sessionId: string }) {
         Lancer le questionnaire
       </h2>
       <p className="text-xs font-jetbrains mb-3" style={{ color: "#727485" }}>
-        Trois actions séparées : <strong>préparer</strong> (active la page de sélection / QR sans envoyer de mail), <strong>envoyer par mail</strong> à tous les stagiaires avec le lien public de la session, ou utiliser directement le QR code en présentiel.<br/>
-        <span style={{ color: "#9ca3af" }}>Note : les stagiaires n&apos;ont pas de lien magique personnel. Tout passe par la page de sélection commune à la session.</span>
+        Questionnaire <strong>anonyme</strong>. Deux moyens de diffusion : <strong>envoyer par mail</strong> à tous les stagiaires (lien commun), ou utiliser le <strong>QR code</strong> en présentiel.
+        Les réponses ne sont pas associées à l&apos;identité du stagiaire.
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <div className="flex gap-2 flex-wrap mb-3">
             <button
-              onClick={() => callSend(false)}
-              disabled={sending !== null}
-              className="px-3 py-2 rounded-full text-sm font-medium border cursor-pointer disabled:opacity-50"
-              style={{ borderColor: "#1f2244", color: "#1f2244" }}
-            >
-              {sending === "prepare" ? "Préparation..." : "Préparer (sans mail)"}
-            </button>
-            <button
-              onClick={() => callSend(true)}
-              disabled={sending !== null}
+              onClick={sendMail}
+              disabled={sending}
               className="px-4 py-2 rounded-full text-sm font-medium text-white cursor-pointer disabled:opacity-50"
               style={{ backgroundColor: "#1f2244" }}
             >
-              {sending === "send" ? "Envoi..." : "Envoyer par mail"}
+              {sending ? "Envoi..." : "Envoyer par mail"}
             </button>
           </div>
           {error && <div className="p-2.5 rounded text-xs font-jetbrains bg-red-50 text-red-800 mb-2">{error}</div>}
           {result && (
             <div>
               <div className="p-2.5 rounded text-xs font-jetbrains bg-green-50 text-green-800 mb-2">
-                {result.mode === "prepared"
-                  ? `✓ ${result.totalInvitations} lien(s) prêt(s) — QR fonctionnel`
-                  : `✓ ${result.mailsSent}/${result.totalInvitations} mail(s) envoyé(s)`}
+                ✓ {result.mailsSent}/{result.total} mail(s) envoyé(s)
               </div>
               <ul className="space-y-1 text-xs max-h-40 overflow-y-auto">
-                {result.invitations.map((i) => (
+                {result.results.map((i) => (
                   <li key={i.traineeId} className="font-jetbrains" style={{ color: i.ok ? "#166534" : "#991b1b" }}>
-                    {i.ok ? "✓" : "✗"} {i.traineeName} {i.alreadyExisted && <span style={{ color: "#9ca3af" }}>(existant)</span>}
+                    {i.ok ? "✓" : "✗"} {i.traineeName}
+                    {!i.ok && i.error && <span style={{ color: "#991b1b" }}> · {i.error}</span>}
                   </li>
                 ))}
               </ul>
@@ -335,7 +323,7 @@ function SendBlock({ sessionId }: { sessionId: string }) {
           <img src={qrUrl} alt="QR code" width={180} height={180} style={{ border: "1px solid #e5e7eb", borderRadius: 8 }} />
           <div className="flex gap-1 items-center w-full">
             <code className="flex-1 text-[10px] font-jetbrains px-2 py-1 rounded border break-all" style={{ borderColor: "#e5e7eb", color: "#1f2244", backgroundColor: "#f9fafb" }}>
-              {selectionUrl}
+              {surveyUrl}
             </code>
             <button
               onClick={copyUrl}

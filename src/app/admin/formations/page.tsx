@@ -228,25 +228,12 @@ export default function FormationsPage() {
             👤 Formateurs
           </Link>
           <Link
-            href="/admin/formations/sellsy-config"
+            href="/admin/formations/parametres-communs"
             className="px-4 py-2 rounded-full text-sm font-medium border transition-colors cursor-pointer"
             style={{ borderColor: "#1f2244", color: "#1f2244" }}
+            title="Sellsy · Templates Drive · Questionnaire d'éval à chaud"
           >
-            ⚙ Config Sellsy
-          </Link>
-          <Link
-            href="/admin/formations/drive-config"
-            className="px-4 py-2 rounded-full text-sm font-medium border transition-colors cursor-pointer"
-            style={{ borderColor: "#1f2244", color: "#1f2244" }}
-          >
-            📄 Templates Drive
-          </Link>
-          <Link
-            href="/admin/formations/satisfaction-config"
-            className="px-4 py-2 rounded-full text-sm font-medium border transition-colors cursor-pointer"
-            style={{ borderColor: "#1f2244", color: "#1f2244" }}
-          >
-            📝 Questionnaire éval à chaud
+            ⚙ Paramètres communs
           </Link>
           <Link
             href="/admin/formations/sessions"

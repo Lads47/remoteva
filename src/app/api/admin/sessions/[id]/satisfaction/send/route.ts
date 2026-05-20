@@ -1,15 +1,12 @@
 // POST /api/admin/sessions/[id]/satisfaction/send
-// Body : { sendEmails?: boolean }
 //
-// Équivalent admin de l'endpoint formateur — permet à l'admin de préparer
-// les invitations / d'envoyer les mails sans avoir besoin du magic token
-// du formateur de la session.
+// Équivalent admin de l'endpoint formateur. Envoie le mail d'invitation
+// à tous les stagiaires de la session avec l'URL publique anonyme.
 
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import prisma from "@/lib/db";
 import { sendSatisfactionSurveyInvite } from "@/lib/mailer";
-import { createOrReuseInvitations } from "@/lib/satisfaction";
+import { getSessionContacts } from "@/lib/satisfaction";
 
 async function requireAuth() {
   const session = await getSession();
@@ -17,76 +14,44 @@ async function requireAuth() {
   return null;
 }
 
-export async function POST(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function POST(_request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const authError = await requireAuth();
   if (authError) return authError;
 
   try {
     const { id } = await ctx.params;
-
-    let sendEmails = true;
-    try {
-      const body = await request.json();
-      if (body && typeof body.sendEmails === "boolean") sendEmails = body.sendEmails;
-    } catch {
-      // pas de body : envoi par défaut
+    const contacts = await getSessionContacts(id);
+    if (!contacts) return NextResponse.json({ error: "Session introuvable" }, { status: 404 });
+    if (contacts.trainees.length === 0) {
+      return NextResponse.json({ error: "Aucun stagiaire inscrit dans cette session." }, { status: 400 });
     }
 
     const publicBaseUrl = process.env.PUBLIC_BASE_URL || "https://evaremote.com";
-    const invitations = await createOrReuseInvitations(id, publicBaseUrl);
-
-    if (!sendEmails) {
-      return NextResponse.json({
-        success: true,
-        sessionId: id,
-        mode: "prepared",
-        invitations: invitations.map((inv) => ({
-          traineeId: inv.traineeId,
-          traineeName: inv.traineeName,
-          email: inv.email,
-          ok: true,
-          alreadyExisted: inv.alreadyExisted,
-        })),
-        totalInvitations: invitations.length,
-        mailsSent: 0,
-      });
-    }
-
-    const session = await prisma.session.findUnique({
-      where: { id },
-      select: { formation: { select: { nomLong: true } } },
-    });
-    const formationNomLong = session?.formation.nomLong ?? "votre formation";
-
-    // URL de la page de sélection — commune à tous les stagiaires de la
-    // session (pas de magic-link personnel pour les stagiaires).
-    const selectionUrl = `${publicBaseUrl}/eval-chaud/session/${id}`;
+    const surveyUrl = `${publicBaseUrl}/eval-chaud/session/${id}`;
 
     const sendResults = [];
-    for (const inv of invitations) {
+    for (const t of contacts.trainees) {
       try {
         const r = await sendSatisfactionSurveyInvite({
-          to: inv.email,
-          prenom: inv.traineeName.split(" ")[0],
-          formationNomLong,
-          surveyUrl: selectionUrl,
+          to: t.email,
+          prenom: t.prenom,
+          formationNomLong: contacts.formation.nomLong,
+          surveyUrl,
         });
         sendResults.push({
-          traineeId: inv.traineeId,
-          traineeName: inv.traineeName,
-          email: inv.email,
+          traineeId: t.traineeId,
+          traineeName: `${t.prenom} ${t.nom}`,
+          email: t.email,
           ok: r.success,
           error: r.error,
-          alreadyExisted: inv.alreadyExisted,
         });
       } catch (err) {
         sendResults.push({
-          traineeId: inv.traineeId,
-          traineeName: inv.traineeName,
-          email: inv.email,
+          traineeId: t.traineeId,
+          traineeName: `${t.prenom} ${t.nom}`,
+          email: t.email,
           ok: false,
           error: err instanceof Error ? err.message : "Erreur inconnue",
-          alreadyExisted: inv.alreadyExisted,
         });
       }
     }
@@ -94,10 +59,10 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
     return NextResponse.json({
       success: true,
       sessionId: id,
-      mode: "sent",
-      invitations: sendResults,
-      totalInvitations: invitations.length,
+      total: contacts.trainees.length,
       mailsSent: sendResults.filter((r) => r.ok).length,
+      results: sendResults,
+      surveyUrl,
     });
   } catch (error) {
     console.error("[/api/admin/sessions/[id]/satisfaction/send] error:", error);

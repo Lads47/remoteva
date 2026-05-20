@@ -1,8 +1,7 @@
 // GET /api/formateur/sessions/[id]/satisfaction/qr?token=...&size=400
 //
-// Renvoie un PNG contenant le QR code de la page de sélection pour cette
-// session. Cette URL ouvre une page publique qui liste les stagiaires —
-// chacun choisit son nom puis remplit son formulaire personnel.
+// Renvoie un PNG contenant le QR code du formulaire d'éval à chaud anonyme.
+// L'URL ouvre directement le formulaire — pas d'identification du stagiaire.
 //
 // On utilise un endpoint API (au lieu d'un client-side rendering) pour
 // que le formateur puisse facilement télécharger / imprimer le QR.

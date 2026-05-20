@@ -270,148 +270,91 @@ function generateMagicToken(): string {
   return randomBytes(24).toString("base64url");
 }
 
-// === Création des invitations pour une session ===
+// === Récupération de la liste mails pour envoi groupé ===
 
-export interface SurveyInvitation {
-  responseId: string;
+export interface TraineeContact {
   traineeId: string;
-  traineeName: string;
+  prenom: string;
+  nom: string;
   email: string;
-  magicToken: string;
-  surveyUrl: string;
-  alreadyExisted: boolean;
 }
 
 /**
- * Crée (ou retrouve) une SatisfactionResponse par stagiaire de la session.
- * Idempotent : si une réponse existe déjà pour un (sessionId, traineeId), on
- * la réutilise (et son magicToken) au lieu d'en créer une nouvelle.
- *
- * Retourne la liste des invitations avec l'URL publique du formulaire.
+ * Renvoie la liste des stagiaires d'une session avec leurs coordonnées
+ * pour l'envoi du mail d'invitation à l'éval à chaud. L'envoi est groupé
+ * (même URL pour tous), pas de magic-link personnel.
  */
-export async function createOrReuseInvitations(
-  sessionId: string,
-  publicBaseUrl: string
-): Promise<SurveyInvitation[]> {
+export async function getSessionContacts(sessionId: string): Promise<{
+  formation: { id: string; nomLong: string };
+  trainees: TraineeContact[];
+} | null> {
   const session = await prisma.session.findUnique({
     where: { id: sessionId },
     include: {
-      formation: { select: { id: true } },
-      trainees: { select: { id: true, prenom: true, nom: true, email: true } },
-    },
-  });
-  if (!session) throw new Error("Session introuvable");
-
-  const questions = await resolveQuestionsForFormation(session.formation.id);
-  const snapshot = JSON.stringify(questions);
-
-  const existing = await prisma.satisfactionResponse.findMany({
-    where: { sessionId },
-    select: { id: true, traineeId: true, magicToken: true },
-  });
-  const existingByTrainee = new Map<string, { id: string; magicToken: string }>();
-  for (const e of existing) {
-    existingByTrainee.set(e.traineeId, { id: e.id, magicToken: e.magicToken });
-  }
-
-  const invitations: SurveyInvitation[] = [];
-  for (const t of session.trainees) {
-    const found = existingByTrainee.get(t.id);
-    if (found) {
-      invitations.push({
-        responseId: found.id,
-        traineeId: t.id,
-        traineeName: `${t.prenom} ${t.nom}`,
-        email: t.email,
-        magicToken: found.magicToken,
-        surveyUrl: `${publicBaseUrl}/eval-chaud/${found.magicToken}`,
-        alreadyExisted: true,
-      });
-      continue;
-    }
-    const magicToken = generateMagicToken();
-    const created = await prisma.satisfactionResponse.create({
-      data: {
-        sessionId,
-        traineeId: t.id,
-        magicToken,
-        questionsSnapshot: snapshot,
-      },
-      select: { id: true },
-    });
-    invitations.push({
-      responseId: created.id,
-      traineeId: t.id,
-      traineeName: `${t.prenom} ${t.nom}`,
-      email: t.email,
-      magicToken,
-      surveyUrl: `${publicBaseUrl}/eval-chaud/${magicToken}`,
-      alreadyExisted: false,
-    });
-  }
-  return invitations;
-}
-
-// === Lecture publique par token (page de réponse) ===
-
-export interface SurveyPublicData {
-  responseId: string;
-  trainee: { prenom: string; nom: string };
-  session: { code: string; dateDebut: Date; dateFin: Date };
-  formation: { nomLong: string };
-  questions: SatisfactionQuestion[];
-  submittedAt: Date | null;
-  // Pour pré-remplir si l'utilisateur reprend avant submit (optionnel — pas
-  // de sauvegarde brouillon dans cette V1)
-}
-
-export async function getSurveyByToken(token: string): Promise<SurveyPublicData | null> {
-  const r = await prisma.satisfactionResponse.findUnique({
-    where: { magicToken: token },
-    include: {
-      trainee: { select: { prenom: true, nom: true } },
-      session: {
-        include: { formation: { select: { nomLong: true } } },
+      formation: { select: { id: true, nomLong: true } },
+      trainees: {
+        select: { id: true, prenom: true, nom: true, email: true },
+        orderBy: { nom: "asc" },
       },
     },
   });
-  if (!r) return null;
-  let questions: SatisfactionQuestion[];
-  try {
-    questions = JSON.parse(r.questionsSnapshot) as SatisfactionQuestion[];
-  } catch {
-    questions = DEFAULT_QUESTIONS;
-  }
+  if (!session) return null;
   return {
-    responseId: r.id,
-    trainee: { prenom: r.trainee.prenom, nom: r.trainee.nom },
-    session: { code: r.session.code, dateDebut: r.session.dateDebut, dateFin: r.session.dateFin },
-    formation: { nomLong: r.session.formation.nomLong },
-    questions,
-    submittedAt: r.submittedAt,
+    formation: session.formation,
+    trainees: session.trainees.map((t) => ({
+      traineeId: t.id,
+      prenom: t.prenom,
+      nom: t.nom,
+      email: t.email,
+    })),
   };
 }
 
-// === Soumission ===
+// === Lecture publique des questions d'une session (pour le formulaire) ===
 
-export interface SubmitInput {
-  token: string;
+export interface SurveyPublicData {
+  session: { id: string; code: string; dateDebut: Date; dateFin: Date };
+  formation: { nomLong: string };
+  questions: SatisfactionQuestion[];
+}
+
+export async function getSurveyForSession(sessionId: string): Promise<SurveyPublicData | null> {
+  const session = await prisma.session.findUnique({
+    where: { id: sessionId },
+    include: { formation: { select: { id: true, nomLong: true } } },
+  });
+  if (!session) return null;
+  const questions = await resolveQuestionsForFormation(session.formation.id);
+  return {
+    session: { id: session.id, code: session.code, dateDebut: session.dateDebut, dateFin: session.dateFin },
+    formation: { nomLong: session.formation.nomLong },
+    questions,
+  };
+}
+
+// === Soumission anonyme ===
+
+export interface AnonymousSubmitInput {
+  sessionId: string;
   answers: Record<string, string>;     // questionName -> value (string)
 }
 
-export async function submitSurvey(input: SubmitInput): Promise<{ ok: true } | { ok: false; error: string }> {
-  const survey = await prisma.satisfactionResponse.findUnique({
-    where: { magicToken: input.token },
+/**
+ * Crée une SatisfactionResponse anonyme : pas de traineeId, pas de
+ * magicToken, juste sessionId + questionsSnapshot + answers + submittedAt.
+ * Aucun lien avec un stagiaire identifié.
+ */
+export async function submitAnonymousSurvey(
+  input: AnonymousSubmitInput
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const session = await prisma.session.findUnique({
+    where: { id: input.sessionId },
+    select: { id: true, formationId: true },
   });
-  if (!survey) return { ok: false, error: "Lien invalide" };
-  if (survey.submittedAt) return { ok: false, error: "Vous avez déjà répondu à cette enquête." };
+  if (!session) return { ok: false, error: "Session introuvable" };
 
-  let questions: SatisfactionQuestion[];
-  try {
-    questions = JSON.parse(survey.questionsSnapshot) as SatisfactionQuestion[];
-  } catch {
-    return { ok: false, error: "Snapshot questions invalide" };
-  }
+  const questions = await resolveQuestionsForFormation(session.formationId);
+  const snapshot = JSON.stringify(questions);
 
   // Validation : required fields (skip les section_header)
   for (const q of questions) {
@@ -424,27 +367,33 @@ export async function submitSurvey(input: SubmitInput): Promise<{ ok: true } | {
     }
   }
 
+  // Crée la réponse anonyme + les answers en une transaction
   await prisma.$transaction(async (tx) => {
-    // Stocke les answers (remplace si existantes, par sécurité)
-    await tx.satisfactionAnswer.deleteMany({ where: { responseId: survey.id } });
+    const resp = await tx.satisfactionResponse.create({
+      data: {
+        sessionId: input.sessionId,
+        questionsSnapshot: snapshot,
+        submittedAt: new Date(),
+        // traineeId et magicToken volontairement laissés à null
+      },
+      select: { id: true },
+    });
     const data = Object.entries(input.answers).map(([questionName, value]) => ({
-      responseId: survey.id,
+      responseId: resp.id,
       questionName,
       value: String(value),
     }));
     if (data.length > 0) {
       await tx.satisfactionAnswer.createMany({ data });
     }
-    await tx.satisfactionResponse.update({
-      where: { id: survey.id },
-      data: { submittedAt: new Date() },
-    });
   });
 
   return { ok: true };
 }
 
-// === Page de sélection pour QR code ===
+// generateMagicToken n'est plus utilisé dans le nouveau flow mais on le
+// garde au cas où on en ait besoin pour des tokens internes admin.
+void generateMagicToken;
 
 // === Synthèse / agrégations ===
 
@@ -478,34 +427,50 @@ export async function buildSessionSynthesis(sessionId: string): Promise<Satisfac
   const session = await prisma.session.findUnique({
     where: { id: sessionId },
     include: {
-      formation: { select: { nomLong: true } },
+      formation: { select: { id: true, nomLong: true } },
       satisfactionResponses: {
+        where: { submittedAt: { not: null } },
         include: { answers: true },
         orderBy: { invitedAt: "asc" },
       },
+      trainees: { select: { id: true } },
     },
   });
   if (!session) return null;
 
-  const responses = session.satisfactionResponses;
-  const submitted = responses.filter((r) => r.submittedAt !== null);
+  // Dans le modèle anonyme : "invited" = nombre de stagiaires de la session
+  // (on ne crée plus de SatisfactionResponse par avance). "submitted" =
+  // nombre de réponses anonymes soumises.
+  const submitted = session.satisfactionResponses;
+  const invited = session.trainees.length;
   const totals = {
-    invited: responses.length,
+    invited,
     submitted: submitted.length,
-    pending: responses.length - submitted.length,
-    responseRate: responses.length > 0 ? submitted.length / responses.length : 0,
+    pending: Math.max(0, invited - submitted.length),
+    responseRate: invited > 0 ? submitted.length / invited : 0,
   };
 
-  // Résoudre les questions : prendre le snapshot le plus récent (ou défaut)
+  // Résoudre les questions : on utilise la config actuelle (override
+  // formation ou global), pas un snapshot — car en mode anonyme on n'a pas
+  // de SatisfactionResponse pré-existante pour stocker le snapshot avant
+  // soumission. Si des soumissions existantes ont un snapshot, on peut
+  // l'utiliser comme historique, mais pour la cohérence on prend la config
+  // courante.
   let questions: SatisfactionQuestion[];
-  if (responses.length > 0) {
+  questions = await resolveQuestionsForFormation(session.formation.id);
+  // Fallback : si la session a déjà des réponses, on préfère leur snapshot
+  // (car les questions ont pu évoluer depuis la soumission).
+  if (submitted.length > 0) {
     try {
-      questions = JSON.parse(responses[responses.length - 1].questionsSnapshot) as SatisfactionQuestion[];
+      const latestSnapshot = JSON.parse(
+        submitted[submitted.length - 1].questionsSnapshot
+      ) as SatisfactionQuestion[];
+      if (Array.isArray(latestSnapshot) && latestSnapshot.length > 0) {
+        questions = latestSnapshot;
+      }
     } catch {
-      questions = DEFAULT_QUESTIONS;
+      // garde la config courante
     }
-  } else {
-    questions = DEFAULT_QUESTIONS;
   }
 
   // Calculer les stats par question — les section_header sont passés tels
@@ -581,30 +546,6 @@ export async function buildSessionSynthesis(sessionId: string): Promise<Satisfac
   };
 }
 
-export async function getSessionInvitationsForSelection(sessionId: string): Promise<{
-  session: { code: string; dateDebut: Date; dateFin: Date };
-  formation: { nomLong: string };
-  invitations: Array<{ prenom: string; nom: string; magicToken: string; submittedAt: Date | null }>;
-} | null> {
-  const session = await prisma.session.findUnique({
-    where: { id: sessionId },
-    include: {
-      formation: { select: { nomLong: true } },
-      satisfactionResponses: {
-        include: { trainee: { select: { prenom: true, nom: true } } },
-        orderBy: { trainee: { nom: "asc" } },
-      },
-    },
-  });
-  if (!session) return null;
-  return {
-    session: { code: session.code, dateDebut: session.dateDebut, dateFin: session.dateFin },
-    formation: { nomLong: session.formation.nomLong },
-    invitations: session.satisfactionResponses.map((r) => ({
-      prenom: r.trainee.prenom,
-      nom: r.trainee.nom,
-      magicToken: r.magicToken,
-      submittedAt: r.submittedAt,
-    })),
-  };
-}
+// (getSessionInvitationsForSelection a été supprimée : plus de page de
+//  sélection avec magic-tokens. Le formulaire est désormais directement
+//  accessible via /eval-chaud/session/[id] et soumis en anonyme.)

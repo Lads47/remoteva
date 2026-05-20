@@ -490,14 +490,16 @@ model TraineeExerciseEvaluation {
 model SatisfactionResponse {
   id                String    @id @default(cuid())
   sessionId         String    @map("session_id")
-  traineeId         String    @map("trainee_id")
-  magicToken        String    @unique @map("magic_token")
+  // Pour les nouvelles soumissions (anonymes), traineeId et magicToken sont
+  // null. Conservés en option pour rétrocompatibilité des anciennes données.
+  traineeId         String?   @map("trainee_id")
+  magicToken        String?   @unique @map("magic_token")
   questionsSnapshot String    @map("questions_snapshot")   // JSON : array SatisfactionQuestion[]
   invitedAt         DateTime  @default(now()) @map("invited_at")
   submittedAt       DateTime? @map("submitted_at")
 
   session  Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  trainee  Trainee  @relation(fields: [traineeId], references: [id], onDelete: Cascade)
+  trainee  Trainee? @relation(fields: [traineeId], references: [id], onDelete: SetNull)
   answers  SatisfactionAnswer[]
 
   @@map("satisfaction_responses")

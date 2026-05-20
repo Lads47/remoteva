@@ -131,7 +131,7 @@ export type GenerateDocumentError = { ok: false; error: string };
  * configuration globale (AppConfig). Les colonnes
  * formation.driveTemplate*Id sont conservées pour rétrocompat mais ne sont
  * plus consultées : tous les templates sont gérés globalement dans
- * /admin/formations/drive-config.
+ * /admin/formations/parametres-communs/drive.
  */
 async function resolveTemplateId(type: DocumentType): Promise<string | null> {
   const defaults = await getDriveDefaultTemplates();
@@ -166,7 +166,7 @@ export async function generateTraineeDocument(
   if (!templateId) {
     return {
       ok: false,
-      error: `Pas de template ${DOCUMENT_TYPE_LABELS[type]} configuré. À renseigner dans /admin/formations/drive-config.`,
+      error: `Pas de template ${DOCUMENT_TYPE_LABELS[type]} configuré. À renseigner dans /admin/formations/parametres-communs/drive.`,
     };
   }
 

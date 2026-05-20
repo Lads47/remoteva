@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { EVA_STATUSES, EVA_STATUS_LABELS, type EvaStatus } from "@/lib/appConfig-types";
 
 interface Pipeline {
@@ -107,13 +106,10 @@ export default function SellsyConfigPage() {
 
   return (
     <div>
-      <div className="mb-8">
-        <Link href="/admin/formations" className="text-xs font-jetbrains underline" style={{ color: "#727485" }}>
-          ← Catalogue
-        </Link>
-        <h1 className="text-3xl font-bold mt-2" style={{ color: "#1f2244" }}>
-          Configuration Sellsy
-        </h1>
+      <div className="mb-6">
+        <h2 className="text-xl font-semibold" style={{ color: "#1f2244" }}>
+          Intégration Sellsy
+        </h2>
         <p className="text-sm mt-1 font-jetbrains" style={{ color: "#727485" }}>
           Connecte chaque statut EVA à l&apos;étape correspondante de ta pipeline Sellsy. À chaque
           changement de statut côté EVA, l&apos;opportunité Sellsy passera automatiquement à

@@ -67,13 +67,10 @@ export default function DriveConfigPage() {
 
   return (
     <div>
-      <div className="mb-8">
-        <Link href="/admin/formations" className="text-xs font-jetbrains underline" style={{ color: "#727485" }}>
-          ← Catalogue
-        </Link>
-        <h1 className="text-3xl font-bold mt-2" style={{ color: "#1f2244" }}>
+      <div className="mb-6">
+        <h2 className="text-xl font-semibold" style={{ color: "#1f2244" }}>
           Templates Drive par défaut
-        </h1>
+        </h2>
         <p className="text-sm mt-1 font-jetbrains" style={{ color: "#727485" }}>
           Ces templates sont utilisés <strong>par défaut</strong> quand une formation n&apos;a pas son
           propre template configuré. Pratique pour partager une convocation / convention commune entre

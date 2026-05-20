@@ -10,15 +10,14 @@ interface InvitationResult {
   email: string;
   ok: boolean;
   error?: string;
-  alreadyExisted: boolean;
 }
 
 interface SendResponse {
   success: boolean;
-  mode: "prepared" | "sent";
-  invitations: InvitationResult[];
-  totalInvitations: number;
+  total: number;
   mailsSent: number;
+  results: InvitationResult[];
+  surveyUrl: string;
 }
 
 interface PreviewQuestion {
@@ -42,7 +41,7 @@ interface PreviewData {
 function SatisfactionPage({ id }: { id: string }) {
   const params = useSearchParams();
   const token = params.get("token") || "";
-  const [sending, setSending] = useState<"send" | "prepare" | null>(null);
+  const [sending, setSending] = useState(false);
   const [result, setResult] = useState<SendResponse | null>(null);
   const [error, setError] = useState("");
   const [showPreview, setShowPreview] = useState(false);
@@ -50,25 +49,24 @@ function SatisfactionPage({ id }: { id: string }) {
   const [previewLoading, setPreviewLoading] = useState(false);
 
   const qrUrl = `/api/formateur/sessions/${id}/satisfaction/qr?token=${encodeURIComponent(token)}&size=400`;
-  const selectionUrl = typeof window !== "undefined"
-    ? `${window.location.origin}/eval-chaud/session/${id}`
-    : `https://evaremote.com/eval-chaud/session/${id}`;
+  // URL à afficher / copier-coller : pointe vers la page de présentation
+  // (gros QR + invitation, prête à projeter sur un écran de salle).
+  // Le QR ci-dessus encode lui-même l'URL directe du formulaire.
+  const surveyUrl = typeof window !== "undefined"
+    ? `${window.location.origin}/eval-chaud/session/${id}/presentation`
+    : `https://evaremote.com/eval-chaud/session/${id}/presentation`;
 
-  async function callSend(sendEmails: boolean) {
+  async function sendMail() {
     if (sending) return;
-    if (sendEmails && !confirm("Envoyer le questionnaire d'évaluation à chaud à TOUS les stagiaires de cette session par mail ?")) {
+    if (!confirm("Envoyer le questionnaire d'évaluation à chaud à TOUS les stagiaires de cette session par mail ?")) {
       return;
     }
-    setSending(sendEmails ? "send" : "prepare");
+    setSending(true);
     setError("");
     try {
       const r = await fetch(
         `/api/formateur/sessions/${id}/satisfaction/send?token=${encodeURIComponent(token)}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sendEmails }),
-        }
+        { method: "POST" }
       );
       const d = await r.json();
       if (!r.ok) {
@@ -79,7 +77,7 @@ function SatisfactionPage({ id }: { id: string }) {
     } catch {
       setError("Erreur réseau");
     } finally {
-      setSending(null);
+      setSending(false);
     }
   }
 
@@ -103,7 +101,7 @@ function SatisfactionPage({ id }: { id: string }) {
   }
 
   function copyUrl() {
-    navigator.clipboard.writeText(selectionUrl).catch(() => {});
+    navigator.clipboard.writeText(surveyUrl).catch(() => {});
   }
 
   return (
@@ -120,10 +118,10 @@ function SatisfactionPage({ id }: { id: string }) {
       </h1>
 
       <div className="mb-6 p-4 rounded-xl text-sm font-jetbrains" style={{ backgroundColor: "#fafbff", color: "#727485" }}>
-        Questionnaire de satisfaction (≈ 3 min, 13 questions en 5 sections).
-        Trois actions possibles : <strong>aperçu</strong> du formulaire pour vérifier les questions,{" "}
-        <strong>préparation</strong> du QR code sans envoyer de mail (utile en présentiel), ou{" "}
-        <strong>envoi par mail</strong> à tous les stagiaires.
+        Questionnaire de satisfaction <strong>anonyme</strong> (≈ 3 min, 13 questions en 5 sections).
+        Deux actions possibles : <strong>aperçu</strong> du formulaire pour vérifier les questions, ou{" "}
+        <strong>envoi par mail</strong> à tous les stagiaires. Le QR code et l&apos;URL ci-dessous sont permanents
+        et utilisables en présentiel (les réponses ne sont pas associées à l&apos;identité des stagiaires).
       </div>
 
       <div className="mb-4 flex gap-2 flex-wrap">
@@ -140,29 +138,20 @@ function SatisfactionPage({ id }: { id: string }) {
         {/* Bloc envoi mail */}
         <div className="p-5 rounded-xl border" style={{ borderColor: "#e5e7eb", backgroundColor: "white" }}>
           <h2 className="text-sm font-semibold uppercase tracking-wide mb-2" style={{ color: "#1f2244" }}>
-            Préparer le questionnaire
+            Envoyer par mail
           </h2>
           <p className="text-xs font-jetbrains mb-3" style={{ color: "#727485" }}>
-            <strong>Préparer sans mail</strong> : active la page de sélection des stagiaires (et donc le QR code) sans envoyer de mail. Idéal en présentiel.<br/>
-            <strong>Envoyer par mail</strong> : prévient chaque stagiaire par mail avec le lien public de la session. Le stagiaire arrive sur la page de sélection, choisit son nom, puis répond.<br/>
-            <span style={{ color: "#9ca3af" }}>Note : les stagiaires n&apos;ont pas de lien magique personnel. Tout passe par la page de sélection (commune à la session).</span>
+            Envoie un mail à chaque stagiaire de la session avec le lien vers le formulaire anonyme.
+            Tous les stagiaires reçoivent la même URL — leurs réponses ne sont pas rattachées à leur identité.
           </p>
           <div className="flex gap-2 flex-wrap">
             <button
-              onClick={() => callSend(false)}
-              disabled={sending !== null}
-              className="px-3 py-2 rounded-full text-sm font-medium border cursor-pointer disabled:opacity-50"
-              style={{ borderColor: "#1f2244", color: "#1f2244" }}
-            >
-              {sending === "prepare" ? "Préparation..." : "Préparer (sans mail)"}
-            </button>
-            <button
-              onClick={() => callSend(true)}
-              disabled={sending !== null}
+              onClick={sendMail}
+              disabled={sending}
               className="px-4 py-2 rounded-full text-sm font-medium text-white cursor-pointer disabled:opacity-50"
               style={{ backgroundColor: "#1f2244" }}
             >
-              {sending === "send" ? "Envoi..." : "Envoyer par mail"}
+              {sending ? "Envoi..." : "Envoyer par mail"}
             </button>
           </div>
           {error && (
@@ -171,14 +160,10 @@ function SatisfactionPage({ id }: { id: string }) {
           {result && (
             <div className="mt-3">
               <div className="p-2.5 rounded text-xs font-jetbrains bg-green-50 text-green-800 mb-2">
-                {result.mode === "prepared" ? (
-                  <>✓ {result.totalInvitations} lien{result.totalInvitations > 1 ? "s" : ""} prêt{result.totalInvitations > 1 ? "s" : ""} — le QR code est maintenant fonctionnel</>
-                ) : (
-                  <>✓ {result.mailsSent}/{result.totalInvitations} mail{result.totalInvitations > 1 ? "s" : ""} envoyé{result.mailsSent > 1 ? "s" : ""}</>
-                )}
+                ✓ {result.mailsSent}/{result.total} mail{result.total > 1 ? "s" : ""} envoyé{result.mailsSent > 1 ? "s" : ""}
               </div>
               <ul className="space-y-1 text-xs">
-                {result.invitations.map((i) => (
+                {result.results.map((i) => (
                   <li
                     key={i.traineeId}
                     className="flex items-center gap-2 font-jetbrains"
@@ -187,7 +172,6 @@ function SatisfactionPage({ id }: { id: string }) {
                     <span>{i.ok ? "✓" : "✗"}</span>
                     <span>{i.traineeName}</span>
                     <span style={{ color: "#9ca3af" }}>{i.email}</span>
-                    {i.alreadyExisted && <span style={{ color: "#9ca3af" }}>(existant)</span>}
                     {!i.ok && i.error && <span style={{ color: "#991b1b" }}>· {i.error}</span>}
                   </li>
                 ))}
@@ -210,8 +194,10 @@ function SatisfactionPage({ id }: { id: string }) {
             QR code à scanner
           </h2>
           <p className="text-xs font-jetbrains mb-3" style={{ color: "#727485" }}>
-            Affiche-le sur ton écran ou imprime-le : les stagiaires scannent au téléphone, choisissent leur nom
-            dans la liste, et remplissent le questionnaire.
+            Affiche-le sur ton écran ou imprime-le : les stagiaires scannent au téléphone et accèdent
+            directement au formulaire anonyme.<br/>
+            L&apos;URL ci-dessous ouvre une <strong>page de présentation</strong> avec un QR géant
+            (idéale pour vidéoprojeter en salle).
           </p>
           <div className="flex flex-col items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -232,14 +218,14 @@ function SatisfactionPage({ id }: { id: string }) {
             </a>
             <div className="w-full">
               <p className="text-xs font-jetbrains mb-1" style={{ color: "#727485" }}>
-                URL de la page de sélection :
+                URL du formulaire :
               </p>
               <div className="flex gap-1">
                 <code
                   className="flex-1 text-xs font-jetbrains px-2 py-1 rounded border break-all"
                   style={{ borderColor: "#e5e7eb", color: "#1f2244", backgroundColor: "#f9fafb" }}
                 >
-                  {selectionUrl}
+                  {surveyUrl}
                 </code>
                 <button
                   onClick={copyUrl}

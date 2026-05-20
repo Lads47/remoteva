@@ -331,7 +331,7 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
         </div>
         <p className="text-xs font-jetbrains mb-3" style={{ color: "#727485" }}>
           Génère le document depuis le template Google Doc défini globalement dans
-          {" "}<Link href="/admin/formations/drive-config" className="underline" style={{ color: "#1f2244" }}>« Templates Drive »</Link>.
+          {" "}<Link href="/admin/formations/parametres-communs/drive" className="underline" style={{ color: "#1f2244" }}>« Templates Drive »</Link>.
           Les variables <code>{"{{NOM}}"}</code>, <code>{"{{FORMATION}}"}</code>, <code>{"{{SESSION_DATES}}"}</code>... sont remplacées automatiquement.
           Le fichier est archivé dans <code>01_INSCRIPTIONS_CONVENTIONS / {trainee.prenom} {trainee.nom}</code> sur Drive.
           {trainee.inscriptionType === "entreprise" ? (
