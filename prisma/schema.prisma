@@ -158,6 +158,8 @@ model Formation {
 
   // Override JSON des questions d'éval à chaud (sinon fallback global AppConfig)
   satisfactionConfigForm      String   @default("") @map("satisfaction_config_form")
+  // Override JSON des questions d'éval à froid (sinon fallback global AppConfig)
+  coldEvalConfigForm          String   @default("") @map("cold_eval_config_form")
 
   @@map("formations")
   @@index([active])
@@ -186,6 +188,7 @@ model Session {
   trainees         Trainee[]
   attendanceFiles  AttendanceFile[]
   satisfactionResponses SatisfactionResponse[]
+  coldEvalResponses     ColdEvalResponse[]
 
   @@map("formation_sessions")
   @@index([formationId])
@@ -265,6 +268,7 @@ model Trainee {
   attendances              Attendance[]
   exerciseEvaluations      TraineeExerciseEvaluation[]
   satisfactionResponses    SatisfactionResponse[]
+  coldEvalResponses        ColdEvalResponse[]
 
   @@map("trainees")
   @@index([sessionId])
@@ -517,6 +521,51 @@ model SatisfactionAnswer {
   response SatisfactionResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
 
   @@map("satisfaction_answers")
+  @@index([responseId])
+}
+
+// === ÉVALUATION À FROID (impact en poste, 3 mois après) ===
+//
+// Contrairement au chaud (anonyme), l'éval à froid identifie le stagiaire :
+//   - magic-token personnel pour traquer qui a répondu
+//   - relances automatiques J+7 et J+14 si pas répondu
+//
+// Une invitation = une ligne ColdEvalResponse créée par stagiaire par le cron
+// 3 mois après la fin de session. `submittedAt` reste null jusqu'à la soumission.
+// Les snapshots de questions sont conservés pour préserver le contexte.
+
+model ColdEvalResponse {
+  id                String    @id @default(cuid())
+  sessionId         String    @map("session_id")
+  traineeId         String    @map("trainee_id")
+  magicToken        String    @unique @map("magic_token")
+  questionsSnapshot String    @map("questions_snapshot")     // JSON : array SatisfactionQuestion[]
+  invitedAt         DateTime  @default(now()) @map("invited_at")
+  reminder1At       DateTime? @map("reminder_1_at")           // J+7 si pas répondu
+  reminder2At       DateTime? @map("reminder_2_at")           // J+14 si pas répondu
+  submittedAt       DateTime? @map("submitted_at")
+
+  session  Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  trainee  Trainee  @relation(fields: [traineeId], references: [id], onDelete: Cascade)
+  answers  ColdEvalAnswer[]
+
+  @@map("cold_eval_responses")
+  @@unique([sessionId, traineeId])
+  @@index([sessionId])
+  @@index([traineeId])
+  @@index([magicToken])
+  @@index([submittedAt])
+}
+
+model ColdEvalAnswer {
+  id           String @id @default(cuid())
+  responseId   String @map("response_id")
+  questionName String @map("question_name")
+  value        String
+
+  response ColdEvalResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+
+  @@map("cold_eval_answers")
   @@index([responseId])
 }
 

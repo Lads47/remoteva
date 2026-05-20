@@ -485,8 +485,17 @@ export default function FormationsPage() {
                   href={`/admin/formations/${f.id}/satisfaction-config`}
                   className="text-xs px-3 py-1.5 rounded-full border cursor-pointer"
                   style={{ borderColor: "#1f2244", color: "#1f2244" }}
+                  title="Override du questionnaire d'éval à chaud pour cette formation"
                 >
-                  Questionnaire éval
+                  📝 Éval à chaud
+                </Link>
+                <Link
+                  href={`/admin/formations/${f.id}/cold-eval-config`}
+                  className="text-xs px-3 py-1.5 rounded-full border cursor-pointer"
+                  style={{ borderColor: "#1f2244", color: "#1f2244" }}
+                  title="Override du questionnaire d'éval à froid pour cette formation"
+                >
+                  🌬 Éval à froid
                 </Link>
                 <Link
                   href={`/admin/formations/sessions?formationId=${f.id}`}
