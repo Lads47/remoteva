@@ -9,9 +9,10 @@ import { usePathname } from "next/navigation";
 
 const TABS = [
   { slug: "sellsy", label: "⚙ Sellsy", hint: "Pipeline + mapping des étapes" },
-  { slug: "drive", label: "📄 Templates Drive", hint: "Convention, contrat, convocation, CGV, RI" },
+  { slug: "drive", label: "📄 Templates Drive", hint: "Convention, contrat, convocation, certificat, attestation, CGV, RI" },
   { slug: "questionnaire", label: "📝 Éval à chaud", hint: "Questionnaire de satisfaction fin de session" },
   { slug: "questionnaire-froid", label: "🌬 Éval à froid", hint: "Questionnaire d'impact 3 mois après" },
+  { slug: "eval-formateur", label: "🎓 Éval formateur", hint: "Fiche satisfaction formateur envoyée J+1" },
 ];
 
 export default function ParametresCommunsLayout({ children }: { children: React.ReactNode }) {

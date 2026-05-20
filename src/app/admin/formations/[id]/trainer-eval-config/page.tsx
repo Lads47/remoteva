@@ -1,0 +1,212 @@
+"use client";
+
+// Override par formation du questionnaire d'éval formateur.
+
+import { use, useEffect, useState } from "react";
+import Link from "next/link";
+import SatisfactionWysiwygEditor, {
+  validateQuestions,
+  type SatisfactionQuestion,
+} from "@/components/admin/SatisfactionWysiwygEditor";
+
+interface ConfigData {
+  formation: { id: string; code: string; nomLong: string };
+  override: SatisfactionQuestion[] | null;
+  global: SatisfactionQuestion[];
+  defaults: SatisfactionQuestion[];
+}
+
+export default function FormationTrainerEvalConfigPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = use(params);
+  const [data, setData] = useState<ConfigData | null>(null);
+  const [questions, setQuestions] = useState<SatisfactionQuestion[]>([]);
+  const [usingOverride, setUsingOverride] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/admin/formations/${id}/trainer-eval-config`)
+      .then((r) => r.json())
+      .then((d: ConfigData) => {
+        setData(d);
+        if (d.override) {
+          setQuestions(d.override);
+          setUsingOverride(true);
+        } else {
+          setQuestions(d.global);
+          setUsingOverride(false);
+        }
+      })
+      .catch(() => setError("Erreur de chargement"))
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  async function handleSave() {
+    setError("");
+    setFeedback(null);
+    const validation = validateQuestions(questions);
+    if (validation) {
+      setError(validation);
+      return;
+    }
+    setSaving(true);
+    try {
+      const r = await fetch(`/api/admin/formations/${id}/trainer-eval-config`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ questions }),
+      });
+      const d = await r.json();
+      if (!r.ok) {
+        const issuesText = Array.isArray(d.issues) ? `\n${d.issues.join("\n")}` : "";
+        setError(`${d.error || "Erreur"}${issuesText}`);
+        return;
+      }
+      setUsingOverride(true);
+      setQuestions(d.override);
+      setData((prev) => (prev ? { ...prev, override: d.override } : prev));
+      setFeedback({ type: "success", msg: "Override enregistré pour cette formation ✓" });
+      setTimeout(() => setFeedback(null), 4000);
+    } catch {
+      setError("Erreur réseau");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleResetToGlobal() {
+    if (!data) return;
+    if (!confirm("Supprimer l'override de cette formation et revenir au questionnaire global ?")) return;
+    setSaving(true);
+    setError("");
+    try {
+      const r = await fetch(`/api/admin/formations/${id}/trainer-eval-config`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ questions: null }),
+      });
+      const d = await r.json();
+      if (!r.ok) {
+        setError(d.error || "Erreur");
+        return;
+      }
+      setUsingOverride(false);
+      setQuestions(data.global);
+      setData((prev) => (prev ? { ...prev, override: null } : prev));
+      setFeedback({ type: "success", msg: "Override supprimé — la formation utilise maintenant le questionnaire global." });
+      setTimeout(() => setFeedback(null), 4000);
+    } catch {
+      setError("Erreur réseau");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function loadDefaults() {
+    if (!data) return;
+    if (!confirm("Charger le questionnaire par défaut dans l'éditeur ? Cela n'enregistre pas — il faut cliquer sur Enregistrer ensuite.")) return;
+    setQuestions(data.defaults);
+    setError("");
+    setFeedback({ type: "success", msg: "Questionnaire par défaut chargé dans l'éditeur (non encore enregistré)" });
+    setTimeout(() => setFeedback(null), 4000);
+  }
+
+  if (loading) return <div className="py-12 text-center font-jetbrains text-sm" style={{ color: "#727485" }}>Chargement...</div>;
+  if (!data) return <div className="py-12 text-center text-red-800">{error || "Erreur"}</div>;
+
+  return (
+    <div>
+      <div className="mb-6">
+        <Link href="/admin/formations" className="text-xs font-jetbrains underline" style={{ color: "#727485" }}>
+          ← Catalogue
+        </Link>
+        <div className="flex items-center gap-3 flex-wrap mt-2">
+          <span className="px-2 py-0.5 rounded text-xs font-jetbrains" style={{ backgroundColor: "#1f2244", color: "white" }}>
+            {data.formation.code}
+          </span>
+        </div>
+        <h1 className="text-3xl font-bold mt-1" style={{ color: "#1f2244" }}>
+          Fiche satisfaction formateur
+        </h1>
+        <p className="text-sm mt-1 font-jetbrains" style={{ color: "#727485" }}>
+          {data.formation.nomLong}
+        </p>
+      </div>
+
+      <div className={`mb-4 p-3 rounded-lg text-xs font-jetbrains ${usingOverride ? "bg-amber-50 text-amber-800" : "bg-blue-50 text-blue-800"}`}>
+        {usingOverride ? (
+          <>
+            ⚙ Cette formation utilise un <strong>questionnaire formateur personnalisé</strong>. Le bouton
+            « ↺ Utiliser le questionnaire global » supprime cet override pour repartir du global défini dans{" "}
+            <Link href="/admin/formations/parametres-communs/eval-formateur" className="underline" style={{ color: "#92400e" }}>
+              Paramètres communs → 🎓 Éval formateur
+            </Link>.
+          </>
+        ) : (
+          <>
+            🌐 Cette formation utilise le <strong>questionnaire formateur global</strong> (défini dans{" "}
+            <Link href="/admin/formations/parametres-communs/eval-formateur" className="underline" style={{ color: "#3730a3" }}>
+              Paramètres communs → 🎓 Éval formateur
+            </Link>
+            ). L&apos;éditeur ci-dessous est pré-rempli avec ce set global — modifie-le et clique sur
+            « Enregistrer comme override » pour créer un questionnaire propre à cette formation.
+          </>
+        )}
+      </div>
+
+      {feedback && (
+        <div className={`mb-4 p-3 rounded-lg text-sm font-jetbrains ${feedback.type === "success" ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"}`}>
+          {feedback.msg}
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-4 p-3 rounded-lg text-sm font-jetbrains bg-red-50 text-red-800 whitespace-pre-wrap">
+          {error}
+        </div>
+      )}
+
+      <SatisfactionWysiwygEditor questions={questions} onChange={setQuestions} />
+
+      <div className="mt-6 flex justify-between items-center gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={loadDefaults}
+            className="px-4 py-2 rounded-full text-sm font-medium border cursor-pointer"
+            style={{ borderColor: "#727485", color: "#727485" }}
+            disabled={saving}
+          >
+            Charger le questionnaire système
+          </button>
+          {usingOverride && (
+            <button
+              type="button"
+              onClick={handleResetToGlobal}
+              className="px-4 py-2 rounded-full text-sm font-medium border cursor-pointer"
+              style={{ borderColor: "#92400e", color: "#92400e" }}
+              disabled={saving}
+            >
+              ↺ Utiliser le questionnaire global
+            </button>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className="px-6 py-2 rounded-full text-sm font-medium text-white cursor-pointer disabled:opacity-50"
+          style={{ backgroundColor: "#1f2244" }}
+        >
+          {saving ? "Enregistrement..." : usingOverride ? "Enregistrer l'override" : "Enregistrer comme override"}
+        </button>
+      </div>
+    </div>
+  );
+}

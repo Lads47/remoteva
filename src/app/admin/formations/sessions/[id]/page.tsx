@@ -359,7 +359,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       </div>
 
       {/* Bloc Éval à froid */}
-      <div className="mb-8 p-5 rounded-xl border" style={{ borderColor: "#e5e7eb", backgroundColor: "#fafbff" }}>
+      <div className="mb-4 p-5 rounded-xl border" style={{ borderColor: "#e5e7eb", backgroundColor: "#fafbff" }}>
         <h2 className="text-sm font-semibold uppercase tracking-wide mb-2" style={{ color: "#1f2244" }}>
           🌬 Évaluation à froid (impact en poste)
         </h2>
@@ -368,6 +368,24 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         </p>
         <Link
           href={`/admin/formations/sessions/${session.id}/cold-eval`}
+          className="text-xs px-3 py-2 rounded-full cursor-pointer inline-block"
+          style={{ backgroundColor: "#1f2244", color: "white" }}
+        >
+          Voir la synthèse →
+        </Link>
+      </div>
+
+      {/* Bloc Éval formateur */}
+      <div className="mb-8 p-5 rounded-xl border" style={{ borderColor: "#e5e7eb", backgroundColor: "#fafbff" }}>
+        <h2 className="text-sm font-semibold uppercase tracking-wide mb-2" style={{ color: "#1f2244" }}>
+          🎓 Fiche satisfaction formateur
+        </h2>
+        <p className="text-xs font-jetbrains mb-3" style={{ color: "#727485" }}>
+          Envoi automatique au formateur <strong>le lendemain de la fin de session</strong> (J+1), avec relances à J+7 et J+14.
+          Suis ici le statut d&apos;envoi et consulte le bilan une fois reçu.
+        </p>
+        <Link
+          href={`/admin/formations/sessions/${session.id}/trainer-eval`}
           className="text-xs px-3 py-2 rounded-full cursor-pointer inline-block"
           style={{ backgroundColor: "#1f2244", color: "white" }}
         >

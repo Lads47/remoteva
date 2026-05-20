@@ -160,6 +160,8 @@ model Formation {
   satisfactionConfigForm      String   @default("") @map("satisfaction_config_form")
   // Override JSON des questions d'éval à froid (sinon fallback global AppConfig)
   coldEvalConfigForm          String   @default("") @map("cold_eval_config_form")
+  // Override JSON des questions d'éval formateur (sinon fallback global AppConfig)
+  trainerEvalConfigForm       String   @default("") @map("trainer_eval_config_form")
 
   @@map("formations")
   @@index([active])
@@ -189,6 +191,7 @@ model Session {
   attendanceFiles  AttendanceFile[]
   satisfactionResponses SatisfactionResponse[]
   coldEvalResponses     ColdEvalResponse[]
+  trainerEvalResponses  TrainerEvalResponse[]
 
   @@map("formation_sessions")
   @@index([formationId])
@@ -379,6 +382,7 @@ model Trainer {
   attendancesSigned    Attendance[]
   attendanceFilesUploaded AttendanceFile[]
   evaluationsAuthored  TraineeExerciseEvaluation[]
+  trainerEvalResponses TrainerEvalResponse[]
 
   @@map("trainers")
   @@index([magicToken])
@@ -573,6 +577,47 @@ model ColdEvalAnswer {
   response ColdEvalResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
 
   @@map("cold_eval_answers")
+  @@index([responseId])
+}
+
+// === ÉVALUATION FORMATEUR (bilan formateur fin de session) ===
+//
+// Le formateur reçoit un mail J+1 après la dateFin de session avec un lien
+// magic-token personnel vers un formulaire de bilan. Relances auto à J+7
+// et J+14 si pas répondu. Pattern identique à ColdEvalResponse.
+
+model TrainerEvalResponse {
+  id                String    @id @default(cuid())
+  sessionId         String    @map("session_id")
+  trainerId         String    @map("trainer_id")
+  magicToken        String    @unique @map("magic_token")
+  questionsSnapshot String    @map("questions_snapshot")
+  invitedAt         DateTime  @default(now()) @map("invited_at")
+  reminder1At       DateTime? @map("reminder_1_at")
+  reminder2At       DateTime? @map("reminder_2_at")
+  submittedAt       DateTime? @map("submitted_at")
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  trainer Trainer @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  answers TrainerEvalAnswer[]
+
+  @@map("trainer_eval_responses")
+  @@unique([sessionId, trainerId])
+  @@index([sessionId])
+  @@index([trainerId])
+  @@index([magicToken])
+  @@index([submittedAt])
+}
+
+model TrainerEvalAnswer {
+  id           String @id @default(cuid())
+  responseId   String @map("response_id")
+  questionName String @map("question_name")
+  value        String
+
+  response TrainerEvalResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+
+  @@map("trainer_eval_answers")
   @@index([responseId])
 }
 

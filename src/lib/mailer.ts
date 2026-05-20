@@ -880,6 +880,132 @@ Les Ateliers du Stream`;
 }
 
 /**
+ * Mail d'invitation à la fiche satisfaction formateur (J+1 après la fin de
+ * session). Lien magic-token personnel.
+ */
+export async function sendTrainerEvalInvite(params: {
+  to: string;
+  prenom: string;
+  formationNomLong: string;
+  surveyUrl: string;
+  replyTo?: string;
+}): Promise<SendEmailResult> {
+  const replyTo = params.replyTo || process.env.ADMIN_NOTIFY_EMAIL;
+  const safe = {
+    prenom: escapeHtml(params.prenom),
+    formation: escapeHtml(params.formationNomLong),
+    url: escapeHtml(params.surveyUrl),
+  };
+  const html = `<!DOCTYPE html>
+<html lang="fr">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #1f2244;">
+  <h1 style="font-size: 22px; margin: 0 0 16px;">Votre retour sur la session</h1>
+  <p>Bonjour ${safe.prenom},</p>
+  <p>Merci pour l&apos;animation de la formation <strong>${safe.formation}</strong>.</p>
+  <p>Pour nous aider à améliorer la gestion administrative et le suivi pédagogique,
+  nous vous invitons à remplir une <strong>courte fiche satisfaction formateur</strong> (≈ 3 minutes) :</p>
+  <p style="text-align: center; margin: 32px 0;">
+    <a href="${safe.url}"
+       style="display: inline-block; background: #1f2244; color: white; padding: 12px 24px;
+              border-radius: 999px; text-decoration: none; font-weight: 600;">
+      Donner mon retour
+    </a>
+  </p>
+  <p style="font-size: 12px; color: #727485;">
+    Lien personnel : <a href="${safe.url}">${safe.url}</a>
+  </p>
+  <p>Merci !<br/>Noémie Marphay<br/><em>Les Ateliers du Stream</em></p>
+</body>
+</html>`;
+  const text = `Bonjour ${params.prenom},
+
+Merci pour l'animation de la formation ${params.formationNomLong}.
+
+Pour nous aider à améliorer la gestion administrative et le suivi pédagogique, merci de remplir cette courte fiche satisfaction formateur (≈ 3 min) :
+${params.surveyUrl}
+
+Merci !
+Noémie Marphay
+Les Ateliers du Stream`;
+  return sendEmail({
+    to: params.to,
+    subject: `Votre retour sur la session — ${params.formationNomLong}`,
+    html,
+    text,
+    replyTo,
+  });
+}
+
+/**
+ * Mail de relance pour la fiche satisfaction formateur. Ton plus amical
+ * pour la 1re relance, plus définitif pour la 2e (dernière).
+ */
+export async function sendTrainerEvalReminder(params: {
+  to: string;
+  prenom: string;
+  formationNomLong: string;
+  surveyUrl: string;
+  reminderNumber: 1 | 2;
+  replyTo?: string;
+}): Promise<SendEmailResult> {
+  const replyTo = params.replyTo || process.env.ADMIN_NOTIFY_EMAIL;
+  const safe = {
+    prenom: escapeHtml(params.prenom),
+    formation: escapeHtml(params.formationNomLong),
+    url: escapeHtml(params.surveyUrl),
+  };
+  const isLast = params.reminderNumber === 2;
+  const subject = isLast
+    ? `Dernière relance — votre fiche satisfaction formateur (${params.formationNomLong})`
+    : `Petite relance — votre fiche satisfaction formateur (${params.formationNomLong})`;
+  const intro = isLast
+    ? `C&apos;est notre <strong>dernier message</strong> à ce sujet, nous ne vous solliciterons plus ensuite. `
+    : `Petit rappel amical : `;
+  const introTxt = isLast
+    ? `C'est notre dernier message à ce sujet, nous ne vous solliciterons plus ensuite. `
+    : `Petit rappel amical : `;
+
+  const html = `<!DOCTYPE html>
+<html lang="fr">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #1f2244;">
+  <h1 style="font-size: 22px; margin: 0 0 16px;">Votre retour nous manque !</h1>
+  <p>Bonjour ${safe.prenom},</p>
+  <p>${intro}nous serions ravis de recueillir votre retour sur la session
+  <strong>${safe.formation}</strong> que vous avez animée.
+  La fiche prend environ 3 minutes :</p>
+  <p style="text-align: center; margin: 32px 0;">
+    <a href="${safe.url}"
+       style="display: inline-block; background: #1f2244; color: white; padding: 12px 24px;
+              border-radius: 999px; text-decoration: none; font-weight: 600;">
+      Donner mon retour
+    </a>
+  </p>
+  <p style="font-size: 12px; color: #727485;">
+    Lien personnel : <a href="${safe.url}">${safe.url}</a>
+  </p>
+  <p>Merci !<br/>Noémie Marphay<br/><em>Les Ateliers du Stream</em></p>
+</body>
+</html>`;
+  const text = `Bonjour ${params.prenom},
+
+${introTxt}nous serions ravis de recueillir votre retour sur la session ${params.formationNomLong}.
+
+La fiche prend environ 3 minutes :
+${params.surveyUrl}
+
+Merci !
+Noémie Marphay
+Les Ateliers du Stream`;
+  return sendEmail({
+    to: params.to,
+    subject,
+    html,
+    text,
+    replyTo,
+  });
+}
+
+/**
  * Mail unique de fin de formation : envoie au stagiaire son certificat de
  * réalisation (obligatoire Qualiopi/OPCO) + son attestation de fin de
  * formation (acquis pédagogiques) en pièces jointes PDF.

@@ -16,6 +16,7 @@ import { useState } from "react";
 
 export type SatisfactionQuestionType =
   | "section_header"
+  | "likert_4"
   | "likert_5"
   | "scale_nps"
   | "text"
@@ -37,7 +38,8 @@ export interface SatisfactionQuestion {
 
 const TYPES: { value: SatisfactionQuestionType; label: string; hint: string }[] = [
   { value: "section_header", label: "Titre de section", hint: "Encart visuel (titre + description). Pas une question." },
-  { value: "likert_5", label: "Échelle 1 → 5 (Likert)", hint: "5 boutons numérotés avec labels gauche/droite." },
+  { value: "likert_4", label: "Échelle 1 → 4 (Likert paire)", hint: "4 boutons sans option neutre. Force à se positionner positif ou négatif." },
+  { value: "likert_5", label: "Échelle 1 → 5 (Likert)", hint: "5 boutons numérotés avec labels gauche/droite (neutre au milieu)." },
   { value: "scale_nps", label: "Échelle 0 → 10 (NPS)", hint: "11 boutons (0 à 10). Net Promoter Score." },
   { value: "yes_no", label: "Oui / Non", hint: "Question fermée binaire." },
   { value: "single_choice", label: "Choix unique", hint: "Liste de réponses prédéfinies, une seule au choix." },
@@ -55,6 +57,8 @@ function makeEmpty(type: SatisfactionQuestionType): SatisfactionQuestion {
   switch (type) {
     case "section_header":
       return { ...base, type, description: "" };
+    case "likert_4":
+      return { ...base, type, leftLabel: "Non, pas du tout", rightLabel: "Oui, tout à fait" };
     case "likert_5":
       return { ...base, type, leftLabel: "Pas du tout", rightLabel: "Totalement" };
     case "scale_nps":
@@ -320,11 +324,11 @@ function QuestionEditor({
       </div>
 
       {/* Champs spécifiques par type */}
-      {(q.type === "likert_5" || q.type === "scale_nps") && (
+      {(q.type === "likert_4" || q.type === "likert_5" || q.type === "scale_nps") && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
           <div>
             <label className="block text-xs font-medium mb-1" style={{ color: "#374151" }}>
-              Label gauche {q.type === "likert_5" ? "(1)" : "(0)"}
+              Label gauche {q.type === "scale_nps" ? "(0)" : "(1)"}
             </label>
             <input
               type="text"
@@ -337,7 +341,7 @@ function QuestionEditor({
           </div>
           <div>
             <label className="block text-xs font-medium mb-1" style={{ color: "#374151" }}>
-              Label droite {q.type === "likert_5" ? "(5)" : "(10)"}
+              Label droite {q.type === "scale_nps" ? "(10)" : q.type === "likert_4" ? "(4)" : "(5)"}
             </label>
             <input
               type="text"

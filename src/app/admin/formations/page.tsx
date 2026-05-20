@@ -498,6 +498,14 @@ export default function FormationsPage() {
                   🌬 Éval à froid
                 </Link>
                 <Link
+                  href={`/admin/formations/${f.id}/trainer-eval-config`}
+                  className="text-xs px-3 py-1.5 rounded-full border cursor-pointer"
+                  style={{ borderColor: "#1f2244", color: "#1f2244" }}
+                  title="Override de la fiche satisfaction formateur pour cette formation"
+                >
+                  🎓 Éval formateur
+                </Link>
+                <Link
                   href={`/admin/formations/sessions?formationId=${f.id}`}
                   className="text-xs px-3 py-1.5 rounded-full border cursor-pointer"
                   style={{ borderColor: "#1f2244", color: "#1f2244" }}

@@ -18,6 +18,7 @@ import prisma from "./db";
 
 export type QuestionType =
   | "section_header" // pas une question : titre de section avec description
+  | "likert_4"     // 1=Non pas du tout, 4=Oui tout à fait (échelle paire, pas de neutre)
   | "likert_5"     // 1=Très insatisfait, 5=Très satisfait (radio buttons)
   | "scale_nps"    // 0–10 NPS
   | "text"         // 1 ligne
