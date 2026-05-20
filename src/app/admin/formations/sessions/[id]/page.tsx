@@ -409,8 +409,27 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         <h2 className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: "#727485" }}>
           Documents & évaluations
         </h2>
+        {/* Ordre chronologique : chaud (fin de session) → docs fin (lendemain) →
+            fiche formateur (J+1) → froid (3 mois) */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {/* Documents fin de formation (action batch) */}
+          {/* 1. Éval à chaud — déclenchée à la fin de la session */}
+          <Link
+            href={`/admin/formations/sessions/${session.id}/satisfaction`}
+            className="p-4 rounded-xl border flex flex-col gap-2 hover:shadow-md transition-shadow cursor-pointer"
+            style={{ borderColor: "#e5e7eb", backgroundColor: "#fafbff" }}
+            title="Synthèse des réponses + score NPS + PDF + archive Drive"
+          >
+            <div className="text-2xl">📝</div>
+            <div className="text-sm font-semibold" style={{ color: "#1f2244" }}>Éval à chaud</div>
+            <div className="text-xs font-jetbrains flex-1" style={{ color: "#727485" }}>
+              Satisfaction stagiaires fin de session (anonyme).
+            </div>
+            <span className="text-xs font-medium self-start" style={{ color: "#1f2244" }}>
+              Voir la synthèse →
+            </span>
+          </Link>
+
+          {/* 2. Documents fin de formation — au passage à "Terminé" */}
           <div className="p-4 rounded-xl border flex flex-col gap-2" style={{ borderColor: "#e5e7eb", backgroundColor: "#fafbff" }}>
             <div className="text-2xl">🎓</div>
             <div className="text-sm font-semibold" style={{ color: "#1f2244" }}>Documents fin de formation</div>
@@ -433,41 +452,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
             )}
           </div>
 
-          {/* Éval à chaud */}
-          <Link
-            href={`/admin/formations/sessions/${session.id}/satisfaction`}
-            className="p-4 rounded-xl border flex flex-col gap-2 hover:shadow-md transition-shadow cursor-pointer"
-            style={{ borderColor: "#e5e7eb", backgroundColor: "#fafbff" }}
-            title="Synthèse des réponses + score NPS + PDF + archive Drive"
-          >
-            <div className="text-2xl">📝</div>
-            <div className="text-sm font-semibold" style={{ color: "#1f2244" }}>Éval à chaud</div>
-            <div className="text-xs font-jetbrains flex-1" style={{ color: "#727485" }}>
-              Satisfaction stagiaires fin de session (anonyme).
-            </div>
-            <span className="text-xs font-medium self-start" style={{ color: "#1f2244" }}>
-              Voir la synthèse →
-            </span>
-          </Link>
-
-          {/* Éval à froid */}
-          <Link
-            href={`/admin/formations/sessions/${session.id}/cold-eval`}
-            className="p-4 rounded-xl border flex flex-col gap-2 hover:shadow-md transition-shadow cursor-pointer"
-            style={{ borderColor: "#e5e7eb", backgroundColor: "#fafbff" }}
-            title="Envoi auto 3 mois après fin de session, relances J+7 / J+14"
-          >
-            <div className="text-2xl">🌬</div>
-            <div className="text-sm font-semibold" style={{ color: "#1f2244" }}>Éval à froid</div>
-            <div className="text-xs font-jetbrains flex-1" style={{ color: "#727485" }}>
-              Impact en poste 3 mois après. Auto + relances.
-            </div>
-            <span className="text-xs font-medium self-start" style={{ color: "#1f2244" }}>
-              Voir la synthèse →
-            </span>
-          </Link>
-
-          {/* Fiche formateur */}
+          {/* 3. Fiche formateur — J+1 après fin de session */}
           <Link
             href={`/admin/formations/sessions/${session.id}/trainer-eval`}
             className="p-4 rounded-xl border flex flex-col gap-2 hover:shadow-md transition-shadow cursor-pointer"
@@ -478,6 +463,23 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
             <div className="text-sm font-semibold" style={{ color: "#1f2244" }}>Fiche formateur</div>
             <div className="text-xs font-jetbrains flex-1" style={{ color: "#727485" }}>
               Bilan formateur J+1 après fin de session.
+            </div>
+            <span className="text-xs font-medium self-start" style={{ color: "#1f2244" }}>
+              Voir la synthèse →
+            </span>
+          </Link>
+
+          {/* 4. Éval à froid — 3 mois après fin de session */}
+          <Link
+            href={`/admin/formations/sessions/${session.id}/cold-eval`}
+            className="p-4 rounded-xl border flex flex-col gap-2 hover:shadow-md transition-shadow cursor-pointer"
+            style={{ borderColor: "#e5e7eb", backgroundColor: "#fafbff" }}
+            title="Envoi auto 3 mois après fin de session, relances J+7 / J+14"
+          >
+            <div className="text-2xl">🌬</div>
+            <div className="text-sm font-semibold" style={{ color: "#1f2244" }}>Éval à froid</div>
+            <div className="text-xs font-jetbrains flex-1" style={{ color: "#727485" }}>
+              Impact en poste 3 mois après. Auto + relances.
             </div>
             <span className="text-xs font-medium self-start" style={{ color: "#1f2244" }}>
               Voir la synthèse →
