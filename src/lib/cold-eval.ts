@@ -307,10 +307,16 @@ export interface ColdEvalCronResult {
 }
 
 /**
- * Crée les ColdEvalResponse pour les stagiaires d'une session donnée si elles
- * n'existent pas déjà. Retourne la liste créée pour permettre l'envoi de mail.
+ * Crée les ColdEvalResponse pour les stagiaires d'une session si elles
+ * n'existent pas déjà. Si `onlyTraineeId` est fourni, ne traite QUE ce
+ * stagiaire (sinon : tous les stagiaires de la session).
+ *
+ * Retourne la liste créée pour permettre l'envoi de mail derrière.
  */
-export async function createColdEvalInvitationsForSession(sessionId: string): Promise<{
+export async function createColdEvalInvitationsForSession(
+  sessionId: string,
+  onlyTraineeId?: string | null
+): Promise<{
   created: Array<{
     responseId: string;
     traineeId: string;
@@ -335,10 +341,14 @@ export async function createColdEvalInvitationsForSession(sessionId: string): Pr
   const questions = await resolveColdEvalQuestionsForFormation(session.formation.id);
   const snapshot = JSON.stringify(questions);
 
+  const targetTrainees = onlyTraineeId
+    ? session.trainees.filter((t) => t.id === onlyTraineeId)
+    : session.trainees;
+
   const created: Awaited<ReturnType<typeof createColdEvalInvitationsForSession>> extends infer T
     ? T extends { created: infer C } ? C : never : never = [];
 
-  for (const t of session.trainees) {
+  for (const t of targetTrainees) {
     if (alreadyInvitedTraineeIds.has(t.id)) continue;
     if (!t.email) continue;
     const magicToken = generateMagicToken();
@@ -361,6 +371,39 @@ export async function createColdEvalInvitationsForSession(sessionId: string): Pr
     });
   }
   return { created, formation: { nomLong: session.formation.nomLong } };
+}
+
+/**
+ * Récupère le magic-token d'une invitation existante (pour ré-envoyer le mail
+ * initial à un stagiaire déjà invité par erreur sans mail effectif).
+ */
+export async function getExistingColdEvalInvitation(
+  sessionId: string,
+  traineeId: string
+): Promise<{
+  responseId: string;
+  magicToken: string;
+  prenom: string;
+  email: string;
+  formationNomLong: string;
+  submitted: boolean;
+} | null> {
+  const resp = await prisma.coldEvalResponse.findFirst({
+    where: { sessionId, traineeId },
+    include: {
+      trainee: { select: { prenom: true, email: true } },
+      session: { include: { formation: { select: { nomLong: true } } } },
+    },
+  });
+  if (!resp || !resp.trainee.email) return null;
+  return {
+    responseId: resp.id,
+    magicToken: resp.magicToken,
+    prenom: resp.trainee.prenom,
+    email: resp.trainee.email,
+    formationNomLong: resp.session.formation.nomLong,
+    submitted: resp.submittedAt !== null,
+  };
 }
 
 /**

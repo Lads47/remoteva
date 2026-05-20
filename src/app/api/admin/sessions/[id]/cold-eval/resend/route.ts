@@ -16,6 +16,7 @@ import { getSession } from "@/lib/auth";
 import prisma from "@/lib/db";
 import {
   createColdEvalInvitationsForSession,
+  getExistingColdEvalInvitation,
   markReminderSent,
 } from "@/lib/cold-eval";
 import { sendColdEvalInvite, sendColdEvalReminder } from "@/lib/mailer";
@@ -41,12 +42,31 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
     const base = publicBaseUrl();
 
     if (mode === "send_initial") {
-      const result = await createColdEvalInvitationsForSession(id);
+      // Pass traineeId directement à la fonction de création pour qu'elle ne
+      // crée d'invitation QUE pour ce stagiaire (sinon : toute la session).
+      // Si une invitation existe déjà pour ce stagiaire, on récupère son token
+      // pour ré-envoyer le mail initial (utile en récup' d'erreur).
+      const result = await createColdEvalInvitationsForSession(id, traineeId);
       if (!result) return NextResponse.json({ error: "Session introuvable" }, { status: 404 });
 
-      const targets = traineeId
-        ? result.created.filter((c) => c.traineeId === traineeId)
-        : result.created;
+      let targets = result.created;
+
+      // Cas particulier : un seul stagiaire ciblé qui a déjà son invitation
+      // (mais le mail initial n'a peut-être jamais été envoyé). On récupère
+      // son token existant et on lui ré-envoie le mail initial.
+      if (traineeId && result.created.length === 0) {
+        const existing = await getExistingColdEvalInvitation(id, traineeId);
+        if (existing && !existing.submitted) {
+          targets = [{
+            responseId: existing.responseId,
+            traineeId,
+            prenom: existing.prenom,
+            nom: "",
+            email: existing.email,
+            magicToken: existing.magicToken,
+          }];
+        }
+      }
 
       const results = [];
       for (const inv of targets) {
