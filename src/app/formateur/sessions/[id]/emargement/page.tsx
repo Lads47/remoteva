@@ -225,8 +225,16 @@ function EmargementInner({ id }: { id: string }) {
       }
       setPending({});
       setDirty(false);
-      setFeedback({ type: "success", msg: `Enregistré (${data.updated} maj, ${data.deleted} suppr.)` });
-      setTimeout(() => setFeedback(null), 4000);
+      // Si des stagiaires viennent de basculer en "en_formation" suite à
+      // leur 1re présence, on l'indique au formateur dans le toast.
+      const nbTransitions = Array.isArray(data.transitionedToEnFormation)
+        ? data.transitionedToEnFormation.length
+        : 0;
+      const transitionNote = nbTransitions > 0
+        ? ` · ${nbTransitions} stagiaire${nbTransitions > 1 ? "s" : ""} passé${nbTransitions > 1 ? "s" : ""} en « En formation »`
+        : "";
+      setFeedback({ type: "success", msg: `Enregistré (${data.updated} maj, ${data.deleted} suppr.)${transitionNote}` });
+      setTimeout(() => setFeedback(null), 5000);
     } catch {
       setFeedback({ type: "error", msg: "Erreur de connexion" });
       setTimeout(() => setFeedback(null), 5000);

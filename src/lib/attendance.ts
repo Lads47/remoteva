@@ -1,4 +1,7 @@
 import prisma from "./db";
+import { getSellsyStepMapping, type EvaStatus } from "./appConfig";
+import { updateOpportunityStep } from "./sellsy";
+import { recordTraineeEvent } from "./trainee";
 
 export type AttendanceSlot = "morning" | "afternoon";
 export type AttendanceStatus = "present" | "absent";
@@ -116,12 +119,17 @@ export interface BulkAttendanceUpdate {
 /**
  * Met à jour les présences en batch (upsert ou delete pour les null).
  * Toutes les mises à jour sont attribuées au formateur `signedById`.
+ *
+ * EFFET DE BORD : tout stagiaire ayant été marqué `present` ET dont le statut
+ * est encore "convoque" passe automatiquement à "en_formation". Sync Sellsy
+ * best-effort. Permet aux formateurs de faire avancer naturellement le
+ * Kanban en émargent (l'admin n'a pas à intervenir manuellement).
  */
 export async function bulkUpdateAttendance(
   sessionId: string,
   updates: BulkAttendanceUpdate[],
   signedById: string | null
-): Promise<{ updated: number; deleted: number }> {
+): Promise<{ updated: number; deleted: number; transitionedToEnFormation: string[] }> {
   // Sécurité : on vérifie que les stagiaires updatés appartiennent bien à la session
   const traineeIds = Array.from(new Set(updates.map((u) => u.traineeId)));
   const valid = await prisma.trainee.findMany({
@@ -132,6 +140,10 @@ export async function bulkUpdateAttendance(
 
   let updated = 0;
   let deleted = 0;
+
+  // On collecte les stagiaires qui viennent de se voir attribuer au moins une
+  // présence "present" — candidats potentiels au bascule "en_formation".
+  const traineesWithNewPresence = new Set<string>();
 
   for (const u of updates) {
     if (!validSet.has(u.traineeId)) continue;
@@ -156,8 +168,63 @@ export async function bulkUpdateAttendance(
         },
       });
       updated += 1;
+      if (u.status === "present") {
+        traineesWithNewPresence.add(u.traineeId);
+      }
     }
   }
 
-  return { updated, deleted };
+  // Bascule automatique "convoque" → "en_formation" pour les stagiaires qui
+  // viennent d'avoir leur 1re présence enregistrée. On ne bascule QUE depuis
+  // "convoque" (cf. décision produit : si un statut antérieur n'a pas été
+  // explicitement franchi, le bascule ne se fait pas, l'admin doit corriger
+  // manuellement).
+  const transitionedToEnFormation: string[] = [];
+  if (traineesWithNewPresence.size > 0) {
+    const candidates = await prisma.trainee.findMany({
+      where: { id: { in: Array.from(traineesWithNewPresence) }, status: "convoque" },
+      select: { id: true, sellsyOpportunityId: true },
+    });
+    if (candidates.length > 0) {
+      // Pré-charge le mapping Sellsy une seule fois
+      const sellsyMapping = await getSellsyStepMapping();
+      const targetStep = sellsyMapping["en_formation" as EvaStatus];
+
+      for (const c of candidates) {
+        try {
+          await prisma.trainee.update({
+            where: { id: c.id },
+            data: { status: "en_formation" },
+          });
+          await recordTraineeEvent(
+            c.id,
+            "status_change",
+            `Statut → en_formation (auto-trigger émargement)`,
+            { from: "convoque", to: "en_formation", autoTrigger: "attendance" }
+          );
+          transitionedToEnFormation.push(c.id);
+
+          // Sync Sellsy best-effort (ne bloque pas l'émargement si KO)
+          if (c.sellsyOpportunityId && targetStep) {
+            try {
+              await updateOpportunityStep(c.sellsyOpportunityId, targetStep);
+              await recordTraineeEvent(
+                c.id,
+                "sellsy_synced",
+                `Opportunité Sellsy basculée à l'étape ${targetStep} (auto émargement)`,
+                { opportunityId: c.sellsyOpportunityId, stepId: targetStep, status: "en_formation" }
+              );
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : "Erreur inconnue";
+              console.warn(`[attendance] Sellsy sync échoué pour trainee=${c.id}:`, msg);
+            }
+          }
+        } catch (err) {
+          console.warn(`[attendance] bascule en_formation échouée pour trainee=${c.id}:`, err);
+        }
+      }
+    }
+  }
+
+  return { updated, deleted, transitionedToEnFormation };
 }
