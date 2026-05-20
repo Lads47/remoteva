@@ -98,10 +98,20 @@ export async function buildSatisfactionPdf(synthesis: SatisfactionSynthesis): Pr
     doc.addPage();
     drawHeader(doc, "Réponses libres (verbatims)");
     for (const stat of textStats) {
+      // Estimer la hauteur du bloc pour ne pas couper le titre de ses verbatims
+      const titleH = doc.heightOfString(stat.question.label, { width: 495 });
+      let bodyH = 0;
+      for (const txt of stat.textResponses!) {
+        bodyH += doc.heightOfString(`• ${txt}`, { width: 495 }) + 2;
+      }
+      ensureSpaceFor(doc, titleH + bodyH + 14);
+
       doc.font("Helvetica-Bold").fontSize(11).fillColor(COLOR_TITLE).text(stat.question.label);
       doc.x = 50;
       doc.moveDown(0.2);
       for (const txt of stat.textResponses!) {
+        // Si un verbatim seul ne tient pas, passer à la page suivante
+        ensureSpaceFor(doc, doc.heightOfString(`• ${txt}`, { width: 495 }) + 4);
         doc.font("Helvetica").fontSize(10).fillColor(COLOR_TITLE).text(`• ${txt}`, { align: "left" });
         doc.x = 50;
       }
@@ -204,14 +214,30 @@ function drawNpsBlock(doc: PDFKit.PDFDocument, stat: StatLike): void {
   doc.x = x;
 }
 
+/**
+ * Garantit qu'il reste `requiredHeight` px sur la page courante. Sinon, crée
+ * une nouvelle page et y redessine un header de continuation. Empêche les
+ * questions d'être coupées entre 2 pages (label orphelin en bas / barres en
+ * haut de la suivante) et garantit qu'aucune page interne n'est nue.
+ */
+function ensureSpaceFor(doc: PDFKit.PDFDocument, requiredHeight: number): void {
+  const usableBottom = doc.page.height - doc.page.margins.bottom;
+  if (doc.y + requiredHeight > usableBottom) {
+    doc.addPage();
+    drawHeader(doc, "Évaluation à chaud — Synthèse (suite)");
+  }
+}
+
 function drawQuestionStat(doc: PDFKit.PDFDocument, stat: StatLike): void {
   const x = 50;
   const width = 495;
 
   // Section header : titre groupe, pas de stats
   if (stat.question.type === "section_header") {
+    ensureSpaceFor(doc, 40);
     doc.moveDown(0.4);
-    doc.font("Helvetica-Bold").fontSize(12).fillColor(COLOR_TITLE).text(stat.question.label, x, doc.y, { width });
+    doc.font("Helvetica-Bold").fontSize(12).fillColor(COLOR_TITLE)
+      .text(stat.question.label, x, doc.y, { width, lineBreak: false, ellipsis: true });
     doc.x = x;
     doc.moveDown(0.4);
     doc.save();
@@ -221,7 +247,22 @@ function drawQuestionStat(doc: PDFKit.PDFDocument, stat: StatLike): void {
     return;
   }
 
-  doc.font("Helvetica-Bold").fontSize(10).fillColor(COLOR_TITLE).text(stat.question.label, x, doc.y, { width });
+  // Estimer la hauteur totale du bloc question (label + moyenne + distribution)
+  // pour la rendre atomique : pas de coupure entre le titre et ses barres.
+  const labelH = doc.heightOfString(stat.question.label, { width });
+  let distH = 0;
+  if (stat.question.type === "likert_5") distH = 5 * 14 + 14;
+  else if (stat.question.type === "scale_nps") distH = 80; // histogramme
+  else if (stat.question.type === "yes_no" || stat.question.type === "single_choice") {
+    const n = Object.keys(stat.distribution || {}).length;
+    distH = Math.max(1, n) * 14 + 14;
+  } else {
+    distH = 14; // texte "voir page suivante"
+  }
+  ensureSpaceFor(doc, labelH + distH + 14);
+
+  doc.font("Helvetica-Bold").fontSize(10).fillColor(COLOR_TITLE)
+    .text(stat.question.label, x, doc.y, { width });
   doc.x = x;
   doc.moveDown(0.2);
 
@@ -231,16 +272,15 @@ function drawQuestionStat(doc: PDFKit.PDFDocument, stat: StatLike): void {
     const avg = stat.average !== undefined ? stat.average.toFixed(2) : "—";
     doc.font("Helvetica").fontSize(9).fillColor(COLOR_MUTED).text(`Moyenne : ${avg}/5  ·  ${total} réponse${total > 1 ? "s" : ""}`, x);
     doc.x = x;
-    drawDistributionBars(doc, ["1", "2", "3", "4", "5"], dist, total);
+    // Likert : labels courts (1 chiffre) → column étroite suffit
+    drawDistributionBars(doc, ["1", "2", "3", "4", "5"], dist, total, 18);
   } else if (stat.question.type === "scale_nps") {
     const dist = stat.distribution || {};
     const total = Object.values(dist).reduce((a, b) => a + b, 0);
     const avg = stat.average !== undefined ? stat.average.toFixed(2) : "—";
     doc.font("Helvetica").fontSize(9).fillColor(COLOR_MUTED).text(`Moyenne : ${avg}/10  ·  ${total} réponse${total > 1 ? "s" : ""}`, x);
     doc.x = x;
-    // Rendu compact en histogramme vertical (11 colonnes côte à côte). Tient
-    // en une seule page contrairement à 11 barres horizontales empilées qui
-    // débordaient et déclenchaient des sauts de page parasites.
+    // Rendu compact en histogramme vertical (11 colonnes côte à côte).
     drawNpsHistogram(doc, dist, total);
   } else if (stat.question.type === "yes_no" || stat.question.type === "single_choice") {
     const dist = stat.distribution || {};
@@ -248,7 +288,10 @@ function drawQuestionStat(doc: PDFKit.PDFDocument, stat: StatLike): void {
     doc.font("Helvetica").fontSize(9).fillColor(COLOR_MUTED).text(`${total} réponse${total > 1 ? "s" : ""}`, x);
     doc.x = x;
     const labels = Object.keys(dist);
-    drawDistributionBars(doc, labels, dist, total);
+    // single_choice / yes_no : labels potentiellement longs ("Oui, totalement",
+    // "Oui, une fois"…) → on alloue 220px pour le label, avec ellipsis si trop
+    // long. Évite le wrap vertical qui faisait chevaucher le label et la barre.
+    drawDistributionBars(doc, labels, dist, total, 220);
   } else {
     // text / textarea : on liste dans la section verbatims (page suivante).
     const count = stat.textResponses?.length ?? 0;
@@ -265,42 +308,45 @@ function drawDistributionBars(
   doc: PDFKit.PDFDocument,
   labels: string[],
   dist: Record<string, number>,
-  total: number
+  total: number,
+  labelW: number = 18
 ): void {
   const x = 50;
   const widthTotal = 495;
-  const labelW = 18;
   const barLabelW = 50;
-  const barW = widthTotal - labelW - barLabelW;
-  const ROW_H = 12;
+  const gap = 6;
+  const barW = widthTotal - labelW - gap - barLabelW;
+  const ROW_H = 14;
 
-  // Saut de page proactif si l'ensemble du bloc ne tient pas sur la page courante.
-  // Sinon pdfkit fait des sauts intempestifs au milieu de la boucle (1 page par ligne).
-  const blockHeight = labels.length * ROW_H + 4;
-  const usableBottom = doc.page.height - doc.page.margins.bottom;
-  if (doc.y + blockHeight > usableBottom) {
-    doc.addPage();
-  }
+  // Saut de page atomique si le bloc complet ne tient pas. Important : on
+  // saute AVANT de commencer à dessiner pour ne pas couper la distribution.
+  ensureSpaceFor(doc, labels.length * ROW_H + 4);
 
   doc.save();
   for (const lbl of labels) {
     const count = dist[lbl] || 0;
     const pct = total > 0 ? count / total : 0;
     const y = doc.y;
-    // libellé
-    doc.font("Helvetica").fontSize(9).fillColor(COLOR_TITLE).text(lbl, x, y + 1, { width: labelW });
+    // libellé — `lineBreak: false` empêche le wrap vertical pour les labels
+    // longs (ex. "Oui, totalement") qui faisaient déborder la cellule label
+    // et chevaucher la barre + count.
+    doc.font("Helvetica").fontSize(9).fillColor(COLOR_TITLE).text(lbl, x, y + 2, {
+      width: labelW,
+      lineBreak: false,
+      ellipsis: true,
+    });
     // barre fond
     doc.lineWidth(0.5).strokeColor(COLOR_BORDER).fillColor("#f3f4f6");
-    doc.rect(x + labelW, y, barW, 10).fillAndStroke("#f3f4f6", COLOR_BORDER);
+    doc.rect(x + labelW + gap, y, barW, 10).fillAndStroke("#f3f4f6", COLOR_BORDER);
     // barre remplie
     if (pct > 0) {
       doc.fillColor("#7dcef5");
-      doc.rect(x + labelW, y, barW * pct, 10).fill();
+      doc.rect(x + labelW + gap, y, barW * pct, 10).fill();
     }
     // count + %
     doc.font("Helvetica").fontSize(8).fillColor(COLOR_MUTED).text(
       `${count} (${Math.round(pct * 100)}%)`,
-      x + labelW + barW + 4, y + 1, { width: barLabelW }
+      x + labelW + gap + barW + 4, y + 1, { width: barLabelW, lineBreak: false }
     );
     doc.y = y + ROW_H;
   }
@@ -330,11 +376,8 @@ function drawNpsHistogram(
   const labelH = 12;   // ligne label en dessous
   const blockHeight = pctH + barH + labelH + 6;
 
-  // Saut de page si nécessaire
-  const usableBottom = doc.page.height - doc.page.margins.bottom;
-  if (doc.y + blockHeight > usableBottom) {
-    doc.addPage();
-  }
+  // Saut de page atomique si l'histogramme ne tient pas
+  ensureSpaceFor(doc, blockHeight);
 
   // Pic max pour normaliser les hauteurs de barres
   let maxCount = 0;
