@@ -91,7 +91,7 @@ export default function ReclamationsListPage() {
   return (
     <div>
       <Link href="/admin/formations" className="text-xs font-jetbrains underline" style={{ color: "#727485" }}>
-        ← Catalogue formations
+        ← Tableau de bord
       </Link>
       <div className="mt-2 mb-8">
         <h1 className="text-3xl font-bold" style={{ color: "#1f2244" }}>

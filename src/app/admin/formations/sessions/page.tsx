@@ -331,11 +331,11 @@ function SessionsPageInner() {
         </div>
         <div className="flex gap-2">
           <Link
-            href="/admin/formations/catalogue"
+            href="/admin/formations"
             className="px-4 py-2 rounded-full text-sm font-medium border"
             style={{ borderColor: "#1f2244", color: "#1f2244" }}
           >
-            ← Catalogue
+            ← Tableau de bord
           </Link>
           {!showForm && formations.length > 0 && (
             <button

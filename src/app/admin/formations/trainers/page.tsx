@@ -197,11 +197,11 @@ export default function TrainersPage() {
         </div>
         <div className="flex gap-2 flex-wrap">
           <Link
-            href="/admin/formations/catalogue"
+            href="/admin/formations"
             className="px-4 py-2 rounded-full text-sm font-medium border cursor-pointer"
             style={{ borderColor: "#1f2244", color: "#1f2244" }}
           >
-            ← Catalogue
+            ← Tableau de bord
           </Link>
           {!showForm && (
             <button
