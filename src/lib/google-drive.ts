@@ -11,12 +11,15 @@
 import { createSign } from "crypto";
 
 // Scopes nécessaires :
-//   drive     → opérations fichiers/dossiers (upload, copie, trash, listing)
-//   documents → batchUpdate sur Google Docs (substitution variables pour
-//               les templates convention/contrat/convocation).
+//   drive        → opérations fichiers/dossiers (upload, copie, trash, listing)
+//   documents    → batchUpdate sur Google Docs (substitution variables pour
+//                  les templates convention/contrat/convocation).
+//   spreadsheets → lecture/écriture de cellules dans Google Sheets
+//                  (export du bilan Qualiopi annuel).
 const SCOPES = [
   "https://www.googleapis.com/auth/drive",
   "https://www.googleapis.com/auth/documents",
+  "https://www.googleapis.com/auth/spreadsheets",
 ].join(" ");
 const OAUTH_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const DRIVE_API = "https://www.googleapis.com/drive/v3";
