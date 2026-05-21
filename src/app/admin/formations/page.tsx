@@ -306,11 +306,12 @@ function QualiopiDashboard({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* === Activité === */}
           <QualiopiBlock title="Activité" icon="🏛">
-            <div className="grid grid-cols-2 gap-2 mb-4">
-              <CounterChip icon="📅" value={stats.activity.sessionsCount} label="Sessions" />
-              <CounterChip icon="📚" value={stats.activity.formationsDistinctesCount} label="Formations" />
-              <CounterChip icon="👥" value={stats.activity.traineesAccueillis} label="Stagiaires" />
-              <CounterChip icon="♿" value={stats.activity.stagiairesPSH} label="PSH" />
+            <div className="text-[11px] font-jetbrains mb-3" style={{ color: "#727485" }}>
+              <strong style={{ color: "#1f2244" }}>{stats.activity.sessionsCount}</strong> session{stats.activity.sessionsCount > 1 ? "s" : ""} terminée{stats.activity.sessionsCount > 1 ? "s" : ""}
+              {" · "}
+              <strong style={{ color: "#1f2244" }}>{stats.activity.formationsDistinctesCount}</strong> formation{stats.activity.formationsDistinctesCount > 1 ? "s" : ""} distincte{stats.activity.formationsDistinctesCount > 1 ? "s" : ""}
+              {" · "}
+              <strong style={{ color: "#1f2244" }}>{stats.activity.traineesAccueillis}</strong> stagiaire{stats.activity.traineesAccueillis > 1 ? "s" : ""} accueilli{stats.activity.traineesAccueillis > 1 ? "s" : ""}
             </div>
             <MetricBar
               label="Taux d'assiduité moyen"
@@ -328,6 +329,12 @@ function QualiopiDashboard({
               hint={`/ ${stats.activity.heuresStagiairesNominales} h nominales`}
               color="#3730a3"
             />
+            <div className="flex items-center justify-between text-xs font-jetbrains mt-3 pt-3 border-t" style={{ borderColor: "#e5e7eb" }}>
+              <span style={{ color: "#727485" }}>♿ Stagiaires en situation de handicap</span>
+              <strong style={{ color: stats.activity.stagiairesPSH > 0 ? "#3730a3" : "#1f2244" }}>
+                {stats.activity.stagiairesPSH}
+              </strong>
+            </div>
           </QualiopiBlock>
 
           {/* === Pédagogie === */}
