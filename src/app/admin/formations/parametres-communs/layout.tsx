@@ -21,7 +21,7 @@ export default function ParametresCommunsLayout({ children }: { children: React.
   return (
     <div>
       <div className="mb-6">
-        <Link href="/admin/formations" className="text-xs font-jetbrains underline" style={{ color: "#727485" }}>
+        <Link href="/admin/formations/catalogue" className="text-xs font-jetbrains underline" style={{ color: "#727485" }}>
           ← Catalogue
         </Link>
         <h1 className="text-3xl font-bold mt-2" style={{ color: "#1f2244" }}>

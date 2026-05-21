@@ -238,7 +238,7 @@ export default function EvaluationGridEditorPage({ params }: { params: Promise<{
     return (
       <div className="text-center py-12">
         <p className="font-jetbrains text-sm" style={{ color: "#727485" }}>{error || "Formation introuvable"}</p>
-        <Link href="/admin/formations" className="mt-4 inline-block underline text-sm" style={{ color: "#1f2244" }}>
+        <Link href="/admin/formations/catalogue" className="mt-4 inline-block underline text-sm" style={{ color: "#1f2244" }}>
           ← Retour aux formations
         </Link>
       </div>
@@ -248,7 +248,7 @@ export default function EvaluationGridEditorPage({ params }: { params: Promise<{
   return (
     <div>
       <div className="mb-6">
-        <Link href="/admin/formations" className="text-xs font-jetbrains underline" style={{ color: "#727485" }}>
+        <Link href="/admin/formations/catalogue" className="text-xs font-jetbrains underline" style={{ color: "#727485" }}>
           ← Toutes les formations
         </Link>
         <div className="flex items-center gap-3 flex-wrap mt-2">

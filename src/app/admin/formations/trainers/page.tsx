@@ -197,7 +197,7 @@ export default function TrainersPage() {
         </div>
         <div className="flex gap-2 flex-wrap">
           <Link
-            href="/admin/formations"
+            href="/admin/formations/catalogue"
             className="px-4 py-2 rounded-full text-sm font-medium border cursor-pointer"
             style={{ borderColor: "#1f2244", color: "#1f2244" }}
           >

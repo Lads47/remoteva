@@ -124,7 +124,7 @@ export default function FormationColdEvalConfigPage({
   return (
     <div>
       <div className="mb-6">
-        <Link href="/admin/formations" className="text-xs font-jetbrains underline" style={{ color: "#727485" }}>
+        <Link href="/admin/formations/catalogue" className="text-xs font-jetbrains underline" style={{ color: "#727485" }}>
           ← Catalogue
         </Link>
         <div className="flex items-center gap-3 flex-wrap mt-2">

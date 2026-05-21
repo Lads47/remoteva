@@ -331,7 +331,7 @@ function SessionsPageInner() {
         </div>
         <div className="flex gap-2">
           <Link
-            href="/admin/formations"
+            href="/admin/formations/catalogue"
             className="px-4 py-2 rounded-full text-sm font-medium border"
             style={{ borderColor: "#1f2244", color: "#1f2244" }}
           >
@@ -365,7 +365,7 @@ function SessionsPageInner() {
       {formations.length === 0 && (
         <div className="mb-6 p-4 rounded-lg bg-yellow-50 text-yellow-800 text-sm font-jetbrains">
           Aucune formation dans le catalogue.{" "}
-          <Link href="/admin/formations" className="underline">
+          <Link href="/admin/formations/catalogue" className="underline">
             Crée une formation
           </Link>{" "}
           avant d&apos;ajouter une session.

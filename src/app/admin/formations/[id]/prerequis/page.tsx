@@ -190,7 +190,7 @@ export default function PrerequisEditorPage({ params }: { params: Promise<{ id: 
     return (
       <div className="text-center py-12">
         <p className="font-jetbrains text-sm" style={{ color: "#727485" }}>{error || "Formation introuvable"}</p>
-        <Link href="/admin/formations" className="mt-4 inline-block underline text-sm" style={{ color: "#1f2244" }}>
+        <Link href="/admin/formations/catalogue" className="mt-4 inline-block underline text-sm" style={{ color: "#1f2244" }}>
           ← Retour au catalogue
         </Link>
       </div>
@@ -200,7 +200,7 @@ export default function PrerequisEditorPage({ params }: { params: Promise<{ id: 
   return (
     <div>
       <div className="mb-8">
-        <Link href="/admin/formations" className="text-xs font-jetbrains underline" style={{ color: "#727485" }}>
+        <Link href="/admin/formations/catalogue" className="text-xs font-jetbrains underline" style={{ color: "#727485" }}>
           ← Catalogue
         </Link>
         <div className="flex items-center gap-3 flex-wrap mt-2">
