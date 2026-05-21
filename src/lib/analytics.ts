@@ -418,6 +418,190 @@ export async function getQualiopiOverview(year: number): Promise<QualiopiOvervie
   return { year, activity, satisfactionChaud, satisfactionFroid, pedagogy, trainerSat, complaints };
 }
 
+// === BPF (Bilan Pédagogique et Financier) ===
+//
+// Agrégations spécifiques à la déclaration Cerfa 10443. Granularité :
+//   - Volume (heures-stagiaires, stagiaires, sessions, formations, PSH)
+//   - Origine des stagiaires : par statutActuel (Intermittent / Salarié / DE…)
+//   - Type d'inscription : particulier vs entreprise
+//   - Financement : par modeFinancement (OPCO / fonds propres / AFDAS / FT…)
+//   - OPCO détaillé : par opcoDetecte
+//   - Détail par formation (utile pour mapping NSF manuel)
+//
+// Pivot temporel : sessions dont dateFin tombe dans l'année ET déjà passées
+// (même filtre que les autres analytics — via yearRange()).
+
+export interface BpfBreakdown {
+  key: string;
+  count: number;       // nombre de stagiaires
+  heures: number;      // heures-stagiaires réalisées
+  ca: number;          // chiffre d'affaires HT (somme montantHT)
+}
+
+export interface BpfFormationRow {
+  code: string;
+  nomLong: string;
+  sessions: number;
+  trainees: number;
+  heures: number;
+  ca: number;
+}
+
+export interface BpfStats {
+  year: number;
+  // === Volume ===
+  totalTrainees: number;
+  totalSessions: number;
+  totalFormations: number;
+  totalHeuresStagiaires: number;
+  totalHeuresStagiairesNominales: number;
+  traineesPSH: number;
+  totalCaHt: number;
+  // === Répartitions ===
+  byStatut: BpfBreakdown[];
+  byInscriptionType: BpfBreakdown[];
+  byMode: BpfBreakdown[];
+  byOpco: BpfBreakdown[];
+  byFormation: BpfFormationRow[];
+}
+
+function bumpBreakdown(map: Map<string, BpfBreakdown>, rawKey: string, count: number, heures: number, ca: number) {
+  const key = rawKey.trim() || "Non renseigné";
+  const cur = map.get(key) ?? { key, count: 0, heures: 0, ca: 0 };
+  cur.count += count;
+  cur.heures += heures;
+  cur.ca += ca;
+  map.set(key, cur);
+}
+
+export async function getBpfStats(year: number): Promise<BpfStats> {
+  const range = yearRange(year);
+  const sessions = await prisma.session.findMany({
+    where: { dateFin: range, status: { notIn: EXCLUDED_SESSION_STATUSES } },
+    select: {
+      id: true,
+      formationId: true,
+      formation: { select: { code: true, nomLong: true, dureeJours: true } },
+      trainees: {
+        select: {
+          psh: true,
+          statutActuel: true,
+          inscriptionType: true,
+          modeFinancement: true,
+          opcoDetecte: true,
+          montantHT: true,
+          attendances: { where: { status: "present" }, select: { id: true } },
+        },
+      },
+    },
+  });
+
+  // Accumulateurs globaux
+  let totalTrainees = 0;
+  let totalHeuresStagiaires = 0;
+  let totalHeuresStagiairesNominales = 0;
+  let traineesPSH = 0;
+  let totalCaHt = 0;
+  const formationsDistinctes = new Set<string>();
+
+  // Accumulateurs par répartition
+  const byStatut = new Map<string, BpfBreakdown>();
+  const byInscriptionType = new Map<string, BpfBreakdown>();
+  const byMode = new Map<string, BpfBreakdown>();
+  const byOpco = new Map<string, BpfBreakdown>();
+
+  // Accumulateur par formation
+  type FormationAcc = {
+    code: string;
+    nomLong: string;
+    sessions: Set<string>;
+    trainees: number;
+    heures: number;
+    ca: number;
+  };
+  const byFormationMap = new Map<string, FormationAcc>();
+
+  for (const s of sessions) {
+    formationsDistinctes.add(s.formationId);
+    const heuresNominalesParStagiaire = s.formation.dureeJours * 7;
+
+    const accF = byFormationMap.get(s.formationId) ?? {
+      code: s.formation.code,
+      nomLong: s.formation.nomLong,
+      sessions: new Set<string>(),
+      trainees: 0,
+      heures: 0,
+      ca: 0,
+    };
+    accF.sessions.add(s.id);
+
+    for (const t of s.trainees) {
+      totalTrainees++;
+      if (t.psh) traineesPSH++;
+
+      const nbSlots = t.attendances.length;
+      const heuresStagiaire = nbSlots > 0 ? nbSlots * 3.5 : heuresNominalesParStagiaire;
+      totalHeuresStagiaires += heuresStagiaire;
+      totalHeuresStagiairesNominales += heuresNominalesParStagiaire;
+
+      const ca = t.montantHT ?? 0;
+      totalCaHt += ca;
+
+      // Par formation
+      accF.trainees++;
+      accF.heures += heuresStagiaire;
+      accF.ca += ca;
+
+      // Par statut professionnel
+      bumpBreakdown(byStatut, t.statutActuel, 1, heuresStagiaire, ca);
+
+      // Par type d'inscription
+      bumpBreakdown(byInscriptionType, t.inscriptionType, 1, heuresStagiaire, ca);
+
+      // Par mode de financement
+      bumpBreakdown(byMode, t.modeFinancement, 1, heuresStagiaire, ca);
+
+      // Par OPCO (seulement si le mode passe par un OPCO ou AFDAS)
+      if (t.opcoDetecte.trim()) {
+        bumpBreakdown(byOpco, t.opcoDetecte, 1, heuresStagiaire, ca);
+      }
+    }
+
+    byFormationMap.set(s.formationId, accF);
+  }
+
+  // Tri : par count décroissant pour lisibilité dans le sheet
+  const toArrSorted = (m: Map<string, BpfBreakdown>): BpfBreakdown[] =>
+    Array.from(m.values()).sort((a, b) => b.count - a.count);
+
+  const byFormation: BpfFormationRow[] = Array.from(byFormationMap.values())
+    .map((a) => ({
+      code: a.code,
+      nomLong: a.nomLong,
+      sessions: a.sessions.size,
+      trainees: a.trainees,
+      heures: Math.round(a.heures * 10) / 10,
+      ca: Math.round(a.ca * 100) / 100,
+    }))
+    .sort((a, b) => b.heures - a.heures);
+
+  return {
+    year,
+    totalTrainees,
+    totalSessions: sessions.length,
+    totalFormations: formationsDistinctes.size,
+    totalHeuresStagiaires: Math.round(totalHeuresStagiaires * 10) / 10,
+    totalHeuresStagiairesNominales,
+    traineesPSH,
+    totalCaHt: Math.round(totalCaHt * 100) / 100,
+    byStatut: toArrSorted(byStatut),
+    byInscriptionType: toArrSorted(byInscriptionType),
+    byMode: toArrSorted(byMode),
+    byOpco: toArrSorted(byOpco),
+    byFormation,
+  };
+}
+
 /**
  * Liste les années où on a au moins 1 session non-cancelled qui s'est
  * terminée. Utilisé pour alimenter un sélecteur d'année côté UI.

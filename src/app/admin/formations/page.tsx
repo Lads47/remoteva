@@ -96,6 +96,9 @@ interface QualiopiSheetInfo {
   lastSync: string | null;
 }
 
+// Même shape que QualiopiSheetInfo mais alias pour clarté
+type BpfSheetInfo = QualiopiSheetInfo;
+
 export default function FormationsDashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -105,6 +108,7 @@ export default function FormationsDashboardPage() {
   const [qualiopi, setQualiopi] = useState<QualiopiStats | null>(null);
   const [qualiopiLoading, setQualiopiLoading] = useState(true);
   const [sheetInfo, setSheetInfo] = useState<QualiopiSheetInfo | null>(null);
+  const [bpfSheetInfo, setBpfSheetInfo] = useState<BpfSheetInfo | null>(null);
 
   useEffect(() => {
     fetch("/api/admin/formations/dashboard-stats")
@@ -128,6 +132,10 @@ export default function FormationsDashboardPage() {
       .then((r) => r.json())
       .then((d) => setSheetInfo(d))
       .catch(() => setSheetInfo(null));
+    fetch("/api/admin/formations/bpf-sheet-info")
+      .then((r) => r.json())
+      .then((d) => setBpfSheetInfo(d))
+      .catch(() => setBpfSheetInfo(null));
   }, []);
 
   return (
@@ -241,6 +249,7 @@ export default function FormationsDashboardPage() {
         onYearChange={setSelectedYear}
         currentYear={currentYear}
         sheetInfo={sheetInfo}
+        bpfSheetInfo={bpfSheetInfo}
       />
     </div>
   );
@@ -279,6 +288,7 @@ function QualiopiDashboard({
   onYearChange,
   currentYear,
   sheetInfo,
+  bpfSheetInfo,
 }: {
   stats: QualiopiStats | null;
   loading: boolean;
@@ -286,6 +296,7 @@ function QualiopiDashboard({
   onYearChange: (y: number) => void;
   currentYear: number;
   sheetInfo: QualiopiSheetInfo | null;
+  bpfSheetInfo: BpfSheetInfo | null;
 }) {
   const [expanded, setExpanded] = useState(false);
   const yearOptions = stats?.availableYears ?? [currentYear];
@@ -390,41 +401,27 @@ function QualiopiDashboard({
       {expanded && (
       <div className="px-6 pb-6">
 
-      {/* Lien Google Sheet de bilan */}
-      {sheetInfo?.spreadsheetUrl && (
-        <a
-          href={sheetInfo.spreadsheetUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="flex items-center justify-between gap-3 mb-4 p-3 rounded-lg border hover:shadow-sm transition-shadow"
-          style={{ borderColor: "#e5e7eb", backgroundColor: "#f0fdf4" }}
-        >
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="text-xl">📗</span>
-            <div className="min-w-0">
-              <div className="text-sm font-semibold" style={{ color: "#166534" }}>
-                Voir le bilan complet sur Google Drive
-              </div>
-              <div className="text-[11px] font-jetbrains" style={{ color: "#727485" }}>
-                {sheetInfo.lastSync
-                  ? `Dernière synchro : ${new Date(sheetInfo.lastSync).toLocaleString("fr-FR")}`
-                  : "Jamais synchronisé"}
-                {" · "}1 onglet par année, mise à jour quotidienne automatique
-              </div>
-            </div>
-          </div>
-          <span className="text-sm" style={{ color: "#166534" }}>↗</span>
-        </a>
-      )}
-      {!sheetInfo?.spreadsheetUrl && (
-        <div
-          className="mb-4 p-3 rounded-lg border text-xs font-jetbrains"
-          style={{ borderColor: "#fde68a", backgroundColor: "#fffbeb", color: "#92400e" }}
-        >
-          📗 Le bilan Google Sheet sera créé automatiquement lors de la première synchronisation
-          quotidienne (cron <code>sync-qualiopi-sheet</code>).
-        </div>
-      )}
+      {/* Liens Google Sheets : Qualiopi + BPF */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+        <SheetCard
+          title="Indicateurs Qualiopi"
+          subtitle="Pour audit Qualiopi"
+          icon="📗"
+          color="#166534"
+          bg="#f0fdf4"
+          sheet={sheetInfo}
+          cronName="sync-qualiopi-sheet"
+        />
+        <SheetCard
+          title="BPF — Bilan Pédagogique et Financier"
+          subtitle="Cerfa 10443 pour la DREETS"
+          icon="📘"
+          color="#1d4ed8"
+          bg="#eff6ff"
+          sheet={bpfSheetInfo}
+          cronName="sync-bpf-sheet"
+        />
+      </div>
 
       {loading && (
         <div className="text-sm font-jetbrains" style={{ color: "#9ca3af" }}>Chargement des indicateurs…</div>
@@ -617,6 +614,68 @@ function QualiopiDashboard({
       )}
       </div>
       )}
+    </div>
+  );
+}
+
+// === Carte d'accès à un Google Sheet (Qualiopi ou BPF) ===
+function SheetCard({
+  title,
+  subtitle,
+  icon,
+  color,
+  bg,
+  sheet,
+  cronName,
+}: {
+  title: string;
+  subtitle: string;
+  icon: string;
+  color: string;
+  bg: string;
+  sheet: QualiopiSheetInfo | null;
+  cronName: string;
+}) {
+  if (sheet?.spreadsheetUrl) {
+    return (
+      <a
+        href={sheet.spreadsheetUrl}
+        target="_blank"
+        rel="noreferrer"
+        className="flex items-center justify-between gap-3 p-3 rounded-lg border hover:shadow-sm transition-shadow"
+        style={{ borderColor: "#e5e7eb", backgroundColor: bg }}
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-xl">{icon}</span>
+          <div className="min-w-0">
+            <div className="text-sm font-semibold truncate" style={{ color }}>
+              {title}
+            </div>
+            <div className="text-[11px] font-jetbrains" style={{ color: "#727485" }}>
+              {subtitle}
+              {" · "}
+              {sheet.lastSync
+                ? `Dernière synchro : ${new Date(sheet.lastSync).toLocaleString("fr-FR")}`
+                : "Jamais synchronisé"}
+            </div>
+          </div>
+        </div>
+        <span className="text-sm" style={{ color }}>↗</span>
+      </a>
+    );
+  }
+  return (
+    <div
+      className="p-3 rounded-lg border text-xs font-jetbrains"
+      style={{ borderColor: "#fde68a", backgroundColor: "#fffbeb", color: "#92400e" }}
+    >
+      <div className="flex items-center gap-2">
+        <span className="text-base">{icon}</span>
+        <strong>{title}</strong>
+      </div>
+      <div className="mt-1">
+        Sera créé lors de la première synchro automatique (cron <code>{cronName}</code>).
+      </div>
     </div>
   );
 }
