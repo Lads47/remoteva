@@ -625,6 +625,9 @@ function StackedSegments({
 }
 
 // === Jauge semi-circulaire SVG ===
+// L'arc occupe la moitié supérieure ; on superpose la valeur en HTML
+// (positionnée en absolute) dans la zone vide du demi-cercle, puis le
+// label en dessous avec un vrai espacement vertical.
 function Gauge({
   value,
   max,
@@ -641,59 +644,59 @@ function Gauge({
   const dim = size === "large" ? 160 : 120;
   const stroke = size === "large" ? 14 : 10;
   const radius = (dim - stroke) / 2;
-  const cx = dim / 2;
   const cy = dim / 2;
-  const circ = Math.PI * radius; // demi-cercle
+  const svgHeight = cy + stroke / 2; // moitié supérieure + épaisseur du trait
+  const circ = Math.PI * radius;
   const ratio = value !== null && max > 0 ? Math.max(0, Math.min(1, value / max)) : 0;
   const dash = circ * ratio;
 
   return (
     <div className="flex-1 flex flex-col items-center">
-      <svg width={dim} height={dim / 2 + 8} viewBox={`0 0 ${dim} ${dim / 2 + 8}`} className="overflow-visible">
-        {/* Demi-cercle fond */}
-        <path
-          d={`M ${stroke / 2} ${cy} A ${radius} ${radius} 0 0 1 ${dim - stroke / 2} ${cy}`}
-          fill="none"
-          stroke="#e5e7eb"
-          strokeWidth={stroke}
-          strokeLinecap="round"
-        />
-        {/* Demi-cercle valeur */}
-        {value !== null && (
+      <div className="relative" style={{ width: dim, height: svgHeight }}>
+        <svg width={dim} height={svgHeight} viewBox={`0 0 ${dim} ${svgHeight}`}>
+          {/* Demi-cercle fond */}
           <path
             d={`M ${stroke / 2} ${cy} A ${radius} ${radius} 0 0 1 ${dim - stroke / 2} ${cy}`}
             fill="none"
-            stroke={color}
+            stroke="#e5e7eb"
             strokeWidth={stroke}
             strokeLinecap="round"
-            strokeDasharray={`${dash} ${circ}`}
-            style={{ transition: "stroke-dasharray 0.5s ease" }}
           />
-        )}
-        {/* Texte central */}
-        <text
-          x={cx}
-          y={cy - 4}
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fontSize={size === "large" ? 28 : 22}
-          fontWeight={700}
-          fill={color}
+          {/* Demi-cercle valeur */}
+          {value !== null && (
+            <path
+              d={`M ${stroke / 2} ${cy} A ${radius} ${radius} 0 0 1 ${dim - stroke / 2} ${cy}`}
+              fill="none"
+              stroke={color}
+              strokeWidth={stroke}
+              strokeLinecap="round"
+              strokeDasharray={`${dash} ${circ}`}
+              style={{ transition: "stroke-dasharray 0.5s ease" }}
+            />
+          )}
+        </svg>
+        {/* Valeur centrée en HTML dans la zone vide du demi-cercle */}
+        <div
+          className="absolute left-0 right-0 text-center pointer-events-none"
+          style={{ bottom: stroke / 2 + 2 }}
         >
-          {value !== null ? value : "—"}
-        </text>
-        <text
-          x={cx}
-          y={cy + (size === "large" ? 14 : 11)}
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fontSize={10}
-          fill="#9ca3af"
-        >
-          / {max}
-        </text>
-      </svg>
-      <div className="text-[11px] font-jetbrains -mt-1" style={{ color: "#727485" }}>{label}</div>
+          <div
+            className="font-bold leading-none"
+            style={{ color, fontSize: size === "large" ? 30 : 24 }}
+          >
+            {value !== null ? value : "—"}
+          </div>
+          <div
+            className="font-jetbrains leading-tight"
+            style={{ color: "#9ca3af", fontSize: 10, marginTop: 2 }}
+          >
+            / {max}
+          </div>
+        </div>
+      </div>
+      <div className="text-[11px] font-jetbrains mt-2 text-center" style={{ color: "#727485" }}>
+        {label}
+      </div>
     </div>
   );
 }
