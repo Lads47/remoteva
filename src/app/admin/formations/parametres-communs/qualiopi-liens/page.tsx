@@ -89,12 +89,14 @@ export default function QualiopiLiensPage() {
 
         <div className="p-5 rounded-xl border" style={{ borderColor: "#e5e7eb", backgroundColor: "#fafbff" }}>
           <label className="block text-sm font-semibold mb-1" style={{ color: "#1f2244" }}>
-            🤝 Document partenariats &amp; acteurs socio-éco
+            ♿ Document partenaires handicap (PSH)
           </label>
           <p className="text-xs font-jetbrains mb-3" style={{ color: "#727485" }}>
-            Couvre l&apos;indicateur <strong>28</strong> (mobilisation des acteurs socio-économiques).
-            Idéalement : OF partenaires, prescripteurs, financeurs, acteurs handicap (Cap Emploi,
-            AGEFIPH…), interventions externes, réseaux professionnels.
+            Couvre l&apos;indicateur <strong>28</strong> (mobilisation des acteurs socio-économiques),
+            adapté au périmètre d&apos;activité de LADS : la dimension <em>handicap</em> est ce qui
+            a été demandé à l&apos;audit initial. Liste des partenaires PSH (Cap Emploi, AGEFIPH,
+            MDPH locale…). Si le périmètre s&apos;élargit, tu peux étoffer le doc avec d&apos;autres
+            acteurs (prescripteurs, financeurs, réseaux professionnels).
           </p>
           <input
             type="url"

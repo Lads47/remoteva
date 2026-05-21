@@ -639,12 +639,12 @@ function ExternalLinks({ links }: { links: QualiopiLinks | null }) {
   if (!links) return null;
   const items: { label: string; icon: string; href: string; indicators: string }[] = [];
   if (links.veille) items.push({ label: "Veille (socio-éco / légale / pédago)", icon: "📊", href: links.veille, indicators: "Ind. 25-27" });
-  if (links.partenaires) items.push({ label: "Partenariats & acteurs socio-éco", icon: "🤝", href: links.partenaires, indicators: "Ind. 28" });
+  if (links.partenaires) items.push({ label: "Partenaires handicap (PSH)", icon: "♿", href: links.partenaires, indicators: "Ind. 28 — périmètre d'activité" });
 
   if (items.length === 0) {
     return (
       <div className="p-3 rounded-lg border text-xs font-jetbrains mb-4" style={{ borderColor: "#fde68a", backgroundColor: "#fffbeb", color: "#92400e" }}>
-        💡 Tu peux lier ici tes docs de <strong>veille</strong> et de <strong>partenariats</strong> (indicateurs 25-28) — voir Paramètres communs → 🔗 Liens Qualiopi.
+        💡 Tu peux lier ici tes docs de <strong>veille</strong> et de <strong>partenaires handicap</strong> (indicateurs 25-28) — voir Paramètres communs → 🔗 Liens Qualiopi.
       </div>
     );
   }
