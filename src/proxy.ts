@@ -27,6 +27,18 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Fallback Bearer CRON_SECRET : utilisé par les crons et les scripts
+  // d'admin (preview de mails-types, debug, etc.). Donne le même niveau
+  // d'accès que le cookie session puisque le secret est stocké dans l'env
+  // du container et a une portée admin totale.
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret) {
+    const authHeader = request.headers.get("authorization");
+    if (authHeader === `Bearer ${cronSecret}`) {
+      return NextResponse.next();
+    }
+  }
+
   // Récupère le token de session
   const token = request.cookies.get(COOKIE_NAME)?.value;
 

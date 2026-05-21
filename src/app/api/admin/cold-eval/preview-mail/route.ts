@@ -10,46 +10,14 @@
 //   - which     : variante (default = "invite")
 
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
 import { sendColdEvalInvite, sendColdEvalReminder } from "@/lib/mailer";
 
-/**
- * Auth permissive : cookie admin OU header Authorization: Bearer CRON_SECRET.
- * Permet d'appeler la preview depuis l'admin (cookie) ou depuis un outil de
- * dev / un script (curl avec Bearer).
- */
-async function authorize(request: NextRequest): Promise<NextResponse | null> {
-  let hasSession = false;
-  try {
-    const session = await getSession();
-    hasSession = !!session;
-    if (session) return null;
-  } catch (err) {
-    console.warn("[preview-mail] getSession() a throw:", err);
-  }
-
-  const secret = process.env.CRON_SECRET;
-  const auth = request.headers.get("authorization");
-
-  // Log temporaire pour diagnostiquer le 401 — à retirer une fois fixé
-  console.log("[preview-mail] authorize debug", {
-    hasSession,
-    hasSecret: !!secret,
-    secretLength: secret?.length,
-    hasAuthHeader: !!auth,
-    authPrefix: auth?.slice(0, 20),
-    authLength: auth?.length,
-    expectedLength: secret ? `Bearer ${secret}`.length : 0,
-    match: secret ? auth === `Bearer ${secret}` : false,
-  });
-
-  if (secret && auth === `Bearer ${secret}`) return null;
-  return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-}
+// L'auth est gérée en amont par src/proxy.ts qui accepte soit le cookie
+// session admin, soit Authorization: Bearer <CRON_SECRET>. Pas besoin de
+// re-vérifier ici — si la requête arrive jusqu'à ce handler, elle est
+// autorisée.
 
 export async function POST(request: NextRequest) {
-  const authError = await authorize(request);
-  if (authError) return authError;
   try {
     const body = await request.json();
     const to = typeof body?.to === "string" ? body.to.trim() : "";
