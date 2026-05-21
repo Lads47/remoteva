@@ -242,6 +242,14 @@ export default function FormationsPage() {
           >
             Voir les sessions
           </Link>
+          <Link
+            href="/admin/reclamations"
+            className="px-4 py-2 rounded-full text-sm font-medium border transition-colors cursor-pointer"
+            style={{ borderColor: "#1f2244", color: "#1f2244" }}
+            title="Réclamations stagiaires & bénéficiaires (Qualiopi indicateur 32)"
+          >
+            ⚠ Réclamations
+          </Link>
           {!showForm && (
             <button
               onClick={() => setShowForm(true)}

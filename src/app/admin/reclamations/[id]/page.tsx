@@ -178,9 +178,13 @@ export default function ReclamationDetailPage({ params }: { params: Promise<{ id
 
   return (
     <div>
-      <Link href="/admin/reclamations" className="text-xs font-jetbrains underline" style={{ color: "#727485" }}>
-        ← Toutes les réclamations
-      </Link>
+      <div className="flex items-center gap-2 text-xs font-jetbrains" style={{ color: "#727485" }}>
+        <Link href="/admin/formations" className="underline">Catalogue formations</Link>
+        <span>›</span>
+        <Link href="/admin/reclamations" className="underline">Réclamations</Link>
+        <span>›</span>
+        <span>{c?.number ?? "…"}</span>
+      </div>
       <div className="mt-2 flex items-start justify-between gap-3 flex-wrap mb-6">
         <div>
           <div className="flex items-center gap-3 flex-wrap">
