@@ -99,6 +99,11 @@ interface QualiopiSheetInfo {
 // Même shape que QualiopiSheetInfo mais alias pour clarté
 type BpfSheetInfo = QualiopiSheetInfo;
 
+interface QualiopiLinks {
+  veille: string;
+  partenaires: string;
+}
+
 export default function FormationsDashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -109,6 +114,7 @@ export default function FormationsDashboardPage() {
   const [qualiopiLoading, setQualiopiLoading] = useState(true);
   const [sheetInfo, setSheetInfo] = useState<QualiopiSheetInfo | null>(null);
   const [bpfSheetInfo, setBpfSheetInfo] = useState<BpfSheetInfo | null>(null);
+  const [qualiopiLinks, setQualiopiLinks] = useState<QualiopiLinks | null>(null);
 
   useEffect(() => {
     fetch("/api/admin/formations/dashboard-stats")
@@ -136,6 +142,10 @@ export default function FormationsDashboardPage() {
       .then((r) => r.json())
       .then((d) => setBpfSheetInfo(d))
       .catch(() => setBpfSheetInfo(null));
+    fetch("/api/admin/qualiopi-links")
+      .then((r) => r.json())
+      .then((d) => setQualiopiLinks({ veille: d.veille ?? "", partenaires: d.partenaires ?? "" }))
+      .catch(() => setQualiopiLinks(null));
   }, []);
 
   return (
@@ -250,6 +260,7 @@ export default function FormationsDashboardPage() {
         currentYear={currentYear}
         sheetInfo={sheetInfo}
         bpfSheetInfo={bpfSheetInfo}
+        qualiopiLinks={qualiopiLinks}
       />
     </div>
   );
@@ -289,6 +300,7 @@ function QualiopiDashboard({
   currentYear,
   sheetInfo,
   bpfSheetInfo,
+  qualiopiLinks,
 }: {
   stats: QualiopiStats | null;
   loading: boolean;
@@ -297,6 +309,7 @@ function QualiopiDashboard({
   currentYear: number;
   sheetInfo: QualiopiSheetInfo | null;
   bpfSheetInfo: BpfSheetInfo | null;
+  qualiopiLinks: QualiopiLinks | null;
 }) {
   const [expanded, setExpanded] = useState(false);
   const yearOptions = stats?.availableYears ?? [currentYear];
@@ -422,6 +435,9 @@ function QualiopiDashboard({
           cronName="sync-bpf-sheet"
         />
       </div>
+
+      {/* Documents Qualiopi externes (veille + partenariats) */}
+      <ExternalLinks links={qualiopiLinks} />
 
       {loading && (
         <div className="text-sm font-jetbrains" style={{ color: "#9ca3af" }}>Chargement des indicateurs…</div>
@@ -614,6 +630,45 @@ function QualiopiDashboard({
       )}
       </div>
       )}
+    </div>
+  );
+}
+
+// === Liens externes Qualiopi (veille + partenariats) ===
+function ExternalLinks({ links }: { links: QualiopiLinks | null }) {
+  if (!links) return null;
+  const items: { label: string; icon: string; href: string; indicators: string }[] = [];
+  if (links.veille) items.push({ label: "Veille (socio-éco / légale / pédago)", icon: "📊", href: links.veille, indicators: "Ind. 25-27" });
+  if (links.partenaires) items.push({ label: "Partenariats & acteurs socio-éco", icon: "🤝", href: links.partenaires, indicators: "Ind. 28" });
+
+  if (items.length === 0) {
+    return (
+      <div className="p-3 rounded-lg border text-xs font-jetbrains mb-4" style={{ borderColor: "#fde68a", backgroundColor: "#fffbeb", color: "#92400e" }}>
+        💡 Tu peux lier ici tes docs de <strong>veille</strong> et de <strong>partenariats</strong> (indicateurs 25-28) — voir Paramètres communs → 🔗 Liens Qualiopi.
+      </div>
+    );
+  }
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+      {items.map((it) => (
+        <a
+          key={it.href}
+          href={it.href}
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center justify-between gap-3 p-3 rounded-lg border hover:shadow-sm transition-shadow"
+          style={{ borderColor: "#e5e7eb", backgroundColor: "#fafbff" }}
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-xl">{it.icon}</span>
+            <div className="min-w-0">
+              <div className="text-sm font-semibold truncate" style={{ color: "#1f2244" }}>{it.label}</div>
+              <div className="text-[11px] font-jetbrains" style={{ color: "#727485" }}>{it.indicators} · Document Drive externe</div>
+            </div>
+          </div>
+          <span className="text-sm" style={{ color: "#1f2244" }}>↗</span>
+        </a>
+      ))}
     </div>
   );
 }

@@ -378,6 +378,17 @@ model Trainer {
   telephone   String   @default("")
   magicToken  String   @unique @map("magic_token")
   active      Boolean  @default(true)
+
+  // Lien vers le dossier Drive contenant les CV, qualifications, certifications
+  // et expériences pédagogiques du formateur (Qualiopi indicateur 21).
+  // Permet à l'admin de présenter les pièces lors d'un audit en un clic.
+  driveCvFolderId String? @map("drive_cv_folder_id")
+
+  // Champ libre pour résumer la qualification principale du formateur, son
+  // domaine d'expertise et son expérience pertinente — utile pour audit
+  // rapide sans devoir ouvrir le Drive (Qualiopi indicateur 21).
+  qualifications  String  @default("")
+
   createdAt   DateTime @default(now()) @map("created_at")
 
   sessions             Session[]

@@ -13,6 +13,7 @@ const TABS = [
   { slug: "questionnaire", label: "📝 Éval à chaud", hint: "Questionnaire de satisfaction fin de session" },
   { slug: "questionnaire-froid", label: "🌬 Éval à froid", hint: "Questionnaire d'impact 3 mois après" },
   { slug: "eval-formateur", label: "🎓 Éval formateur", hint: "Fiche satisfaction formateur envoyée J+1" },
+  { slug: "qualiopi-liens", label: "🔗 Liens Qualiopi", hint: "Documents Drive externes (veille, partenariats) pour l'audit" },
 ];
 
 export default function ParametresCommunsLayout({ children }: { children: React.ReactNode }) {

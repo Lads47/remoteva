@@ -19,6 +19,8 @@ interface TraineeRow {
   prenom: string;
   nom: string;
   cells: AttendanceCell[];
+  psh: boolean;
+  besoinsAdaptation: string;
 }
 interface GridSlot {
   date: string;
@@ -313,6 +315,32 @@ function EmargementInner({ id }: { id: string }) {
           </div>
         )}
 
+        {/* Bannière adaptations PSH — Qualiopi indicateur 5 */}
+        {grid.rows.filter((r) => r.psh).length > 0 && (
+          <div className="mt-4 p-4 rounded-xl border" style={{ borderColor: "#fde68a", backgroundColor: "#fffbeb" }}>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-lg">♿</span>
+              <strong className="text-sm" style={{ color: "#92400e" }}>
+                Adaptations à prévoir — situation de handicap signalée
+              </strong>
+            </div>
+            <ul className="space-y-2">
+              {grid.rows
+                .filter((r) => r.psh)
+                .map((r) => (
+                  <li key={r.traineeId} className="text-sm" style={{ color: "#78350f" }}>
+                    <strong>{r.prenom} {r.nom}</strong>
+                    {r.besoinsAdaptation ? (
+                      <span className="font-jetbrains text-xs"> — {r.besoinsAdaptation}</span>
+                    ) : (
+                      <span className="font-jetbrains text-xs italic" style={{ color: "#9ca3af" }}> — pas de précision sur les besoins</span>
+                    )}
+                  </li>
+                ))}
+            </ul>
+          </div>
+        )}
+
         {grid.rows.length === 0 ? (
           <div className="mt-8 p-8 rounded-xl border text-center font-jetbrains text-sm" style={{ borderColor: "#e5e7eb", color: "#727485", backgroundColor: "white" }}>
             Aucun stagiaire inscrit à cette session.
@@ -346,6 +374,15 @@ function EmargementInner({ id }: { id: string }) {
                   <tr key={row.traineeId} style={{ borderBottom: "1px solid #f3f4f6" }}>
                     <td className="px-3 py-2 sticky left-0 font-medium" style={{ color: "#1f2244", backgroundColor: "white" }}>
                       {row.prenom} {row.nom}
+                      {row.psh && (
+                        <span
+                          className="ml-1 inline-block text-xs"
+                          style={{ color: "#92400e" }}
+                          title={row.besoinsAdaptation ? `Adaptation : ${row.besoinsAdaptation}` : "Situation de handicap signalée"}
+                        >
+                          ♿
+                        </span>
+                      )}
                     </td>
                     {grid.slots.map((s) => {
                       const status = currentStatus(row, s);

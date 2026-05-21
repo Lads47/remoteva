@@ -13,9 +13,18 @@ interface Trainer {
   active: boolean;
   createdAt: string;
   sessionCount: number;
+  qualifications: string;
+  driveCvFolderId: string | null;
 }
 
-const EMPTY_FORM = { nom: "", prenom: "", email: "", telephone: "" };
+const EMPTY_FORM = {
+  nom: "",
+  prenom: "",
+  email: "",
+  telephone: "",
+  qualifications: "",
+  driveCvFolderId: "",
+};
 
 export default function TrainersPage() {
   const [trainers, setTrainers] = useState<Trainer[]>([]);
@@ -104,7 +113,14 @@ export default function TrainersPage() {
 
   function handleEdit(t: Trainer) {
     setEditingId(t.id);
-    setForm({ nom: t.nom, prenom: t.prenom, email: t.email, telephone: t.telephone });
+    setForm({
+      nom: t.nom,
+      prenom: t.prenom,
+      email: t.email,
+      telephone: t.telephone,
+      qualifications: t.qualifications,
+      driveCvFolderId: t.driveCvFolderId ?? "",
+    });
     setShowForm(true);
     setError("");
   }
@@ -277,6 +293,37 @@ export default function TrainersPage() {
             </Field>
           </div>
 
+          {/* === Qualiopi indicateur 21 — qualifications + pièces ===
+              Permet à l'admin de présenter les compétences du formateur lors
+              d'un audit, et d'ouvrir en un clic le dossier Drive contenant
+              CV, certifications, justificatifs d'expérience. */}
+          <div className="pt-3 border-t" style={{ borderColor: "#e5e7eb" }}>
+            <p className="text-xs font-jetbrains mb-3" style={{ color: "#727485" }}>
+              Qualifications &amp; pièces justificatives <em>(Qualiopi ind. 21)</em>
+            </p>
+            <div className="grid grid-cols-1 gap-3">
+              <Field label="Résumé des qualifications">
+                <textarea
+                  value={form.qualifications}
+                  onChange={(e) => setForm({ ...form, qualifications: e.target.value })}
+                  placeholder="Diplômes, certifications, expérience pédagogique pertinente. Visible en interne uniquement (pas envoyé au formateur)."
+                  rows={3}
+                  className="input font-jetbrains text-xs"
+                  style={{ resize: "vertical" }}
+                />
+              </Field>
+              <Field label="ID du dossier Drive (CV, qualifs, justificatifs)">
+                <input
+                  type="text"
+                  value={form.driveCvFolderId}
+                  onChange={(e) => setForm({ ...form, driveCvFolderId: e.target.value })}
+                  placeholder="ex : 1aBcDeFgHiJkLmN0Op (l'ID du dossier dans l'URL Drive)"
+                  className="input font-jetbrains text-xs"
+                />
+              </Field>
+            </div>
+          </div>
+
           {editingId && magicLink && (
             <div className="p-3 rounded-lg border" style={{ borderColor: "#e5e7eb", backgroundColor: "white" }}>
               <p className="text-xs font-jetbrains mb-2" style={{ color: "#727485" }}>
@@ -358,6 +405,27 @@ export default function TrainersPage() {
                   {t.email}
                   {t.telephone && ` · ${t.telephone}`}
                 </div>
+                {(t.qualifications || t.driveCvFolderId) && (
+                  <div className="text-xs mt-1.5 flex items-center gap-2 flex-wrap">
+                    {t.qualifications && (
+                      <span className="font-jetbrains" style={{ color: "#374151" }} title={t.qualifications}>
+                        {t.qualifications.length > 80 ? `${t.qualifications.slice(0, 80)}…` : t.qualifications}
+                      </span>
+                    )}
+                    {t.driveCvFolderId && (
+                      <a
+                        href={`https://drive.google.com/drive/folders/${t.driveCvFolderId}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-jetbrains underline"
+                        style={{ color: "#1d4ed8" }}
+                        title="Ouvrir le dossier Drive (CV, qualifs, justificatifs) — Qualiopi indicateur 21"
+                      >
+                        📁 CV &amp; qualifs ↗
+                      </a>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <button

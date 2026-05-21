@@ -19,6 +19,10 @@ export interface AttendanceTraineeRow {
   prenom: string;
   nom: string;
   cells: AttendanceCell[];
+  // Adaptations à prévoir (Qualiopi indicateur 5). Le formateur a besoin
+  // de cette info pendant l'émargement pour ajuster son accompagnement.
+  psh: boolean;
+  besoinsAdaptation: string;
 }
 
 export interface AttendanceGrid {
@@ -72,6 +76,8 @@ export async function buildAttendanceGrid(sessionId: string): Promise<Attendance
       id: true,
       prenom: true,
       nom: true,
+      psh: true,
+      besoinsAdaptation: true,
       attendances: {
         select: {
           date: true,
@@ -103,7 +109,14 @@ export async function buildAttendanceGrid(sessionId: string): Promise<Attendance
         signedByPrenomNom: a.signedBy ? `${a.signedBy.prenom} ${a.signedBy.nom}` : undefined,
       };
     });
-    return { traineeId: t.id, prenom: t.prenom, nom: t.nom, cells };
+    return {
+      traineeId: t.id,
+      prenom: t.prenom,
+      nom: t.nom,
+      cells,
+      psh: t.psh,
+      besoinsAdaptation: t.besoinsAdaptation,
+    };
   });
 
   return { slots, rows };

@@ -270,6 +270,9 @@ export const createTrainerSchema = z.object({
   prenom: z.string().trim().min(1, "Prénom requis"),
   email: emailSchema,
   telephone: z.string().trim().optional().default(""),
+  // Qualiopi indicateur 21 — pièces justificatives compétences
+  qualifications: z.string().trim().optional().default(""),
+  driveCvFolderId: z.string().trim().optional().default(""),
 });
 
 export const updateTrainerSchema = z.object({
@@ -278,6 +281,8 @@ export const updateTrainerSchema = z.object({
   email: emailSchema.optional(),
   telephone: z.string().trim().optional(),
   active: z.boolean().optional(),
+  qualifications: z.string().trim().optional(),
+  driveCvFolderId: z.string().trim().optional(),
 });
 
 // Admin update d'un stagiaire (correction de saisie principalement).

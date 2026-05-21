@@ -11,6 +11,9 @@ export interface TrainerInfo {
   active: boolean;
   createdAt: Date;
   sessionCount: number;
+  // Qualiopi indicateur 21
+  qualifications: string;
+  driveCvFolderId: string | null;
 }
 
 export interface TrainerCreateInput {
@@ -18,6 +21,8 @@ export interface TrainerCreateInput {
   prenom: string;
   email: string;
   telephone?: string;
+  qualifications?: string;
+  driveCvFolderId?: string;
 }
 
 export interface TrainerUpdateInput {
@@ -26,6 +31,8 @@ export interface TrainerUpdateInput {
   email?: string;
   telephone?: string;
   active?: boolean;
+  qualifications?: string;
+  driveCvFolderId?: string;
 }
 
 /**
@@ -83,6 +90,8 @@ export async function createTrainer(input: TrainerCreateInput): Promise<TrainerI
       prenom: input.prenom,
       email: input.email,
       telephone: input.telephone ?? "",
+      qualifications: input.qualifications ?? "",
+      driveCvFolderId: input.driveCvFolderId?.trim() || null,
       magicToken: generateMagicToken(),
     },
     include: { _count: { select: { sessions: true } } },
@@ -97,6 +106,10 @@ export async function updateTrainer(id: string, input: TrainerUpdateInput): Prom
   if (input.email !== undefined) data.email = input.email;
   if (input.telephone !== undefined) data.telephone = input.telephone;
   if (input.active !== undefined) data.active = input.active;
+  if (input.qualifications !== undefined) data.qualifications = input.qualifications;
+  if (input.driveCvFolderId !== undefined) {
+    data.driveCvFolderId = input.driveCvFolderId.trim() || null;
+  }
   const t = await prisma.trainer.update({
     where: { id },
     data,
@@ -253,5 +266,7 @@ function toInfo(t: TrainerRow): TrainerInfo {
     active: t.active,
     createdAt: t.createdAt,
     sessionCount: t._count.sessions,
+    qualifications: t.qualifications,
+    driveCvFolderId: t.driveCvFolderId,
   };
 }
