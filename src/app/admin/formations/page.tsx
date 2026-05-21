@@ -72,6 +72,7 @@ interface QualiopiTrainer {
 interface QualiopiComplaints {
   year: number;
   total: number;
+  byStatus: { new: number; in_progress: number; resolved: number; closed: number };
   resolved: number;
   unresolved: number;
   resolutionRate: number;
@@ -303,139 +304,173 @@ function QualiopiDashboard({
 
       {!loading && stats && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Activité */}
+          {/* === Activité === */}
           <QualiopiBlock title="Activité" icon="🏛">
-            <QualiopiRow label="Sessions réalisées" value={String(stats.activity.sessionsCount)} />
-            <QualiopiRow label="Formations distinctes" value={String(stats.activity.formationsDistinctesCount)} />
-            <QualiopiRow label="Stagiaires accueillis" value={String(stats.activity.traineesAccueillis)} />
-            <QualiopiRow
-              label="Heures-stagiaires réalisées"
-              value={`${stats.activity.heuresStagiairesRealisees} h`}
-              hint={`/ ${stats.activity.heuresStagiairesNominales} h nominales`}
-            />
-            <QualiopiRow
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              <CounterChip icon="📅" value={stats.activity.sessionsCount} label="Sessions" />
+              <CounterChip icon="📚" value={stats.activity.formationsDistinctesCount} label="Formations" />
+              <CounterChip icon="👥" value={stats.activity.traineesAccueillis} label="Stagiaires" />
+              <CounterChip icon="♿" value={stats.activity.stagiairesPSH} label="PSH" />
+            </div>
+            <MetricBar
               label="Taux d'assiduité moyen"
-              value={`${stats.activity.tauxAssiduiteMoyen} %`}
+              value={stats.activity.tauxAssiduiteMoyen}
+              max={100}
+              suffix=" %"
               color={tauxAssiduiteColor(stats.activity.tauxAssiduiteMoyen)}
+              thresholds={[75, 90]}
             />
-            <QualiopiRow
-              label="Stagiaires en situation de handicap"
-              value={String(stats.activity.stagiairesPSH)}
+            <MetricBar
+              label="Heures-stagiaires réalisées"
+              value={stats.activity.heuresStagiairesRealisees}
+              max={Math.max(stats.activity.heuresStagiairesNominales, 1)}
+              suffix=" h"
+              hint={`/ ${stats.activity.heuresStagiairesNominales} h nominales`}
+              color="#3730a3"
             />
           </QualiopiBlock>
 
-          {/* Pédagogie */}
+          {/* === Pédagogie === */}
           <QualiopiBlock title="Atteinte des objectifs pédagogiques" icon="🎯">
-            <QualiopiRow
+            <BigPercent
               label="Taux d'atteinte (évalués)"
-              value={`${stats.pedagogy.tauxAtteinte} %`}
+              value={stats.pedagogy.tauxAtteinte}
               color={tauxAtteinteColor(stats.pedagogy.tauxAtteinte)}
             />
-            <QualiopiRow label="Atteints" value={String(stats.pedagogy.atteints)} />
-            <QualiopiRow label="Partiellement atteints" value={String(stats.pedagogy.partiellementAtteints)} />
-            <QualiopiRow label="Non atteints" value={String(stats.pedagogy.nonAtteints)} />
-            <QualiopiRow
-              label="Non évalués"
-              value={String(stats.pedagogy.nonEvalues)}
-              hint={stats.pedagogy.nonEvalues > 0 ? "à compléter pour fiabiliser" : undefined}
-              color={stats.pedagogy.nonEvalues > 0 ? "#92400e" : undefined}
+            <StackedSegments
+              total={stats.pedagogy.traineesTotal}
+              segments={[
+                { value: stats.pedagogy.atteints, color: "#16a34a", label: "Atteints" },
+                { value: stats.pedagogy.partiellementAtteints, color: "#f59e0b", label: "Partiels" },
+                { value: stats.pedagogy.nonAtteints, color: "#dc2626", label: "Non atteints" },
+                { value: stats.pedagogy.nonEvalues, color: "#9ca3af", label: "Non évalués" },
+              ]}
             />
+            {stats.pedagogy.nonEvalues > 0 && (
+              <div className="text-[11px] font-jetbrains mt-2" style={{ color: "#92400e" }}>
+                ⚠ {stats.pedagogy.nonEvalues} stagiaire{stats.pedagogy.nonEvalues > 1 ? "s" : ""} non évalué{stats.pedagogy.nonEvalues > 1 ? "s" : ""} — à compléter pour fiabiliser
+              </div>
+            )}
           </QualiopiBlock>
 
-          {/* Satisfaction à chaud */}
+          {/* === Satisfaction à chaud === */}
           <QualiopiBlock title="Satisfaction à chaud" icon="🔥">
-            <QualiopiRow
+            <div className="flex items-center gap-3 mb-3">
+              <Gauge
+                value={stats.satisfactionChaud.globalAverage}
+                max={5}
+                color={satisfactionColor(stats.satisfactionChaud.globalAverage, 5) ?? "#9ca3af"}
+                label="Satisfaction"
+              />
+              <NpsDial
+                score={stats.satisfactionChaud.npsScore}
+                promoters={stats.satisfactionChaud.npsPromoters}
+                passives={stats.satisfactionChaud.npsPassives}
+                detractors={stats.satisfactionChaud.npsDetractors}
+                total={stats.satisfactionChaud.npsTotal}
+              />
+            </div>
+            <MetricBar
               label="Taux de réponse"
-              value={formatRate(stats.satisfactionChaud.responseRate)}
+              value={Math.round(stats.satisfactionChaud.responseRate * 100)}
+              max={100}
+              suffix=" %"
               hint={`${stats.satisfactionChaud.submittedTotal} / ${stats.satisfactionChaud.invitedTotal}`}
               color={tauxReponseColor(stats.satisfactionChaud.responseRate)}
-            />
-            <QualiopiRow
-              label="Satisfaction moyenne"
-              value={stats.satisfactionChaud.globalAverage !== null
-                ? `${stats.satisfactionChaud.globalAverage} / 5`
-                : "—"}
-              hint={stats.satisfactionChaud.globalCount > 0 ? `sur ${stats.satisfactionChaud.globalCount} réponses` : undefined}
-              color={satisfactionColor(stats.satisfactionChaud.globalAverage, 5)}
-            />
-            <QualiopiRow
-              label="NPS"
-              value={stats.satisfactionChaud.npsScore !== null ? String(stats.satisfactionChaud.npsScore) : "—"}
-              hint={stats.satisfactionChaud.npsTotal > 0
-                ? `${stats.satisfactionChaud.npsPromoters}P / ${stats.satisfactionChaud.npsPassives}P / ${stats.satisfactionChaud.npsDetractors}D`
-                : undefined}
-              color={npsColor(stats.satisfactionChaud.npsScore)}
+              thresholds={[30, 60]}
             />
           </QualiopiBlock>
 
-          {/* Satisfaction à froid */}
+          {/* === Satisfaction à froid === */}
           <QualiopiBlock title="Satisfaction à froid (impact 3 mois)" icon="❄">
-            <QualiopiRow
+            <div className="flex items-center gap-3 mb-3">
+              <Gauge
+                value={stats.satisfactionFroid.globalAverage}
+                max={5}
+                color={satisfactionColor(stats.satisfactionFroid.globalAverage, 5) ?? "#9ca3af"}
+                label="Impact"
+              />
+              <NpsDial
+                score={stats.satisfactionFroid.npsScore}
+                promoters={stats.satisfactionFroid.npsPromoters}
+                passives={stats.satisfactionFroid.npsPassives}
+                detractors={stats.satisfactionFroid.npsDetractors}
+                total={stats.satisfactionFroid.npsTotal}
+              />
+            </div>
+            <MetricBar
               label="Taux de réponse"
-              value={formatRate(stats.satisfactionFroid.responseRate)}
+              value={Math.round(stats.satisfactionFroid.responseRate * 100)}
+              max={100}
+              suffix=" %"
               hint={`${stats.satisfactionFroid.submittedTotal} / ${stats.satisfactionFroid.invitedTotal}`}
               color={tauxReponseColor(stats.satisfactionFroid.responseRate)}
-            />
-            <QualiopiRow
-              label="Impact moyen"
-              value={stats.satisfactionFroid.globalAverage !== null
-                ? `${stats.satisfactionFroid.globalAverage} / 5`
-                : "—"}
-              hint={stats.satisfactionFroid.globalCount > 0 ? `sur ${stats.satisfactionFroid.globalCount} réponses` : undefined}
-              color={satisfactionColor(stats.satisfactionFroid.globalAverage, 5)}
-            />
-            <QualiopiRow
-              label="NPS à froid"
-              value={stats.satisfactionFroid.npsScore !== null ? String(stats.satisfactionFroid.npsScore) : "—"}
-              hint={stats.satisfactionFroid.npsTotal > 0
-                ? `${stats.satisfactionFroid.npsPromoters}P / ${stats.satisfactionFroid.npsPassives}P / ${stats.satisfactionFroid.npsDetractors}D`
-                : undefined}
-              color={npsColor(stats.satisfactionFroid.npsScore)}
+              thresholds={[30, 60]}
             />
           </QualiopiBlock>
 
-          {/* Satisfaction formateurs */}
+          {/* === Satisfaction formateurs === */}
           <QualiopiBlock title="Satisfaction formateurs" icon="👤">
-            <QualiopiRow
+            <div className="flex items-center justify-center mb-3">
+              <Gauge
+                value={stats.trainerSat.globalAverage}
+                max={4}
+                color={satisfactionColor(stats.trainerSat.globalAverage, 4) ?? "#9ca3af"}
+                label="Note moyenne"
+                size="large"
+              />
+            </div>
+            <MetricBar
               label="Taux de réponse"
-              value={formatRate(stats.trainerSat.responseRate)}
+              value={Math.round(stats.trainerSat.responseRate * 100)}
+              max={100}
+              suffix=" %"
               hint={`${stats.trainerSat.submittedTotal} / ${stats.trainerSat.invitedTotal}`}
               color={tauxReponseColor(stats.trainerSat.responseRate)}
-            />
-            <QualiopiRow
-              label="Note moyenne formateurs"
-              value={stats.trainerSat.globalAverage !== null
-                ? `${stats.trainerSat.globalAverage} / 4`
-                : "—"}
-              hint={stats.trainerSat.globalCount > 0 ? `sur ${stats.trainerSat.globalCount} réponses` : undefined}
-              color={satisfactionColor(stats.trainerSat.globalAverage, 4)}
+              thresholds={[30, 60]}
             />
           </QualiopiBlock>
 
-          {/* Réclamations */}
+          {/* === Réclamations === */}
           <QualiopiBlock title="Réclamations (indicateur 32)" icon="⚠">
-            <QualiopiRow label="Total" value={String(stats.complaints.total)} />
-            <QualiopiRow
-              label="Résolues"
-              value={String(stats.complaints.resolved)}
-              hint={stats.complaints.total > 0 ? formatRate(stats.complaints.resolutionRate) : undefined}
-            />
-            <QualiopiRow
-              label="En cours"
-              value={String(stats.complaints.unresolved)}
-              color={stats.complaints.unresolved > 0 ? "#92400e" : undefined}
-            />
-            <QualiopiRow
-              label="En retard (> 30 j)"
-              value={String(stats.complaints.overdue)}
-              color={stats.complaints.overdue > 0 ? "#991b1b" : "#166534"}
-            />
-            <QualiopiRow
-              label="Délai moyen de résolution"
-              value={stats.complaints.averageResolutionDays > 0
-                ? `${stats.complaints.averageResolutionDays} j`
-                : "—"}
-            />
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <CounterChip icon="📥" value={stats.complaints.total} label="Total" />
+              <CounterChip
+                icon="✅"
+                value={stats.complaints.resolved}
+                label={stats.complaints.total > 0 ? `Résolues (${formatRate(stats.complaints.resolutionRate)})` : "Résolues"}
+                color="#166534"
+              />
+              <CounterChip
+                icon="⏳"
+                value={stats.complaints.unresolved}
+                label="En cours"
+                color={stats.complaints.unresolved > 0 ? "#92400e" : "#727485"}
+              />
+              <CounterChip
+                icon="🚨"
+                value={stats.complaints.overdue}
+                label="En retard (>30 j)"
+                color={stats.complaints.overdue > 0 ? "#991b1b" : "#166534"}
+              />
+            </div>
+            {stats.complaints.total > 0 && (
+              <StackedSegments
+                total={stats.complaints.total}
+                segments={[
+                  { value: stats.complaints.byStatus.new, color: "#dc2626", label: "Nouvelles" },
+                  { value: stats.complaints.byStatus.in_progress, color: "#f59e0b", label: "En cours" },
+                  { value: stats.complaints.byStatus.resolved, color: "#16a34a", label: "Résolues" },
+                  { value: stats.complaints.byStatus.closed, color: "#6b7280", label: "Clôturées" },
+                ]}
+              />
+            )}
+            <div className="text-[11px] font-jetbrains mt-2 text-right" style={{ color: "#727485" }}>
+              Délai moyen de résolution :{" "}
+              <strong style={{ color: "#1f2244" }}>
+                {stats.complaints.averageResolutionDays > 0 ? `${stats.complaints.averageResolutionDays} j` : "—"}
+              </strong>
+            </div>
           </QualiopiBlock>
         </div>
       )}
@@ -456,28 +491,284 @@ function QualiopiBlock({ title, icon, children }: { title: string; icon: string;
         <span>{icon}</span>
         <span>{title}</span>
       </h3>
-      <div className="space-y-2">{children}</div>
+      <div>{children}</div>
     </div>
   );
 }
 
-function QualiopiRow({
-  label,
+// === Compteur encadré (icône + nombre + libellé) ===
+function CounterChip({
+  icon,
   value,
-  hint,
+  label,
   color,
 }: {
+  icon: string;
+  value: number;
   label: string;
-  value: string;
-  hint?: string;
   color?: string;
 }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 text-sm font-jetbrains">
-      <div style={{ color: "#727485" }}>{label}</div>
-      <div className="text-right">
-        <div className="font-semibold" style={{ color: color || "#1f2244" }}>{value}</div>
-        {hint && <div className="text-[10px]" style={{ color: "#9ca3af" }}>{hint}</div>}
+    <div className="p-2 rounded-lg flex items-center gap-2" style={{ backgroundColor: "white", border: "1px solid #e5e7eb" }}>
+      <div className="text-xl">{icon}</div>
+      <div className="min-w-0">
+        <div className="text-lg font-bold leading-tight" style={{ color: color || "#1f2244" }}>{value}</div>
+        <div className="text-[10px] font-jetbrains truncate" style={{ color: "#727485" }}>{label}</div>
+      </div>
+    </div>
+  );
+}
+
+// === Barre de progression horizontale avec marqueurs de seuils ===
+function MetricBar({
+  label,
+  value,
+  max,
+  suffix = "",
+  hint,
+  color,
+  thresholds,
+}: {
+  label: string;
+  value: number;
+  max: number;
+  suffix?: string;
+  hint?: string;
+  color: string;
+  thresholds?: [number, number]; // [orange, green] sur la même échelle que value/max
+}) {
+  const ratio = max > 0 ? Math.max(0, Math.min(1, value / max)) : 0;
+  return (
+    <div className="mb-3 last:mb-0">
+      <div className="flex items-baseline justify-between gap-2 mb-1">
+        <div className="text-xs font-jetbrains" style={{ color: "#727485" }}>{label}</div>
+        <div className="text-right">
+          <span className="text-sm font-semibold font-jetbrains" style={{ color }}>
+            {value}{suffix}
+          </span>
+          {hint && <span className="text-[10px] font-jetbrains ml-2" style={{ color: "#9ca3af" }}>{hint}</span>}
+        </div>
+      </div>
+      <div className="relative h-2 rounded-full overflow-hidden" style={{ backgroundColor: "#e5e7eb" }}>
+        <div
+          className="absolute inset-y-0 left-0 rounded-full transition-all"
+          style={{ width: `${ratio * 100}%`, backgroundColor: color }}
+        />
+        {thresholds && (
+          <>
+            <div
+              className="absolute inset-y-0 w-px"
+              style={{ left: `${(thresholds[0] / max) * 100}%`, backgroundColor: "#cbd5e1" }}
+              title={`seuil orange ${thresholds[0]}${suffix}`}
+            />
+            <div
+              className="absolute inset-y-0 w-px"
+              style={{ left: `${(thresholds[1] / max) * 100}%`, backgroundColor: "#cbd5e1" }}
+              title={`seuil vert ${thresholds[1]}${suffix}`}
+            />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// === Grand pourcentage (taux d'atteinte pédagogique) ===
+function BigPercent({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div className="text-center mb-3">
+      <div className="text-3xl font-bold" style={{ color }}>{value} %</div>
+      <div className="text-[11px] font-jetbrains" style={{ color: "#727485" }}>{label}</div>
+    </div>
+  );
+}
+
+// === Barre empilée avec légende (segments colorés horizontaux) ===
+function StackedSegments({
+  total,
+  segments,
+}: {
+  total: number;
+  segments: { value: number; color: string; label: string }[];
+}) {
+  if (total === 0) {
+    return (
+      <div className="text-[11px] font-jetbrains italic text-center py-2" style={{ color: "#9ca3af" }}>
+        Aucune donnée
+      </div>
+    );
+  }
+  return (
+    <div>
+      <div className="flex h-5 rounded-lg overflow-hidden" style={{ backgroundColor: "#e5e7eb" }}>
+        {segments.map((s, i) =>
+          s.value > 0 ? (
+            <div
+              key={i}
+              style={{ width: `${(s.value / total) * 100}%`, backgroundColor: s.color }}
+              title={`${s.label} : ${s.value}`}
+            />
+          ) : null
+        )}
+      </div>
+      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
+        {segments.map((s, i) => (
+          <div key={i} className="flex items-center gap-1 text-[11px] font-jetbrains" style={{ color: "#1f2244" }}>
+            <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: s.color }} />
+            <span style={{ color: "#727485" }}>{s.label}</span>
+            <strong>{s.value}</strong>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// === Jauge semi-circulaire SVG ===
+function Gauge({
+  value,
+  max,
+  color,
+  label,
+  size = "normal",
+}: {
+  value: number | null;
+  max: number;
+  color: string;
+  label: string;
+  size?: "normal" | "large";
+}) {
+  const dim = size === "large" ? 160 : 120;
+  const stroke = size === "large" ? 14 : 10;
+  const radius = (dim - stroke) / 2;
+  const cx = dim / 2;
+  const cy = dim / 2;
+  const circ = Math.PI * radius; // demi-cercle
+  const ratio = value !== null && max > 0 ? Math.max(0, Math.min(1, value / max)) : 0;
+  const dash = circ * ratio;
+
+  return (
+    <div className="flex-1 flex flex-col items-center">
+      <svg width={dim} height={dim / 2 + 8} viewBox={`0 0 ${dim} ${dim / 2 + 8}`} className="overflow-visible">
+        {/* Demi-cercle fond */}
+        <path
+          d={`M ${stroke / 2} ${cy} A ${radius} ${radius} 0 0 1 ${dim - stroke / 2} ${cy}`}
+          fill="none"
+          stroke="#e5e7eb"
+          strokeWidth={stroke}
+          strokeLinecap="round"
+        />
+        {/* Demi-cercle valeur */}
+        {value !== null && (
+          <path
+            d={`M ${stroke / 2} ${cy} A ${radius} ${radius} 0 0 1 ${dim - stroke / 2} ${cy}`}
+            fill="none"
+            stroke={color}
+            strokeWidth={stroke}
+            strokeLinecap="round"
+            strokeDasharray={`${dash} ${circ}`}
+            style={{ transition: "stroke-dasharray 0.5s ease" }}
+          />
+        )}
+        {/* Texte central */}
+        <text
+          x={cx}
+          y={cy - 4}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fontSize={size === "large" ? 28 : 22}
+          fontWeight={700}
+          fill={color}
+        >
+          {value !== null ? value : "—"}
+        </text>
+        <text
+          x={cx}
+          y={cy + (size === "large" ? 14 : 11)}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fontSize={10}
+          fill="#9ca3af"
+        >
+          / {max}
+        </text>
+      </svg>
+      <div className="text-[11px] font-jetbrains -mt-1" style={{ color: "#727485" }}>{label}</div>
+    </div>
+  );
+}
+
+// === Cadran NPS (-100 → +100 avec curseur) ===
+function NpsDial({
+  score,
+  promoters,
+  passives,
+  detractors,
+  total,
+}: {
+  score: number | null;
+  promoters: number;
+  passives: number;
+  detractors: number;
+  total: number;
+}) {
+  const width = 120;
+  const height = 80;
+  // Curseur : -100 → 0, +100 → width
+  const cursorX = score !== null ? ((score + 100) / 200) * width : null;
+  const scoreColor = npsColor(score) ?? "#9ca3af";
+
+  return (
+    <div className="flex-1 flex flex-col items-center">
+      <div className="text-2xl font-bold" style={{ color: scoreColor }}>
+        {score !== null ? (score > 0 ? `+${score}` : String(score)) : "—"}
+      </div>
+      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+        {/* Gradient -100/+100 : rouge → orange → vert */}
+        <defs>
+          <linearGradient id="nps-gradient" x1="0" x2="1" y1="0" y2="0">
+            <stop offset="0%" stopColor="#dc2626" />
+            <stop offset="50%" stopColor="#f59e0b" />
+            <stop offset="100%" stopColor="#16a34a" />
+          </linearGradient>
+        </defs>
+        <rect x={0} y={28} width={width} height={8} rx={4} fill="url(#nps-gradient)" />
+        {/* Marqueur 0 (vertical milieu) */}
+        <line x1={width / 2} y1={24} x2={width / 2} y2={40} stroke="#1f2244" strokeWidth={1} />
+        {/* Curseur du score */}
+        {cursorX !== null && (
+          <>
+            <line x1={cursorX} y1={20} x2={cursorX} y2={44} stroke={scoreColor} strokeWidth={3} strokeLinecap="round" />
+            <circle cx={cursorX} cy={20} r={3} fill={scoreColor} />
+          </>
+        )}
+        {/* Échelle -100 / 0 / +100 */}
+        <text x={0} y={56} fontSize={9} fill="#9ca3af">-100</text>
+        <text x={width / 2} y={56} fontSize={9} fill="#9ca3af" textAnchor="middle">0</text>
+        <text x={width} y={56} fontSize={9} fill="#9ca3af" textAnchor="end">+100</text>
+        {/* Mini-stacked sous le cadran (P/Pa/D) */}
+        {total > 0 && (
+          <g transform={`translate(0, ${height - 14})`}>
+            <rect x={0} y={0} width={(detractors / total) * width} height={5} fill="#dc2626" />
+            <rect
+              x={(detractors / total) * width}
+              y={0}
+              width={(passives / total) * width}
+              height={5}
+              fill="#f59e0b"
+            />
+            <rect
+              x={((detractors + passives) / total) * width}
+              y={0}
+              width={(promoters / total) * width}
+              height={5}
+              fill="#16a34a"
+            />
+          </g>
+        )}
+      </svg>
+      <div className="text-[10px] font-jetbrains" style={{ color: "#727485" }}>
+        NPS · {total > 0 ? `${promoters} P / ${passives} Pa / ${detractors} D` : "0 répondant"}
       </div>
     </div>
   );
