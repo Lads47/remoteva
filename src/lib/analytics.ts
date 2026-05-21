@@ -41,8 +41,14 @@ const TRAINER_LIKERT_KEYS = new Set([
   "delai_traitement",
 ]);
 
+// Filtre dateFin "session effectivement terminée dans l'année" :
+//   - dans l'intervalle [01-01, 01-01 année+1[
+//   - ET déjà dans le passé (pas de session future comptée comme réalisée)
+// Sans le `lte: now`, une session future dont l'année tombe dans la plage
+// sélectionnée serait incluse → comptes faussés (heures nominales reportées
+// comme réalisées, assiduité 100 %, etc.).
 function yearRange(year: number) {
-  return { gte: new Date(year, 0, 1), lt: new Date(year + 1, 0, 1) };
+  return { gte: new Date(year, 0, 1), lt: new Date(year + 1, 0, 1), lte: new Date() };
 }
 
 // === Activité (volume + heures-stagiaires) ===

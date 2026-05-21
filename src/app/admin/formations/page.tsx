@@ -170,20 +170,11 @@ export default function FormationsDashboardPage() {
         </div>
       )}
 
-      {/* === Indicateurs Qualiopi === */}
-      <QualiopiDashboard
-        stats={qualiopi}
-        loading={qualiopiLoading}
-        selectedYear={selectedYear}
-        onYearChange={setSelectedYear}
-        currentYear={currentYear}
-      />
-
-      {/* === Grille d'accès rapide === */}
+      {/* === Grille d'accès rapide (visible dès le scroll initial) === */}
       <h2 className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: "#727485" }}>
         Gérer
       </h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
         <AccessCard
           href="/admin/formations/catalogue"
           icon="📚"
@@ -227,6 +218,15 @@ export default function FormationsDashboardPage() {
           external
         />
       </div>
+
+      {/* === Indicateurs Qualiopi (pliable, replié par défaut) === */}
+      <QualiopiDashboard
+        stats={qualiopi}
+        loading={qualiopiLoading}
+        selectedYear={selectedYear}
+        onYearChange={setSelectedYear}
+        currentYear={currentYear}
+      />
     </div>
   );
 }
@@ -270,33 +270,108 @@ function QualiopiDashboard({
   onYearChange: (y: number) => void;
   currentYear: number;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const yearOptions = stats?.availableYears ?? [currentYear];
 
+  // Mini-résumé visible quand replié — donne envie de cliquer si une métrique
+  // sort des clous, sinon reste discret.
+  const summaryChips = stats
+    ? [
+        {
+          label: `${stats.activity.tauxAssiduiteMoyen} % assiduité`,
+          color: tauxAssiduiteColor(stats.activity.tauxAssiduiteMoyen),
+        },
+        stats.satisfactionChaud.globalAverage !== null
+          ? {
+              label: `${stats.satisfactionChaud.globalAverage}/5 satisfaction`,
+              color: satisfactionColor(stats.satisfactionChaud.globalAverage, 5) ?? "#727485",
+            }
+          : null,
+        stats.satisfactionChaud.npsScore !== null
+          ? {
+              label: `NPS ${stats.satisfactionChaud.npsScore > 0 ? "+" : ""}${stats.satisfactionChaud.npsScore}`,
+              color: npsColor(stats.satisfactionChaud.npsScore) ?? "#727485",
+            }
+          : null,
+        {
+          label: `${stats.pedagogy.tauxAtteinte} % objectifs atteints`,
+          color: tauxAtteinteColor(stats.pedagogy.tauxAtteinte),
+        },
+        stats.complaints.total > 0
+          ? {
+              label: `${stats.complaints.total} réclamation${stats.complaints.total > 1 ? "s" : ""}`,
+              color: stats.complaints.overdue > 0 ? "#991b1b" : "#727485",
+            }
+          : null,
+      ].filter((x): x is { label: string; color: string } => x !== null)
+    : [];
+
   return (
-    <div className="mb-8 p-6 rounded-2xl border" style={{ borderColor: "#e5e7eb", backgroundColor: "white" }}>
-      <div className="flex items-center justify-between mb-5 gap-3 flex-wrap">
-        <div>
-          <h2 className="text-lg font-semibold" style={{ color: "#1f2244" }}>
-            📊 Indicateurs Qualiopi
-          </h2>
-          <p className="text-xs font-jetbrains mt-0.5" style={{ color: "#727485" }}>
-            Bilan annuel — sessions terminées dans l&apos;année {selectedYear}
-          </p>
+    <div className="mb-8 rounded-2xl border" style={{ borderColor: "#e5e7eb", backgroundColor: "white" }}>
+      {/* En-tête cliquable pour déplier */}
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full p-5 flex items-center justify-between gap-3 flex-wrap text-left hover:bg-gray-50 transition-colors rounded-2xl"
+      >
+        <div className="flex items-center gap-3 flex-wrap min-w-0">
+          <div>
+            <h2 className="text-lg font-semibold flex items-center gap-2" style={{ color: "#1f2244" }}>
+              <span>📊</span>
+              <span>Indicateurs Qualiopi</span>
+              <span className="text-xs font-jetbrains font-normal" style={{ color: "#9ca3af" }}>
+                {selectedYear}
+              </span>
+            </h2>
+            {!loading && !expanded && stats && summaryChips.length > 0 && (
+              <div className="flex items-center gap-2 mt-2 flex-wrap">
+                {summaryChips.map((chip, i) => (
+                  <span
+                    key={i}
+                    className="text-[11px] font-jetbrains px-2 py-0.5 rounded-full"
+                    style={{ backgroundColor: "#f3f4f6", color: chip.color }}
+                  >
+                    {chip.label}
+                  </span>
+                ))}
+              </div>
+            )}
+            {expanded && (
+              <p className="text-xs font-jetbrains mt-0.5" style={{ color: "#727485" }}>
+                Bilan annuel — sessions terminées dans l&apos;année {selectedYear}
+              </p>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <label className="text-xs font-jetbrains" style={{ color: "#727485" }}>Année :</label>
-          <select
-            value={selectedYear}
-            onChange={(e) => onYearChange(Number(e.target.value))}
-            className="text-sm font-jetbrains px-3 py-1.5 rounded-lg border"
-            style={{ borderColor: "#e5e7eb", backgroundColor: "white", color: "#1f2244" }}
-          >
-            {yearOptions.map((y) => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
+        <div className="flex items-center gap-3">
+          {expanded && (
+            <div
+              className="flex items-center gap-2"
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+              role="presentation"
+            >
+              <label className="text-xs font-jetbrains" style={{ color: "#727485" }}>Année :</label>
+              <select
+                value={selectedYear}
+                onChange={(e) => onYearChange(Number(e.target.value))}
+                className="text-sm font-jetbrains px-3 py-1.5 rounded-lg border"
+                style={{ borderColor: "#e5e7eb", backgroundColor: "white", color: "#1f2244" }}
+              >
+                {yearOptions.map((y) => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          <span className="text-xl" style={{ color: "#9ca3af" }} aria-hidden>
+            {expanded ? "▾" : "▸"}
+          </span>
         </div>
-      </div>
+      </button>
+
+      {expanded && (
+      <div className="px-6 pb-6">
 
       {loading && (
         <div className="text-sm font-jetbrains" style={{ color: "#9ca3af" }}>Chargement des indicateurs…</div>
@@ -486,6 +561,8 @@ function QualiopiDashboard({
         <div className="text-sm font-jetbrains" style={{ color: "#991b1b" }}>
           Impossible de charger les indicateurs.
         </div>
+      )}
+      </div>
       )}
     </div>
   );
