@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { publicInscriptionSchema } from "@/lib/validation";
 import { getSessionById } from "@/lib/session";
 import { createTrainee, recordTraineeEvent } from "@/lib/trainee";
+import { syncSessionStatusOnRosterChange } from "@/lib/session";
 import { detectOpcoBySiret } from "@/lib/opco";
 import { sendInscriptionConfirmation, sendInscriptionAdminNotif } from "@/lib/mailer";
 
@@ -82,6 +83,10 @@ export async function POST(request: NextRequest) {
       status: "inscrit",
       source: "public_form",
     });
+
+    // Bascule auto du statut session si la capacité est désormais atteinte
+    await syncSessionStatusOnRosterChange(data.sessionId);
+
     await recordTraineeEvent(trainee.id, "rgpd_consent", "Consentement RGPD donné", {
       timestamp: new Date().toISOString(),
     });

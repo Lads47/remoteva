@@ -50,6 +50,46 @@ export interface SessionUpdateInput {
   notes?: string;
 }
 
+/**
+ * Re-synchronise le statut d'une session selon son taux de remplissage :
+ *   - "open" + count >= capacite → "full"
+ *   - "full" + count < capacite  → "open" (place libérée, on rouvre)
+ *
+ * À appeler après toute modification du roster (création/suppression de
+ * Trainee). Best-effort : silencieux si la session n'existe pas ou si on
+ * ne touche à aucune des 2 transitions concernées.
+ *
+ * Le compte utilisé est le nombre TOTAL de Trainee liés à la session
+ * (incluant les "abandonne") pour rester cohérent avec le check de
+ * capacité déjà appliqué côté inscription publique.
+ */
+export async function syncSessionStatusOnRosterChange(sessionId: string): Promise<{
+  from: string;
+  to: string;
+} | null> {
+  const session = await prisma.session.findUnique({
+    where: { id: sessionId },
+    select: {
+      id: true,
+      status: true,
+      capacite: true,
+      _count: { select: { trainees: true } },
+    },
+  });
+  if (!session) return null;
+  const count = session._count.trainees;
+
+  if (session.status === "open" && count >= session.capacite) {
+    await prisma.session.update({ where: { id: sessionId }, data: { status: "full" } });
+    return { from: "open", to: "full" };
+  }
+  if (session.status === "full" && count < session.capacite) {
+    await prisma.session.update({ where: { id: sessionId }, data: { status: "open" } });
+    return { from: "full", to: "open" };
+  }
+  return null;
+}
+
 export async function getAllSessions(): Promise<SessionInfo[]> {
   const list = await prisma.session.findMany({
     include: {
