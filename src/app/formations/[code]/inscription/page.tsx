@@ -303,9 +303,7 @@ export default function PublicInscriptionPage({ params }: { params: Promise<{ co
             {formation.nomLong}
           </h1>
           {formation.description && (
-            <p className="mt-3 text-sm font-jetbrains max-w-xl mx-auto" style={{ color: "#727485" }}>
-              {formation.description}
-            </p>
+            <FormationDescription description={formation.description} />
           )}
         </div>
 
@@ -910,6 +908,69 @@ function PrerequisRenderer({
         className="w-full px-3 py-2 border rounded-xl text-sm"
         style={{ borderColor: "#d1d5db", backgroundColor: "white" }}
       />
+    </div>
+  );
+}
+
+/**
+ * Affiche la description de la formation. Détecte intelligemment 2 patterns :
+ *   1. Lignes séparées par retours à la ligne commençant par - / • / *
+ *   2. Un seul bloc avec " - " ou " • " comme séparateurs entre items
+ * Dans les 2 cas → liste à puces aérée avec titre "Objectifs pédagogiques".
+ * Sinon → paragraphe simple.
+ */
+function FormationDescription({ description }: { description: string }) {
+  const trimmed = description.trim();
+
+  // Pattern 1 : multi-lignes avec bullets en début de ligne
+  const lines = trimmed.split(/\r?\n+/).map((l) => l.trim()).filter(Boolean);
+  const allBulletLines =
+    lines.length >= 2 && lines.every((l) => /^[-•*]\s+/.test(l));
+  if (allBulletLines) {
+    const items = lines.map((l) => l.replace(/^[-•*]\s+/, "").trim()).filter(Boolean);
+    return <ObjectivesList items={items} />;
+  }
+
+  // Pattern 2 : bloc avec " - " ou " • " comme séparateurs internes
+  // On split sur \s+[-•*]\s+ et on garde si on a au moins 2 items significatifs.
+  const splitItems = trimmed
+    .replace(/^[-•*]\s+/, "") // tiret initial éventuel
+    .split(/\s+[-•*]\s+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length >= 5);
+  if (splitItems.length >= 2) {
+    return <ObjectivesList items={splitItems} />;
+  }
+
+  // Fallback : paragraphe simple
+  return (
+    <p className="mt-3 text-sm font-jetbrains max-w-xl mx-auto" style={{ color: "#727485" }}>
+      {description}
+    </p>
+  );
+}
+
+function ObjectivesList({ items }: { items: string[] }) {
+  return (
+    <div className="mt-5 max-w-xl mx-auto text-left">
+      <p className="text-xs uppercase tracking-widest font-jetbrains mb-3 text-center" style={{ color: "#9ca3af" }}>
+        Objectifs pédagogiques
+      </p>
+      <ul className="space-y-2">
+        {items.map((item, i) => (
+          <li
+            key={i}
+            className="flex items-start gap-3 text-sm leading-relaxed"
+            style={{ color: "#374151" }}
+          >
+            <span
+              className="flex-shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full"
+              style={{ backgroundColor: "#7dcef5" }}
+            />
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
