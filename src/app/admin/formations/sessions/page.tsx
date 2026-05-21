@@ -231,12 +231,23 @@ function SessionsPageInner() {
         setError(data.error || "Erreur");
         return;
       }
-      setFeedback({ type: "success", msg: editingId ? "Session mise à jour" : "Session créée" });
+      // Si le serveur a notifié le formateur d'une assignation, on l'indique
+      // dans le toast pour rassurer l'admin (sinon le mail part en silence).
+      const notif = data.trainerNotified as { emailSent?: boolean; error?: string } | null | undefined;
+      let trainerNote = "";
+      if (notif) {
+        if (notif.emailSent) trainerNote = " · Formateur prévenu par mail ✓";
+        else if (notif.error) trainerNote = ` · Mail formateur en erreur (${String(notif.error).slice(0, 60)})`;
+      }
+      setFeedback({
+        type: "success",
+        msg: (editingId ? "Session mise à jour" : "Session créée") + trainerNote,
+      });
       setForm(emptyForm(filterFormationId));
       setEditingId(null);
       setShowForm(false);
       await fetchSessions(filterFormationId);
-      setTimeout(() => setFeedback(null), 4000);
+      setTimeout(() => setFeedback(null), 5000);
     } catch (err) {
       console.error(err);
       setError("Erreur connexion");

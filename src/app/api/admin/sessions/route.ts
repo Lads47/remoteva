@@ -3,10 +3,12 @@ import { getSession } from "@/lib/auth";
 import {
   getAllSessions,
   getSessionsByFormation,
+  getSessionById,
   createSession,
   updateSession,
   deleteSession,
   generateSessionCode,
+  notifyTrainerOfSessionAssignment,
 } from "@/lib/session";
 import { createSessionSchema, updateSessionSchema } from "@/lib/validation";
 
@@ -60,7 +62,14 @@ export async function POST(request: NextRequest) {
       ? parsed.data.code.trim()
       : await generateSessionCode(parsed.data.formationId, parsed.data.dateDebut);
     const session = await createSession({ ...parsed.data, code });
-    return NextResponse.json({ session }, { status: 201 });
+
+    // Si la session est créée avec un formateur assigné, on le prévient par mail.
+    let trainerNotified: { emailSent?: boolean; error?: string } | null = null;
+    if (parsed.data.trainerId) {
+      const res = await notifyTrainerOfSessionAssignment(session.id, parsed.data.trainerId);
+      trainerNotified = { emailSent: res.emailSent, error: res.error };
+    }
+    return NextResponse.json({ session, trainerNotified }, { status: 201 });
   } catch (error) {
     console.error("[/api/admin/sessions] POST error:", error);
     if (error instanceof Error && error.message.includes("Unique")) {
@@ -87,8 +96,23 @@ export async function PUT(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Détecte si le trainerId va changer (assignation initiale ou réassignation)
+    // pour pouvoir prévenir le nouveau formateur par mail après la mise à jour.
+    const previous = await getSessionById(id);
+    const newTrainerId = parsed.data.trainerId ?? undefined;
+    const previousTrainerId = previous?.trainerId ?? null;
+    const trainerChanged =
+      newTrainerId !== undefined && newTrainerId !== previousTrainerId && newTrainerId !== null;
+
     const session = await updateSession(id, parsed.data);
-    return NextResponse.json({ session });
+
+    let trainerNotified: { emailSent?: boolean; error?: string } | null = null;
+    if (trainerChanged && newTrainerId) {
+      const res = await notifyTrainerOfSessionAssignment(session.id, newTrainerId);
+      trainerNotified = { emailSent: res.emailSent, error: res.error };
+    }
+    return NextResponse.json({ session, trainerNotified });
   } catch (error) {
     console.error("[/api/admin/sessions] PUT error:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });

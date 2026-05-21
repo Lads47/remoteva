@@ -1,5 +1,6 @@
 import prisma from "./db";
 import { provisionSessionDriveFolder } from "./drive-provisioning";
+import { sendTrainerSessionAssignment } from "./mailer";
 
 export interface SessionInfo {
   id: string;
@@ -48,6 +49,62 @@ export interface SessionUpdateInput {
   driveSuiviFileId?: string | null;
   trainerId?: string | null;
   notes?: string;
+}
+
+/**
+ * Notifie par mail le formateur qu'on vient de lui assigner une session.
+ * Best-effort : ne fait pas échouer l'opération si le mail plante (juste
+ * un warn dans les logs). Skip si le trainer n'existe pas, est inactif,
+ * ou n'a pas d'email.
+ */
+export async function notifyTrainerOfSessionAssignment(
+  sessionId: string,
+  trainerId: string
+): Promise<{ ok: boolean; emailSent?: boolean; error?: string }> {
+  try {
+    const trainer = await prisma.trainer.findUnique({
+      where: { id: trainerId },
+      select: { id: true, prenom: true, email: true, magicToken: true, active: true },
+    });
+    if (!trainer || !trainer.active || !trainer.email) {
+      return { ok: true, emailSent: false, error: "Formateur introuvable, inactif ou sans email" };
+    }
+    const session = await prisma.session.findUnique({
+      where: { id: sessionId },
+      select: {
+        id: true,
+        code: true,
+        dateDebut: true,
+        dateFin: true,
+        lieu: true,
+        horaires: true,
+        capacite: true,
+        formation: { select: { nomLong: true } },
+      },
+    });
+    if (!session) return { ok: false, error: "Session introuvable" };
+
+    const base = process.env.PUBLIC_BASE_URL || "https://evaremote.com";
+    const sessionUrl = `${base}/formateur/sessions/${session.id}?token=${encodeURIComponent(trainer.magicToken)}`;
+
+    const res = await sendTrainerSessionAssignment({
+      to: trainer.email,
+      prenom: trainer.prenom,
+      formationNomLong: session.formation.nomLong,
+      sessionCode: session.code,
+      sessionDateDebut: session.dateDebut,
+      sessionDateFin: session.dateFin,
+      sessionLieu: session.lieu,
+      sessionHoraires: session.horaires,
+      sessionCapacite: session.capacite,
+      sessionUrl,
+    });
+    return { ok: true, emailSent: res.success, error: res.error };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Erreur inconnue";
+    console.warn(`[notifyTrainerOfSessionAssignment] échec sessionId=${sessionId} trainerId=${trainerId}:`, msg);
+    return { ok: false, error: msg };
+  }
 }
 
 /**

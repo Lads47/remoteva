@@ -379,6 +379,105 @@ Les Ateliers du Stream`;
 }
 
 /**
+ * Mail au formateur quand on l'assigne à une session — création de session
+ * avec trainerId ou modification d'une session qui change le trainerId.
+ * Donne les infos clés (formation, dates, lieu, horaires, effectif prévu) +
+ * lien vers l'espace formateur de la session.
+ */
+export async function sendTrainerSessionAssignment(params: {
+  to: string;
+  prenom: string;
+  formationNomLong: string;
+  sessionCode: string;
+  sessionDateDebut: Date | string;
+  sessionDateFin: Date | string;
+  sessionLieu: string;
+  sessionHoraires: string;
+  sessionCapacite: number;
+  sessionUrl: string;       // /formateur/sessions/[id]?token=<magicToken>
+  replyTo?: string;
+}): Promise<SendEmailResult> {
+  const replyTo = params.replyTo || process.env.ADMIN_NOTIFY_EMAIL;
+  const safe = {
+    prenom: escapeHtml(params.prenom),
+    formation: escapeHtml(params.formationNomLong),
+    code: escapeHtml(params.sessionCode),
+    lieu: escapeHtml(params.sessionLieu || "Lieu à préciser"),
+    horaires: escapeHtml(params.sessionHoraires || "Horaires à préciser"),
+    url: escapeHtml(params.sessionUrl),
+  };
+  const dateDebut = fmtDateFr(params.sessionDateDebut);
+  const dateFin = fmtDateFr(params.sessionDateFin);
+
+  const html = `<!DOCTYPE html>
+<html lang="fr">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #1f2244;">
+  <h1 style="font-size: 22px; margin: 0 0 16px;">Nouvelle session assignée</h1>
+  <p>Bonjour ${safe.prenom},</p>
+  <p>Une nouvelle session de formation vous a été confiée :</p>
+
+  <table style="border-collapse: collapse; margin: 16px 0; background: #f8fafc; border-radius: 8px; padding: 12px; width: 100%;">
+    <tr><td style="padding: 8px 12px; color: #727485; width: 40%;">Formation</td><td style="padding: 8px 12px;"><strong>${safe.formation}</strong></td></tr>
+    <tr><td style="padding: 8px 12px; color: #727485;">Code session</td><td style="padding: 8px 12px; font-family: 'JetBrains Mono', monospace;">${safe.code}</td></tr>
+    <tr><td style="padding: 8px 12px; color: #727485;">Dates</td><td style="padding: 8px 12px;">Du ${dateDebut} au ${dateFin}</td></tr>
+    <tr><td style="padding: 8px 12px; color: #727485;">Lieu</td><td style="padding: 8px 12px;">${safe.lieu}</td></tr>
+    <tr><td style="padding: 8px 12px; color: #727485;">Horaires</td><td style="padding: 8px 12px;">${safe.horaires}</td></tr>
+    <tr><td style="padding: 8px 12px; color: #727485;">Effectif max</td><td style="padding: 8px 12px;">${params.sessionCapacite} stagiaire${params.sessionCapacite > 1 ? "s" : ""}</td></tr>
+  </table>
+
+  <p style="margin: 24px 0; text-align: center;">
+    <a href="${safe.url}" style="display: inline-block; padding: 12px 22px; background: #1f2244; color: white; text-decoration: none; border-radius: 999px; font-weight: 600;">
+      Voir ma session →
+    </a>
+  </p>
+
+  <p style="font-size: 13px; color: #727485;">
+    Depuis votre espace formateur vous pourrez :
+  </p>
+  <ul style="font-size: 13px; color: #727485; padding-left: 20px;">
+    <li>Consulter la liste des stagiaires inscrits + leurs pré-requis</li>
+    <li>Saisir l'émargement chaque demi-journée</li>
+    <li>Évaluer les exercices pratiques</li>
+    <li>Diffuser le questionnaire de satisfaction en fin de session (QR ou mail)</li>
+  </ul>
+
+  <p>Pour toute question, vous pouvez répondre directement à ce mail.</p>
+  <p>Bien cordialement,<br/>Noémie Marphay<br/><em>Les Ateliers du Stream</em></p>
+</body>
+</html>`;
+
+  const text = `Bonjour ${params.prenom},
+
+Une nouvelle session de formation vous a été confiée :
+
+Formation : ${params.formationNomLong}
+Code session : ${params.sessionCode}
+Dates : du ${dateDebut} au ${dateFin}
+Lieu : ${params.sessionLieu || "Lieu à préciser"}
+Horaires : ${params.sessionHoraires || "Horaires à préciser"}
+Effectif max : ${params.sessionCapacite} stagiaire${params.sessionCapacite > 1 ? "s" : ""}
+
+Accéder à votre espace formateur :
+${params.sessionUrl}
+
+Depuis votre espace vous pourrez consulter les stagiaires, saisir les émargements, évaluer les exercices et diffuser le questionnaire de satisfaction.
+
+Pour toute question, répondez à ce mail.
+
+Bien cordialement,
+Noémie Marphay
+Les Ateliers du Stream`;
+
+  return sendEmail({
+    to: params.to,
+    subject: `Nouvelle session assignée — ${params.formationNomLong}`,
+    html,
+    text,
+    replyTo,
+  });
+}
+
+/**
  * Mail interne envoyé à Noémie pour l'alerter d'une nouvelle inscription.
  */
 export async function sendInscriptionAdminNotif(params: {
