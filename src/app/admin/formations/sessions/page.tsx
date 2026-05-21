@@ -299,20 +299,22 @@ function SessionsPageInner() {
       <div className="flex justify-between items-start mb-8">
         <div>
           <h1 className="text-3xl font-bold" style={{ color: "#1f2244" }}>
-            Sessions de formation
-          </h1>
-          <p className="text-sm mt-1 font-jetbrains" style={{ color: "#727485" }}>
             {filterFormation
-              ? `Filtre : ${filterFormation.nomLong}`
-              : "Toutes les sessions, toutes formations confondues"}
-          </p>
+              ? <>Sessions <span style={{ color: "#727485", fontWeight: 400 }}>· {filterFormation.nomLong}</span></>
+              : "Sessions de formation"}
+          </h1>
+          {!filterFormation && (
+            <p className="text-sm mt-1 font-jetbrains" style={{ color: "#727485" }}>
+              Toutes les sessions, toutes formations confondues
+            </p>
+          )}
           {filterFormationId && (
             <Link
               href="/admin/formations/sessions"
               className="text-xs mt-1 inline-block underline font-jetbrains"
               style={{ color: "#727485" }}
             >
-              Voir toutes les sessions
+              ← Voir toutes les sessions
             </Link>
           )}
         </div>
@@ -546,7 +548,7 @@ function SessionsPageInner() {
         </form>
       )}
 
-      {sessions.length === 0 ? (
+      {showForm ? null : sessions.length === 0 ? (
         <div
           className="text-center py-12 border rounded-lg font-jetbrains text-sm"
           style={{ borderColor: "#e5e7eb", color: "#727485" }}

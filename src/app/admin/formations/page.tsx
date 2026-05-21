@@ -428,7 +428,7 @@ export default function FormationsPage() {
         </form>
       )}
 
-      {formations.length === 0 ? (
+      {showForm ? null : formations.length === 0 ? (
         <div className="text-center py-12 border rounded-lg font-jetbrains text-sm" style={{ borderColor: "#e5e7eb", color: "#727485" }}>
           Aucune formation. Crée la première via &laquo; + Nouvelle formation &raquo;.
         </div>
