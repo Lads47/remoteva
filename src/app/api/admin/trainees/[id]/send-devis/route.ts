@@ -16,6 +16,7 @@ import {
 } from "@/lib/sellsy";
 import { sendDevisToStagiaire } from "@/lib/mailer";
 import { archiveTraineeFile } from "@/lib/trainee-documents";
+import { getFileAsPdf, isDriveConfigured } from "@/lib/google-drive";
 
 async function requireAuth() {
   const session = await getSession();
@@ -207,6 +208,21 @@ export async function POST(_request: NextRequest, ctx: { params: Promise<{ id: s
       );
     }
 
+    // Récupération best-effort du PDF programme de la formation, joint au mail
+    // si configuré (Formation.driveTemplateProgrammeId). Le mail part même si
+    // le PDF n'est pas récupérable (typo ID, permission, etc.).
+    let programmeBuffer: Buffer | undefined;
+    let programmeFilename: string | undefined;
+    if (formation.driveTemplateProgrammeId && isDriveConfigured()) {
+      try {
+        const programmeFile = await getFileAsPdf(formation.driveTemplateProgrammeId);
+        programmeBuffer = programmeFile.buffer;
+        programmeFilename = `Programme — ${formation.nomLong}.pdf`;
+      } catch (err) {
+        console.warn("[send-devis] récupération programme PDF échouée:", err);
+      }
+    }
+
     const mailRes = await sendDevisToStagiaire({
       to: trainee.email,
       prenom: trainee.prenom,
@@ -218,6 +234,8 @@ export async function POST(_request: NextRequest, ctx: { params: Promise<{ id: s
       modeFinancement: trainee.modeFinancement,
       pdfBuffer: pdf.buffer,
       pdfFilename: pdf.filename,
+      programmeBuffer,
+      programmeFilename,
     });
     await recordTraineeEvent(
       trainee.id,

@@ -388,6 +388,19 @@ export default function FormationsPage() {
                 className="input font-jetbrains text-xs"
               />
             </Field>
+            <Field
+              label="Programme détaillé de la formation (PDF Drive)"
+              hint="ID Google Drive du PDF du programme pédagogique, joint automatiquement au mail de devis envoyé au stagiaire."
+              full
+            >
+              <input
+                type="text"
+                value={form.driveTemplateProgrammeId}
+                onChange={(e) => setForm({ ...form, driveTemplateProgrammeId: e.target.value })}
+                placeholder="ex: 1abc...XYZ"
+                className="input font-jetbrains text-xs"
+              />
+            </Field>
           </Section>
 
           {error && <p className="text-sm text-red-600">{error}</p>}
@@ -642,11 +655,13 @@ function Field({
   label,
   required,
   full,
+  hint,
   children,
 }: {
   label: string;
   required?: boolean;
   full?: boolean;
+  hint?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -656,6 +671,7 @@ function Field({
         {required && <span className="text-red-500"> *</span>}
       </label>
       {children}
+      {hint && <p className="text-xs mt-1 font-jetbrains" style={{ color: "#727485" }}>{hint}</p>}
     </div>
   );
 }

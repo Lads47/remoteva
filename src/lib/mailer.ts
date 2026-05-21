@@ -231,6 +231,10 @@ export async function sendDevisToStagiaire(params: {
   contactAdminEmail?: string;     // CC vers le contact admin si différent du stagiaire
   pdfBuffer: Buffer;
   pdfFilename: string;
+  // Programme pédagogique de la formation (PDF Drive, optionnel) — joint en
+  // PJ pour donner au stagiaire le détail des objectifs/contenu avant signature.
+  programmeBuffer?: Buffer;
+  programmeFilename?: string;
 }): Promise<SendEmailResult> {
   const replyTo = process.env.ADMIN_NOTIFY_EMAIL;
   const safe = {
@@ -252,7 +256,11 @@ export async function sendDevisToStagiaire(params: {
   <h1 style="font-size: 22px; margin: 0 0 16px;">Votre devis pour la formation ${safe.formation}</h1>
   <p>Bonjour ${safe.prenom},</p>
   <p>Suite à votre demande d'inscription pour la formation <strong>${safe.formation}</strong>
-  (session du ${dateDebut} au ${dateFin}), vous trouverez ci-joint votre devis personnalisé.</p>
+  (session du ${dateDebut} au ${dateFin}), vous trouverez ci-joint :</p>
+  <ul style="padding-left: 20px;">
+    <li>Votre <strong>devis personnalisé</strong> à signer</li>
+    ${params.programmeBuffer ? `<li>Le <strong>programme détaillé</strong> de la formation</li>` : ""}
+  </ul>
 
   <table style="border-collapse: collapse; margin: 16px 0; background: #f8fafc; border-radius: 8px; padding: 12px; width: 100%;">
     <tr><td style="padding: 8px 12px; color: #727485;">Session</td><td style="padding: 8px 12px;"><strong>Du ${dateDebut} au ${dateFin}</strong></td></tr>
@@ -283,7 +291,9 @@ export async function sendDevisToStagiaire(params: {
 
   const text = `Bonjour ${params.prenom},
 
-Suite à votre demande d'inscription à la formation ${params.formationNomLong} (session du ${dateDebut} au ${dateFin}), vous trouverez ci-joint votre devis personnalisé.
+Suite à votre demande d'inscription à la formation ${params.formationNomLong} (session du ${dateDebut} au ${dateFin}), vous trouverez ci-joint :
+- Votre devis personnalisé à signer${params.programmeBuffer ? `
+- Le programme détaillé de la formation` : ""}
 
 Session : du ${dateDebut} au ${dateFin}
 Lieu : ${params.sessionLieu || "Lieu à préciser"}
@@ -294,7 +304,7 @@ ${guide.title} : ${guide.paragraph}
 Prochaines étapes :
 1. Vérifiez le devis ci-joint et retournez-le signé.
 2. Dès la signature reçue (et l'accord de prise en charge le cas échéant), votre place sera définitivement validée.
-3. Vous recevrez ensuite votre convocation et le programme détaillé.
+3. Vous recevrez ensuite votre convocation détaillée.
 
 Pour toute question, répondez à ce mail.
 
@@ -302,15 +312,23 @@ Bien cordialement,
 Noémie Marphay
 Les Ateliers du Stream`;
 
+  const attachments: EmailAttachment[] = [
+    { filename: params.pdfFilename, content: params.pdfBuffer.toString("base64") },
+  ];
+  if (params.programmeBuffer && params.programmeFilename) {
+    attachments.push({
+      filename: params.programmeFilename,
+      content: params.programmeBuffer.toString("base64"),
+    });
+  }
+
   return sendEmail({
     to: params.to,
     subject: `Votre devis — ${params.formationNomLong}`,
     html,
     text,
     replyTo,
-    attachments: [
-      { filename: params.pdfFilename, content: params.pdfBuffer.toString("base64") },
-    ],
+    attachments,
   });
 }
 
