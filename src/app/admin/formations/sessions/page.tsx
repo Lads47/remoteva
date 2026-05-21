@@ -307,7 +307,10 @@ function SessionsPageInner() {
 
   return (
     <div>
-      <div className="flex justify-between items-start mb-8">
+      <Link href="/admin/formations" className="text-xs font-jetbrains underline" style={{ color: "#727485" }}>
+        ← Tableau de bord
+      </Link>
+      <div className="flex justify-between items-start mt-2 mb-8">
         <div>
           <h1 className="text-3xl font-bold" style={{ color: "#1f2244" }}>
             {filterFormation
@@ -330,13 +333,6 @@ function SessionsPageInner() {
           )}
         </div>
         <div className="flex gap-2">
-          <Link
-            href="/admin/formations"
-            className="px-4 py-2 rounded-full text-sm font-medium border"
-            style={{ borderColor: "#1f2244", color: "#1f2244" }}
-          >
-            ← Tableau de bord
-          </Link>
           {!showForm && formations.length > 0 && (
             <button
               onClick={() => {
