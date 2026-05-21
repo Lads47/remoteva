@@ -167,6 +167,30 @@ export async function updateValues(
 }
 
 /**
+ * Lit les valeurs d'un range donné (A1 notation). Renvoie un tableau 2D
+ * — les cellules vides peuvent manquer en fin de ligne (Sheets compacte
+ * les trailing empty).
+ */
+export async function getValues(
+  spreadsheetId: string,
+  range: string
+): Promise<string[][]> {
+  const token = await getAccessToken();
+  const url = new URL(
+    `${SHEETS_API}/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}`
+  );
+  const res = await fetch(url.toString(), {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(`Sheets getValues failed (HTTP ${res.status}): ${t.slice(0, 300)}`);
+  }
+  const data = (await res.json()) as { values?: string[][] };
+  return data.values ?? [];
+}
+
+/**
  * Met en forme les premières lignes/colonnes d'un onglet (en-tête en gras,
  * largeur de colonne A, …). Best-effort, idempotent.
  */
