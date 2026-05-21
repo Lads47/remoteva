@@ -209,6 +209,7 @@ export async function getTrainerSessionDetail(token: string, sessionId: string) 
       status: session.status,
       capacite: session.capacite,
       notes: session.notes,
+      driveFolderId: session.driveFolderId,
     },
     formation: {
       id: session.formation.id,

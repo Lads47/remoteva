@@ -19,13 +19,31 @@ import { sendColdEvalInvite, sendColdEvalReminder } from "@/lib/mailer";
  * dev / un script (curl avec Bearer).
  */
 async function authorize(request: NextRequest): Promise<NextResponse | null> {
-  const session = await getSession();
-  if (session) return null;
-  const secret = process.env.CRON_SECRET;
-  if (secret) {
-    const auth = request.headers.get("authorization");
-    if (auth === `Bearer ${secret}`) return null;
+  let hasSession = false;
+  try {
+    const session = await getSession();
+    hasSession = !!session;
+    if (session) return null;
+  } catch (err) {
+    console.warn("[preview-mail] getSession() a throw:", err);
   }
+
+  const secret = process.env.CRON_SECRET;
+  const auth = request.headers.get("authorization");
+
+  // Log temporaire pour diagnostiquer le 401 — à retirer une fois fixé
+  console.log("[preview-mail] authorize debug", {
+    hasSession,
+    hasSecret: !!secret,
+    secretLength: secret?.length,
+    hasAuthHeader: !!auth,
+    authPrefix: auth?.slice(0, 20),
+    authLength: auth?.length,
+    expectedLength: secret ? `Bearer ${secret}`.length : 0,
+    match: secret ? auth === `Bearer ${secret}` : false,
+  });
+
+  if (secret && auth === `Bearer ${secret}`) return null;
   return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 }
 

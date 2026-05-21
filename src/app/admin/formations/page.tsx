@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 interface Formation {
@@ -435,101 +435,183 @@ export default function FormationsPage() {
       ) : (
         <div className="space-y-3">
           {formations.map((f) => (
-            <div
+            <FormationRow
               key={f.id}
-              className="p-4 rounded-lg border flex items-center justify-between"
-              style={{ borderColor: "#e5e7eb" }}
-            >
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-3 flex-wrap">
-                  <span
-                    className="px-2 py-0.5 rounded text-xs font-jetbrains"
-                    style={{ backgroundColor: "#1f2244", color: "white" }}
-                  >
-                    {f.code}
-                  </span>
-                  {!f.active && (
-                    <span className="px-2 py-0.5 rounded text-xs font-jetbrains bg-gray-200 text-gray-600">
-                      inactive
-                    </span>
-                  )}
-                  <h3 className="font-semibold" style={{ color: "#1f2244" }}>
-                    {f.nomLong}
-                  </h3>
-                </div>
-                <div className="text-sm mt-1 font-jetbrains" style={{ color: "#727485" }}>
-                  {f.prixHT.toLocaleString("fr-FR")} € HT · {f.dureeJours} jour
-                  {f.dureeJours > 1 ? "s" : ""}
-                </div>
-                <div className="text-xs mt-1 flex gap-3 font-jetbrains" style={{ color: "#9ca3af" }}>
-                  <span>Sellsy: {f.sellsyServiceId ? "ok" : "à configurer"}</span>
-                  <span>Drive: {f.driveDossierRacineId ? "ok" : "à configurer"}</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 ml-4">
-                <Link
-                  href={`/admin/formations/${f.id}/prerequis`}
-                  className="text-xs px-3 py-1.5 rounded-full border cursor-pointer"
-                  style={{ borderColor: "#1f2244", color: "#1f2244" }}
-                >
-                  Pré-requis
-                </Link>
-                <Link
-                  href={`/admin/formations/${f.id}/evaluation-grid`}
-                  className="text-xs px-3 py-1.5 rounded-full border cursor-pointer"
-                  style={{ borderColor: "#1f2244", color: "#1f2244" }}
-                >
-                  Grille éval
-                </Link>
-                <Link
-                  href={`/admin/formations/${f.id}/satisfaction-config`}
-                  className="text-xs px-3 py-1.5 rounded-full border cursor-pointer"
-                  style={{ borderColor: "#1f2244", color: "#1f2244" }}
-                  title="Override du questionnaire d'éval à chaud pour cette formation"
-                >
-                  📝 Éval à chaud
-                </Link>
-                <Link
-                  href={`/admin/formations/${f.id}/cold-eval-config`}
-                  className="text-xs px-3 py-1.5 rounded-full border cursor-pointer"
-                  style={{ borderColor: "#1f2244", color: "#1f2244" }}
-                  title="Override du questionnaire d'éval à froid pour cette formation"
-                >
-                  🌬 Éval à froid
-                </Link>
-                <Link
-                  href={`/admin/formations/${f.id}/trainer-eval-config`}
-                  className="text-xs px-3 py-1.5 rounded-full border cursor-pointer"
-                  style={{ borderColor: "#1f2244", color: "#1f2244" }}
-                  title="Override de la fiche satisfaction formateur pour cette formation"
-                >
-                  🎓 Éval formateur
-                </Link>
-                <Link
-                  href={`/admin/formations/sessions?formationId=${f.id}`}
-                  className="text-xs px-3 py-1.5 rounded-full border cursor-pointer"
-                  style={{ borderColor: "#1f2244", color: "#1f2244" }}
-                >
-                  Sessions
-                </Link>
-                <button
-                  onClick={() => handleEdit(f)}
-                  className="text-xs px-3 py-1.5 rounded-full cursor-pointer"
-                  style={{ backgroundColor: "#7dcef5", color: "#1f2244" }}
-                >
-                  Modifier
-                </button>
-                <button
-                  onClick={() => handleDelete(f.id)}
-                  className="text-xs px-3 py-1.5 rounded-full border border-red-200 text-red-600 hover:bg-red-50 cursor-pointer"
-                >
-                  Supprimer
-                </button>
-              </div>
-            </div>
+              formation={f}
+              onEdit={() => handleEdit(f)}
+              onDelete={() => handleDelete(f.id)}
+            />
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// =========================================================================
+// Ligne formation : 1 carte par formation avec un menu déroulant "Configurer"
+// pour regrouper les 5 actions de config Qualiopi (pré-requis, grille éval,
+// éval chaud/froid/formateur). Évite l'effet "mur de 8 boutons".
+// =========================================================================
+
+function FormationRow({
+  formation: f,
+  onEdit,
+  onDelete,
+}: {
+  formation: Formation;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Click outside → ferme le menu
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, [menuOpen]);
+
+  // Items du dropdown de config — l'ordre suit la timeline d'une formation
+  const configItems: { href: string; icon: string; label: string; hint: string }[] = [
+    {
+      href: `/admin/formations/${f.id}/prerequis`,
+      icon: "📋",
+      label: "Pré-requis",
+      hint: "Questions du formulaire d'inscription",
+    },
+    {
+      href: `/admin/formations/${f.id}/evaluation-grid`,
+      icon: "✅",
+      label: "Grille d'évaluation pratique",
+      hint: "Exercices + critères notés en formation",
+    },
+    {
+      href: `/admin/formations/${f.id}/satisfaction-config`,
+      icon: "📝",
+      label: "Éval à chaud (override)",
+      hint: "Questionnaire de satisfaction fin de session",
+    },
+    {
+      href: `/admin/formations/${f.id}/trainer-eval-config`,
+      icon: "🎓",
+      label: "Éval formateur (override)",
+      hint: "Fiche satisfaction formateur J+1",
+    },
+    {
+      href: `/admin/formations/${f.id}/cold-eval-config`,
+      icon: "🌬",
+      label: "Éval à froid (override)",
+      hint: "Questionnaire impact 3 mois après",
+    },
+  ];
+
+  return (
+    <div
+      className="p-4 rounded-lg border flex items-center justify-between"
+      style={{ borderColor: "#e5e7eb" }}
+    >
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-3 flex-wrap">
+          <span
+            className="px-2 py-0.5 rounded text-xs font-jetbrains"
+            style={{ backgroundColor: "#1f2244", color: "white" }}
+          >
+            {f.code}
+          </span>
+          {!f.active && (
+            <span className="px-2 py-0.5 rounded text-xs font-jetbrains bg-gray-200 text-gray-600">
+              inactive
+            </span>
+          )}
+          <h3 className="font-semibold" style={{ color: "#1f2244" }}>
+            {f.nomLong}
+          </h3>
+        </div>
+        <div className="text-sm mt-1 font-jetbrains" style={{ color: "#727485" }}>
+          {f.prixHT.toLocaleString("fr-FR")} € HT · {f.dureeJours} jour
+          {f.dureeJours > 1 ? "s" : ""}
+        </div>
+        <div className="text-xs mt-1 flex gap-3 font-jetbrains" style={{ color: "#9ca3af" }}>
+          <span>Sellsy: {f.sellsyServiceId ? "ok" : "à configurer"}</span>
+          <span>Drive: {f.driveDossierRacineId ? "ok" : "à configurer"}</span>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 ml-4">
+        {/* Action primaire : voir les sessions de cette formation */}
+        <Link
+          href={`/admin/formations/sessions?formationId=${f.id}`}
+          className="text-xs px-3 py-1.5 rounded-full text-white cursor-pointer"
+          style={{ backgroundColor: "#1f2244" }}
+        >
+          Sessions →
+        </Link>
+
+        {/* Action secondaire : éditer les infos de la formation */}
+        <button
+          onClick={onEdit}
+          className="text-xs px-3 py-1.5 rounded-full cursor-pointer"
+          style={{ backgroundColor: "#7dcef5", color: "#1f2244" }}
+        >
+          Modifier
+        </button>
+
+        {/* Menu déroulant Config : regroupe pré-requis / grille / 3 évals */}
+        <div className="relative" ref={menuRef}>
+          <button
+            onClick={() => setMenuOpen((v) => !v)}
+            className="text-xs px-3 py-1.5 rounded-full border cursor-pointer flex items-center gap-1"
+            style={{ borderColor: "#1f2244", color: "#1f2244" }}
+            aria-expanded={menuOpen}
+            aria-haspopup="menu"
+          >
+            ⚙ Configurer
+            <span className="text-[10px]">{menuOpen ? "▴" : "▾"}</span>
+          </button>
+          {menuOpen && (
+            <div
+              role="menu"
+              className="absolute right-0 top-full mt-1 z-20 w-72 rounded-xl border shadow-lg overflow-hidden"
+              style={{ borderColor: "#e5e7eb", backgroundColor: "white" }}
+            >
+              {configItems.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  role="menuitem"
+                  className="flex items-start gap-3 px-3 py-2.5 hover:bg-gray-50 transition-colors"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <span className="text-lg leading-none mt-0.5">{item.icon}</span>
+                  <span className="flex-1">
+                    <span className="block text-sm font-medium" style={{ color: "#1f2244" }}>
+                      {item.label}
+                    </span>
+                    <span className="block text-xs font-jetbrains mt-0.5" style={{ color: "#9ca3af" }}>
+                      {item.hint}
+                    </span>
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Action destructive : discrète, à part visuellement */}
+        <button
+          onClick={onDelete}
+          className="text-xs px-3 py-1.5 rounded-full border border-red-200 text-red-600 hover:bg-red-50 cursor-pointer"
+          title="Supprimer (impossible si des sessions existent)"
+        >
+          Supprimer
+        </button>
+      </div>
     </div>
   );
 }

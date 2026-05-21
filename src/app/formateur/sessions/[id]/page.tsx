@@ -4,6 +4,7 @@ import { Suspense, use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import type { PrerequisField } from "@/lib/formation-prerequis";
+import { EVA_STATUS_COLORS, EVA_STATUS_LABELS, EVA_STATUSES, type EvaStatus } from "@/lib/appConfig-types";
 
 interface Trainer {
   id: string;
@@ -22,6 +23,7 @@ interface Session {
   status: string;
   capacite: number;
   notes: string;
+  driveFolderId: string | null;
 }
 
 interface Formation {
@@ -174,8 +176,25 @@ function FormateurSessionInner({ id }: { id: string }) {
             >
               📝 Éval à chaud
             </Link>
+            {session.driveFolderId && (
+              <a
+                href={`https://drive.google.com/drive/folders/${session.driveFolderId}`}
+                target="_blank"
+                rel="noreferrer"
+                className="px-4 py-2 rounded-full text-sm font-medium border cursor-pointer inline-flex items-center gap-1"
+                style={{ borderColor: "#1f2244", color: "#1f2244" }}
+                title="Ouvrir le dossier Drive de la session dans un nouvel onglet"
+              >
+                📁 Dossier Drive ↗
+              </a>
+            )}
           </div>
         </div>
+
+        {/* Récap rapide : présence de PSH + répartition statuts Kanban */}
+        {trainees.length > 0 && (
+          <SessionSummary trainees={trainees} />
+        )}
 
         {/* Stagiaires */}
         <div className="mt-8">
@@ -218,6 +237,55 @@ function FormateurSessionInner({ id }: { id: string }) {
   );
 }
 
+function SessionSummary({ trainees }: { trainees: Trainee[] }) {
+  const pshCount = trainees.filter((t) => t.psh).length;
+  // Comptage par statut Kanban pour résumer où en sont les stagiaires
+  const counts = trainees.reduce<Record<string, number>>((acc, t) => {
+    acc[t.status] = (acc[t.status] || 0) + 1;
+    return acc;
+  }, {});
+
+  // Statuts pertinents à afficher (les autres sont peu fréquents en pratique
+  // sur une page formateur, ils restent visibles via le badge par stagiaire)
+  const summaryStatuses: EvaStatus[] = ["convoque", "en_formation", "termine", "abandonne"];
+  const activeSummary = summaryStatuses.filter((s) => (counts[s] ?? 0) > 0);
+
+  return (
+    <div className="mt-6 p-4 rounded-xl border flex items-center gap-3 flex-wrap" style={{ borderColor: "#e5e7eb", backgroundColor: "#fafbff" }}>
+      <span className="text-xs font-jetbrains" style={{ color: "#727485" }}>
+        Récap :
+      </span>
+      {activeSummary.length > 0 ? (
+        activeSummary.map((s) => {
+          const palette = EVA_STATUS_COLORS[s];
+          return (
+            <span
+              key={s}
+              className="text-xs font-jetbrains px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: palette.bg, color: palette.fg }}
+            >
+              {counts[s]} {EVA_STATUS_LABELS[s].toLowerCase()}
+            </span>
+          );
+        })
+      ) : (
+        <span className="text-xs font-jetbrains" style={{ color: "#9ca3af" }}>
+          en attente de convocation
+        </span>
+      )}
+      {pshCount > 0 && (
+        <span
+          className="text-xs font-jetbrains px-2 py-0.5 rounded-full ml-auto"
+          style={{ backgroundColor: "#fef3c7", color: "#92400e" }}
+          title="Stagiaires en situation de handicap signalée — adaptation matérielle/pédagogique requise"
+        >
+          ⚠ {pshCount} PSH
+        </span>
+      )}
+    </div>
+  );
+}
+
 function TraineeCard({
   trainee,
   prerequisSchema,
@@ -237,13 +305,28 @@ function TraineeCard({
     }
   }, [trainee.evalEntree]);
 
+  const statusEva = (EVA_STATUSES as readonly string[]).includes(trainee.status)
+    ? (trainee.status as EvaStatus)
+    : null;
+  const statusPalette = statusEva ? EVA_STATUS_COLORS[statusEva] : { bg: "#e5e7eb", fg: "#374151" };
+  const statusLabel = statusEva ? EVA_STATUS_LABELS[statusEva] : trainee.status;
+
   return (
     <div className="p-5 rounded-xl border" style={{ borderColor: "#e5e7eb", backgroundColor: "white" }}>
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h3 className="font-semibold text-lg" style={{ color: "#1f2244" }}>
-            {trainee.prenom} {trainee.nom}
-          </h3>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="font-semibold text-lg" style={{ color: "#1f2244" }}>
+              {trainee.prenom} {trainee.nom}
+            </h3>
+            <span
+              className="text-xs font-jetbrains px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: statusPalette.bg, color: statusPalette.fg }}
+              title="Statut du stagiaire dans le pipeline (lecture seule formateur)"
+            >
+              {statusLabel}
+            </span>
+          </div>
           <div className="mt-1 text-xs font-jetbrains" style={{ color: "#727485" }}>
             {trainee.email}
             {trainee.telephone && ` · ${trainee.telephone}`}
