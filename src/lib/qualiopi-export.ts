@@ -166,7 +166,7 @@ export function formatOverviewAsRows(overview: QualiopiOverview): Cell[][] {
     [`Mise à jour automatique`, new Date().toISOString().slice(0, 16).replace("T", " ")],
     ["", ""],
 
-    ["=== ACTIVITÉ ===", ""],
+    ["▸ ACTIVITÉ", ""],
     ["Sessions terminées", a.sessionsCount],
     ["Formations distinctes", a.formationsDistinctesCount],
     ["Stagiaires accueillis", a.traineesAccueillis],
@@ -176,7 +176,7 @@ export function formatOverviewAsRows(overview: QualiopiOverview): Cell[][] {
     ["Stagiaires en situation de handicap", a.stagiairesPSH],
     ["", ""],
 
-    ["=== SATISFACTION À CHAUD ===", ""],
+    ["▸ SATISFACTION À CHAUD", ""],
     ["Invitations envoyées", sc.invitedTotal],
     ["Réponses soumises", sc.submittedTotal],
     ["Taux de réponse", pct(sc.responseRate)],
@@ -189,7 +189,7 @@ export function formatOverviewAsRows(overview: QualiopiOverview): Cell[][] {
     ["  Total répondants NPS", sc.npsTotal],
     ["", ""],
 
-    ["=== SATISFACTION À FROID (impact 3 mois) ===", ""],
+    ["▸ SATISFACTION À FROID (impact 3 mois)", ""],
     ["Invitations envoyées", sf.invitedTotal],
     ["Réponses soumises", sf.submittedTotal],
     ["Taux de réponse", pct(sf.responseRate)],
@@ -202,7 +202,7 @@ export function formatOverviewAsRows(overview: QualiopiOverview): Cell[][] {
     ["  Total répondants NPS", sf.npsTotal],
     ["", ""],
 
-    ["=== ATTEINTE DES OBJECTIFS PÉDAGOGIQUES ===", ""],
+    ["▸ ATTEINTE DES OBJECTIFS PÉDAGOGIQUES", ""],
     ["Stagiaires total", p.traineesTotal],
     ["Objectifs atteints", p.atteints],
     ["Partiellement atteints", p.partiellementAtteints],
@@ -211,7 +211,7 @@ export function formatOverviewAsRows(overview: QualiopiOverview): Cell[][] {
     ["Taux d'atteinte (sur évalués)", `${p.tauxAtteinte} %`],
     ["", ""],
 
-    ["=== SATISFACTION FORMATEURS ===", ""],
+    ["▸ SATISFACTION FORMATEURS", ""],
     ["Invitations envoyées", t.invitedTotal],
     ["Réponses soumises", t.submittedTotal],
     ["Taux de réponse", pct(t.responseRate)],
@@ -219,7 +219,7 @@ export function formatOverviewAsRows(overview: QualiopiOverview): Cell[][] {
     ["Nombre de réponses agrégées", t.globalCount],
     ["", ""],
 
-    ["=== RÉCLAMATIONS (indicateur 32) ===", ""],
+    ["▸ RÉCLAMATIONS (indicateur 32)", ""],
     ["Total réclamations", c.total],
     ["  Nouvelles", c.byStatus.new],
     ["  En cours", c.byStatus.in_progress],
