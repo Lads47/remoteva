@@ -210,7 +210,10 @@ export default function FormationsPage() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-8">
+      <Link href="/admin/formations" className="text-xs font-jetbrains underline" style={{ color: "#727485" }}>
+        ← Tableau de bord
+      </Link>
+      <div className="flex justify-between items-center mt-2 mb-8">
         <div>
           <h1 className="text-3xl font-bold" style={{ color: "#1f2244" }}>
             Catalogue des formations
@@ -220,36 +223,6 @@ export default function FormationsPage() {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Link
-            href="/admin/formations/trainers"
-            className="px-4 py-2 rounded-full text-sm font-medium border transition-colors cursor-pointer"
-            style={{ borderColor: "#1f2244", color: "#1f2244" }}
-          >
-            👤 Formateurs
-          </Link>
-          <Link
-            href="/admin/formations/parametres-communs"
-            className="px-4 py-2 rounded-full text-sm font-medium border transition-colors cursor-pointer"
-            style={{ borderColor: "#1f2244", color: "#1f2244" }}
-            title="Sellsy · Templates Drive · Questionnaire d'éval à chaud"
-          >
-            ⚙ Paramètres communs
-          </Link>
-          <Link
-            href="/admin/formations/sessions"
-            className="px-4 py-2 rounded-full text-sm font-medium border transition-colors cursor-pointer"
-            style={{ borderColor: "#1f2244", color: "#1f2244" }}
-          >
-            Voir les sessions
-          </Link>
-          <Link
-            href="/admin/reclamations"
-            className="px-4 py-2 rounded-full text-sm font-medium border transition-colors cursor-pointer"
-            style={{ borderColor: "#1f2244", color: "#1f2244" }}
-            title="Réclamations stagiaires & bénéficiaires (Qualiopi indicateur 32)"
-          >
-            ⚠ Réclamations
-          </Link>
           {!showForm && (
             <button
               onClick={() => setShowForm(true)}
