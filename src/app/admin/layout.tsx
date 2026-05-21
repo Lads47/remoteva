@@ -117,6 +117,17 @@ export default function AdminLayout({
                   Formations
                 </Link>
                 <Link
+                  href="/admin/reclamations"
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                    pathname.startsWith("/admin/reclamations")
+                      ? "text-white"
+                      : "text-white/70 hover:text-white"
+                  }`}
+                  style={pathname.startsWith("/admin/reclamations") ? { backgroundColor: "#7dcef5", color: "#1f2244" } : {}}
+                >
+                  Réclamations
+                </Link>
+                <Link
                   href="/admin/users"
                   className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                     pathname === "/admin/users"

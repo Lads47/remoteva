@@ -192,6 +192,7 @@ model Session {
   satisfactionResponses SatisfactionResponse[]
   coldEvalResponses     ColdEvalResponse[]
   trainerEvalResponses  TrainerEvalResponse[]
+  complaints            Complaint[]
 
   @@map("formation_sessions")
   @@index([formationId])
@@ -279,6 +280,7 @@ model Trainee {
   exerciseEvaluations      TraineeExerciseEvaluation[]
   satisfactionResponses    SatisfactionResponse[]
   coldEvalResponses        ColdEvalResponse[]
+  complaints               Complaint[]
 
   @@map("trainees")
   @@index([sessionId])
@@ -387,6 +389,64 @@ model Trainer {
   @@map("trainers")
   @@index([magicToken])
   @@index([active])
+}
+
+// === RÉCLAMATIONS (Qualiopi indicateur 32) ===
+//
+// Canal de signalement public pour les bénéficiaires, prescripteurs et
+// partenaires. Engagement réglementaire : traitement sous 30 jours.
+//
+// Section 1 (champs *Author*, *Concerned*, subject, description) : saisie par
+// le réclamant via /reclamation. Section 2 (status, response*, resolvedAt,
+// actionCorrective) : remplie par l'admin lors du traitement.
+
+model Complaint {
+  id                    String    @id @default(cuid())
+
+  // Numéro lisible auto-généré : RECL-2026-001
+  number                String    @unique
+
+  // === Section réclamant ===
+  authorName            String    @map("author_name")
+  authorCompany         String    @default("") @map("author_company")
+  authorRole            String    @default("") @map("author_role")
+  authorEmail           String    @map("author_email")
+
+  // Si la réclamation concerne quelqu'un d'autre (ex: employeur qui réclame
+  // pour son salarié), on capture aussi ses coordonnées. Sinon vide.
+  concernedName         String    @default("") @map("concerned_name")
+  concernedCompany      String    @default("") @map("concerned_company")
+  concernedRole         String    @default("") @map("concerned_role")
+
+  subject               String                              // Objet précis
+  description           String                              // Description explicite (dysfonctionnement, date, lieu, intervenants…)
+
+  // Optionnels : si le réclamant a pu identifier la session ou le stagiaire concerné
+  sessionId             String?   @map("session_id")
+  traineeId             String?   @map("trainee_id")
+
+  // === Section admin ===
+  receptionMode         String    @default("formulaire_web") @map("reception_mode")  // formulaire_web | email | courrier | telephone
+  status                String    @default("new")                                    // new | in_progress | resolved | closed
+  responseType          String    @default("") @map("response_type")                 // email | telephone | courrier
+  responseContent       String    @default("") @map("response_content")              // Texte de la réponse adressée au réclamant
+  actionCorrective      String    @default("") @map("action_corrective")             // Actions mises en place — indicateur Qualiopi
+  responseSentAt        DateTime? @map("response_sent_at")
+  resolvedAt            DateTime? @map("resolved_at")
+  resolvedBy            String    @default("") @map("resolved_by")                   // Email/nom de la personne qui a clôturé
+  adminNotes            String    @default("") @map("admin_notes")                   // Notes internes admin
+
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt      @map("updated_at")
+
+  session  Session? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  trainee  Trainee? @relation(fields: [traineeId], references: [id], onDelete: SetNull)
+
+  @@map("complaints")
+  @@index([status])
+  @@index([createdAt])
+  @@index([sessionId])
+  @@index([traineeId])
 }
 
 // === Configuration globale (clé/valeur) ===

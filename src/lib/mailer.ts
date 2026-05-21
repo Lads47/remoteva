@@ -496,6 +496,225 @@ Les Ateliers du Stream`;
 }
 
 /**
+ * Accusé de réception d'une réclamation au réclamant.
+ * Rappelle l'engagement réglementaire de traitement sous 30 jours.
+ */
+export async function sendComplaintAcknowledgement(params: {
+  to: string;
+  authorName: string;
+  complaintNumber: string;
+  subject: string;
+}): Promise<SendEmailResult> {
+  const replyTo = process.env.ADMIN_NOTIFY_EMAIL;
+  const safe = {
+    authorName: escapeHtml(params.authorName),
+    number: escapeHtml(params.complaintNumber),
+    subject: escapeHtml(params.subject),
+  };
+
+  const html = `<!DOCTYPE html>
+<html lang="fr">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #1f2244;">
+  <h1 style="font-size: 22px; margin: 0 0 16px;">Votre réclamation a bien été reçue</h1>
+  <p>Bonjour ${safe.authorName},</p>
+  <p>Nous accusons réception de votre réclamation et vous en remercions. Voici les références :</p>
+
+  <table style="border-collapse: collapse; margin: 16px 0; background: #f8fafc; border-radius: 8px; padding: 12px; width: 100%;">
+    <tr><td style="padding: 8px 12px; color: #727485;">Numéro</td><td style="padding: 8px 12px; font-family: 'JetBrains Mono', monospace;"><strong>${safe.number}</strong></td></tr>
+    <tr><td style="padding: 8px 12px; color: #727485;">Objet</td><td style="padding: 8px 12px;">${safe.subject}</td></tr>
+  </table>
+
+  <p style="background: #fef3c7; padding: 12px 16px; border-radius: 8px; border-left: 4px solid #f59e0b; font-size: 14px;">
+    <strong>Engagement Les Ateliers du Stream :</strong> nous traiterons votre réclamation
+    sous <strong>30 jours maximum</strong>. Vous recevrez un mail de retour avec notre analyse
+    et les actions mises en place.
+  </p>
+
+  <p>Pour toute information complémentaire ou pour préciser votre réclamation,
+  vous pouvez répondre à ce mail en mentionnant le numéro <strong>${safe.number}</strong>.</p>
+
+  <p>Bien cordialement,<br/>Noémie Marphay<br/><em>Les Ateliers du Stream</em></p>
+  <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;"/>
+  <p style="font-size: 11px; color: #9ca3af;">
+    Les Ateliers du Stream — Organisme de formation professionnelle continue, NDA N°75470196847.
+  </p>
+</body>
+</html>`;
+
+  const text = `Bonjour ${params.authorName},
+
+Nous accusons réception de votre réclamation et vous en remercions.
+
+Numéro : ${params.complaintNumber}
+Objet : ${params.subject}
+
+Engagement Les Ateliers du Stream : nous traiterons votre réclamation sous 30 jours maximum. Vous recevrez un mail de retour avec notre analyse et les actions mises en place.
+
+Pour toute information complémentaire, vous pouvez répondre à ce mail en mentionnant le numéro ${params.complaintNumber}.
+
+Bien cordialement,
+Noémie Marphay
+Les Ateliers du Stream`;
+
+  return sendEmail({
+    to: params.to,
+    subject: `Réclamation ${params.complaintNumber} — accusé de réception`,
+    html,
+    text,
+    replyTo,
+  });
+}
+
+/**
+ * Alerte interne à Noémie quand une nouvelle réclamation arrive.
+ */
+export async function sendComplaintAdminAlert(params: {
+  complaintNumber: string;
+  authorName: string;
+  authorEmail: string;
+  subject: string;
+  description: string;
+  adminUrl: string;       // Lien direct vers /admin/reclamations/[id]
+}): Promise<SendEmailResult> {
+  const to = process.env.ADMIN_NOTIFY_EMAIL;
+  if (!to) {
+    return { success: false, error: "ADMIN_NOTIFY_EMAIL non configuré" };
+  }
+  const safe = {
+    number: escapeHtml(params.complaintNumber),
+    author: escapeHtml(params.authorName),
+    email: escapeHtml(params.authorEmail),
+    subject: escapeHtml(params.subject),
+    description: escapeHtml(params.description).replace(/\n/g, "<br/>"),
+    url: escapeHtml(params.adminUrl),
+  };
+
+  const html = `<!DOCTYPE html>
+<html lang="fr">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #1f2244;">
+  <h1 style="font-size: 22px; margin: 0 0 16px;">⚠ Nouvelle réclamation reçue</h1>
+  <p>Une nouvelle réclamation vient d'être déposée sur le formulaire public :</p>
+
+  <table style="border-collapse: collapse; margin: 16px 0; background: #fef3c7; border-radius: 8px; padding: 12px; width: 100%; border-left: 4px solid #f59e0b;">
+    <tr><td style="padding: 8px 12px; color: #92400e; width: 35%;">Numéro</td><td style="padding: 8px 12px; font-family: 'JetBrains Mono', monospace;"><strong>${safe.number}</strong></td></tr>
+    <tr><td style="padding: 8px 12px; color: #92400e;">Auteur</td><td style="padding: 8px 12px;">${safe.author} &lt;${safe.email}&gt;</td></tr>
+    <tr><td style="padding: 8px 12px; color: #92400e;">Objet</td><td style="padding: 8px 12px;"><strong>${safe.subject}</strong></td></tr>
+  </table>
+
+  <p><strong>Description :</strong></p>
+  <p style="background: #f8fafc; padding: 12px; border-radius: 6px; font-size: 14px;">${safe.description}</p>
+
+  <p style="margin: 24px 0; text-align: center;">
+    <a href="${safe.url}" style="display: inline-block; padding: 12px 22px; background: #1f2244; color: white; text-decoration: none; border-radius: 999px; font-weight: 600;">
+      Traiter la réclamation →
+    </a>
+  </p>
+
+  <p style="font-size: 13px; color: #991b1b;">
+    <strong>Engagement Qualiopi :</strong> traitement sous 30 jours maximum.
+  </p>
+</body>
+</html>`;
+
+  const text = `Nouvelle réclamation reçue.
+
+Numéro : ${params.complaintNumber}
+Auteur : ${params.authorName} <${params.authorEmail}>
+Objet : ${params.subject}
+
+Description :
+${params.description}
+
+Lien admin : ${params.adminUrl}
+
+Engagement Qualiopi : traitement sous 30 jours maximum.`;
+
+  return sendEmail({
+    to,
+    subject: `[Réclamation ${params.complaintNumber}] ${params.subject}`,
+    html,
+    text,
+    replyTo: params.authorEmail,
+  });
+}
+
+/**
+ * Réponse formelle envoyée au réclamant une fois la réclamation traitée.
+ * Saisie côté admin (responseContent), envoyée explicitement par bouton.
+ */
+export async function sendComplaintResponse(params: {
+  to: string;
+  authorName: string;
+  complaintNumber: string;
+  subject: string;
+  responseContent: string;
+  actionCorrective?: string;     // Mention de l'action corrective si l'admin l'a renseignée
+}): Promise<SendEmailResult> {
+  const replyTo = process.env.ADMIN_NOTIFY_EMAIL;
+  const safe = {
+    authorName: escapeHtml(params.authorName),
+    number: escapeHtml(params.complaintNumber),
+    subject: escapeHtml(params.subject),
+    response: escapeHtml(params.responseContent).replace(/\n/g, "<br/>"),
+    action: escapeHtml(params.actionCorrective ?? "").replace(/\n/g, "<br/>"),
+  };
+
+  const html = `<!DOCTYPE html>
+<html lang="fr">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #1f2244;">
+  <h1 style="font-size: 22px; margin: 0 0 16px;">Réponse à votre réclamation</h1>
+  <p>Bonjour ${safe.authorName},</p>
+  <p>Suite à votre réclamation référence <strong>${safe.number}</strong> portant sur «&nbsp;${safe.subject}&nbsp;»,
+  voici notre retour :</p>
+
+  <div style="background: #f8fafc; padding: 16px; border-radius: 8px; margin: 16px 0; font-size: 14px;">
+    ${safe.response}
+  </div>
+
+  ${params.actionCorrective ? `
+  <p><strong>Actions mises en place :</strong></p>
+  <div style="background: #dcfce7; padding: 16px; border-radius: 8px; margin: 16px 0; font-size: 14px; border-left: 4px solid #166534;">
+    ${safe.action}
+  </div>
+  ` : ""}
+
+  <p>Si vous souhaitez compléter ou si notre réponse ne vous satisfait pas, n'hésitez pas
+  à répondre directement à ce mail.</p>
+
+  <p>Nous vous remercions de nous avoir permis d'améliorer nos prestations.</p>
+  <p>Bien cordialement,<br/>Noémie Marphay<br/><em>Les Ateliers du Stream</em></p>
+  <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;"/>
+  <p style="font-size: 11px; color: #9ca3af;">
+    Les Ateliers du Stream — Organisme de formation professionnelle continue, NDA N°75470196847.
+  </p>
+</body>
+</html>`;
+
+  const text = `Bonjour ${params.authorName},
+
+Suite à votre réclamation référence ${params.complaintNumber} portant sur « ${params.subject} », voici notre retour :
+
+${params.responseContent}
+${params.actionCorrective ? `\nActions mises en place :\n${params.actionCorrective}\n` : ""}
+
+Si vous souhaitez compléter ou si notre réponse ne vous satisfait pas, n'hésitez pas à répondre à ce mail.
+
+Nous vous remercions de nous avoir permis d'améliorer nos prestations.
+
+Bien cordialement,
+Noémie Marphay
+Les Ateliers du Stream`;
+
+  return sendEmail({
+    to: params.to,
+    subject: `Réclamation ${params.complaintNumber} — notre réponse`,
+    html,
+    text,
+    replyTo,
+  });
+}
+
+/**
  * Mail interne envoyé à Noémie pour l'alerter d'une nouvelle inscription.
  */
 export async function sendInscriptionAdminNotif(params: {

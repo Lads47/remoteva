@@ -6,7 +6,7 @@ import { jwtVerify } from "jose";
 const COOKIE_NAME = "remoteva_session";
 
 // Routes protégées (admin uniquement)
-const PROTECTED_ROUTES = ["/admin/dashboard", "/admin/links", "/admin/users", "/admin/account", "/admin/preparation"];
+const PROTECTED_ROUTES = ["/admin/dashboard", "/admin/links", "/admin/users", "/admin/account", "/admin/preparation", "/admin/reclamations"];
 
 // Routes API protégées
 const PROTECTED_API_ROUTES = ["/api/admin", "/api/account"];
@@ -84,6 +84,7 @@ export const config = {
     "/admin/users/:path*",
     "/admin/account/:path*",
     "/admin/preparation/:path*",
+    "/admin/reclamations/:path*",
     // API admin
     "/api/admin/:path*",
     "/api/account/:path*",
