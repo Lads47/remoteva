@@ -182,7 +182,7 @@ export default function PreparationPage() {
           message += `\nTemplate: ${selectedTemplate}`;
         }
         alert(message);
-        window.location.href = "/admin/dashboard";
+        window.location.href = "/admin/newsletter";
       } else {
         const error = await response.json();
         alert("Erreur: " + (error.detail || "Échec du chargement"));
@@ -252,13 +252,13 @@ export default function PreparationPage() {
 
   return (
     <div className="space-y-6">
-      {/* Titre */}
+      {/* En-tête + breadcrumb fournis par /admin/newsletter/layout.tsx (Phase 5) */}
       <div>
-        <h1 className="text-2xl font-bold" style={{ color: "#1f2244" }}>
+        <h2 className="text-xl font-semibold" style={{ color: "#1f2244" }}>
           Préparation Newsletter Live
-        </h1>
-        <p className="mt-1" style={{ color: "#727485" }}>
-          Créer et gérer les lexiques d&apos;événements
+        </h2>
+        <p className="mt-1 text-sm" style={{ color: "#727485" }}>
+          Créer et gérer les lexiques d&apos;événements.
         </p>
       </div>
 

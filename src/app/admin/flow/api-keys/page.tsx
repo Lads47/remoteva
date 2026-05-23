@@ -101,16 +101,11 @@ export default function ApiKeysPage() {
 
   return (
     <div className="space-y-8">
+      {/* En-tête + breadcrumb fournis par /admin/flow/layout.tsx (Phase 5) */}
       <div className="flex items-center justify-between">
-        <div>
-          <Link href="/admin/dashboard" className="text-sm px-2 py-1 rounded hover:bg-gray-100" style={{ color: "#727485" }}>
-            ← Dashboard
-          </Link>
-          <h1 className="text-2xl font-bold mt-2" style={{ color: "#1f2244" }}>Clés API</h1>
-          <p className="mt-1" style={{ color: "#727485" }}>
-            Gérer les clés d&apos;authentification pour les machines EVA Capture / EVA Cut
-          </p>
-        </div>
+        <h2 className="text-xl font-semibold" style={{ color: "#1f2244" }}>
+          Clés API
+        </h2>
         <button
           onClick={() => { setShowForm(true); setError(""); }}
           className="px-4 py-2 text-white rounded-lg transition-all hover:opacity-90"
