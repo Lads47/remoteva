@@ -113,15 +113,18 @@ export default async function HomePage() {
         </div>
       </header>
 
-      {/* Branding compact + vitrine */}
+      {/* Branding + vitrine */}
       <div className="flex-1 flex flex-col items-center px-4 py-10 sm:py-14">
         <div className="text-center mb-10">
-          <p
-            className="font-[var(--font-montserrat)] text-lg sm:text-xl font-medium tracking-wide text-white"
-          >
-            EVA — Electronic Virtual Assistant
-          </p>
-          <p className="text-sm text-white/60 mt-2">
+          <h1 className="font-[var(--font-montserrat)] font-semibold whitespace-nowrap tracking-wide">
+            <span className="text-3xl sm:text-5xl text-white">E</span>
+            <span className="text-2xl sm:text-4xl" style={{ color: "#a0a3b5" }}>lectronic</span>{" "}
+            <span className="text-3xl sm:text-5xl text-white">V</span>
+            <span className="text-2xl sm:text-4xl" style={{ color: "#a0a3b5" }}>irtual</span>{" "}
+            <span className="text-3xl sm:text-5xl text-white">A</span>
+            <span className="text-2xl sm:text-4xl" style={{ color: "#a0a3b5" }}>ssistant</span>
+          </h1>
+          <p className="text-sm sm:text-base text-white/60 mt-4">
             Le portail interne des{" "}
             <a
               href="https://lesateliersdustream.fr/"
