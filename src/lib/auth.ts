@@ -17,10 +17,26 @@ function getSecretKey(): Uint8Array {
   return new TextEncoder().encode(secret);
 }
 
-// Payload du token JWT
+// Univers EVA accessibles (Phase 4 réorganisation EVA)
+export const EVA_UNIVERSES = [
+  "lien",
+  "newsletter",
+  "flow",
+  "stream",
+  "formations",
+] as const;
+export type EvaUniverse = (typeof EVA_UNIVERSES)[number];
+
+// Statut d'un compte AdminUser
+export type AccountStatus = "pending" | "validated";
+
+// Payload du token JWT (Phase 4 : ajout status, isSuperAdmin, universes)
 export interface TokenPayload {
   userId: string;
   email: string;
+  status: AccountStatus;
+  isSuperAdmin: boolean;
+  universes: EvaUniverse[];
   [key: string]: unknown;
 }
 
@@ -88,4 +104,29 @@ export async function createSession(payload: TokenPayload): Promise<void> {
 export async function destroySession(): Promise<void> {
   const cookieStore = await cookies();
   cookieStore.delete(COOKIE_NAME);
+}
+
+// Vérifie qu'une chaîne est un univers EVA valide.
+export function isEvaUniverse(value: unknown): value is EvaUniverse {
+  return (
+    typeof value === "string" &&
+    (EVA_UNIVERSES as readonly string[]).includes(value)
+  );
+}
+
+// Détermine l'univers EVA associé à une route /admin/*.
+// Retourne null pour les routes transverses (hub, account, users, dashboard,
+// pending). /admin/reclamations est rattaché à formations (sous-feature
+// Qualiopi).
+export function universeForPath(pathname: string): EvaUniverse | null {
+  if (pathname === "/admin" || pathname === "/admin/dashboard") return null;
+  if (pathname.startsWith("/admin/account")) return null;
+  if (pathname.startsWith("/admin/users")) return null;
+  if (pathname.startsWith("/admin/pending")) return null;
+  if (pathname.startsWith("/admin/lien")) return "lien";
+  if (pathname.startsWith("/admin/newsletter")) return "newsletter";
+  if (pathname.startsWith("/admin/flow")) return "flow";
+  if (pathname.startsWith("/admin/formations")) return "formations";
+  if (pathname.startsWith("/admin/reclamations")) return "formations";
+  return null;
 }
