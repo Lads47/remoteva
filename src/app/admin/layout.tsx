@@ -1,11 +1,16 @@
 "use client";
 
+// Layout admin minimaliste (Phase 1 réorganisation EVA).
+// L'ancienne barre de navigation unique (Tableau de bord, Liens, Formations,
+// Utilisateurs, Gate SRT) a été retirée : chaque univers porte désormais
+// sa propre navigation contextuelle dans son layout dédié.
+// Ne restent ici que le logo (retour au hub), "Mon compte" et "Déconnexion".
+
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 
-// Layout pour les pages admin - Design inspiré des Ateliers du Stream
 export default function AdminLayout({
   children,
 }: {
@@ -66,79 +71,20 @@ export default function AdminLayout({
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Barre de navigation */}
+      {/* Bandeau minimaliste : logo (retour au hub) + Mon compte + Déconnexion */}
       <nav className="border-b border-white/10" style={{ backgroundColor: "#1f2244" }}>
-        <div className="max-w-4xl mx-auto px-4">
+        <div className="max-w-6xl mx-auto px-4">
           <div className="flex justify-between h-[72px] items-center">
-            {/* Logo et navigation */}
-            <div className="flex items-center space-x-8">
-              <Link href="/" className="flex items-center">
-                <Image
-                  src="/logo-eva-v2.png"
-                  alt="EVA"
-                  width={40}
-                  height={40}
-                  className="h-10 w-auto"
-                />
-              </Link>
+            <Link href="/admin" className="flex items-center" title="Retour au hub">
+              <Image
+                src="/logo-eva-v2.png"
+                alt="EVA"
+                width={40}
+                height={40}
+                className="h-10 w-auto"
+              />
+            </Link>
 
-              <div className="hidden sm:flex space-x-2">
-                <Link
-                  href="/admin/dashboard"
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                    pathname === "/admin/dashboard"
-                      ? "text-white"
-                      : "text-white/70 hover:text-white"
-                  }`}
-                  style={pathname === "/admin/dashboard" ? { backgroundColor: "#7dcef5", color: "#1f2244" } : {}}
-                >
-                  Tableau de bord
-                </Link>
-                <Link
-                  href="/admin/links"
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                    pathname === "/admin/links"
-                      ? "text-white"
-                      : "text-white/70 hover:text-white"
-                  }`}
-                  style={pathname === "/admin/links" ? { backgroundColor: "#7dcef5", color: "#1f2244" } : {}}
-                >
-                  Liens clients
-                </Link>
-                <Link
-                  href="/admin/formations"
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                    pathname.startsWith("/admin/formations") || pathname.startsWith("/admin/reclamations")
-                      ? "text-white"
-                      : "text-white/70 hover:text-white"
-                  }`}
-                  style={(pathname.startsWith("/admin/formations") || pathname.startsWith("/admin/reclamations")) ? { backgroundColor: "#7dcef5", color: "#1f2244" } : {}}
-                >
-                  Formations
-                </Link>
-                <Link
-                  href="/admin/users"
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                    pathname === "/admin/users"
-                      ? "text-white"
-                      : "text-white/70 hover:text-white"
-                  }`}
-                  style={pathname === "/admin/users" ? { backgroundColor: "#7dcef5", color: "#1f2244" } : {}}
-                >
-                  Utilisateurs
-                </Link>
-                <a
-                  href="https://gatesrt.evaremote.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-4 py-2 rounded-full text-sm font-medium text-white/70 hover:text-white transition-colors"
-                >
-                  Gate SRT
-                </a>
-              </div>
-            </div>
-
-            {/* Mon compte et déconnexion */}
             <div className="flex items-center gap-2">
               <Link
                 href="/admin/account"

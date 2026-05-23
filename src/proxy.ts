@@ -6,7 +6,10 @@ import { jwtVerify } from "jose";
 const COOKIE_NAME = "remoteva_session";
 
 // Routes protégées (admin uniquement)
-const PROTECTED_ROUTES = ["/admin/dashboard", "/admin/links", "/admin/users", "/admin/account", "/admin/preparation", "/admin/reclamations"];
+// Note : "/admin" couvre le nouveau hub d'accueil (Phase 1 réorganisation EVA).
+// "startsWith" matche aussi /admin/dashboard (redirection 308 vers /admin),
+// /admin/lien, /admin/newsletter et /admin/flow ajoutés en Phase 1.
+const PROTECTED_ROUTES = ["/admin", "/admin/dashboard", "/admin/links", "/admin/users", "/admin/account", "/admin/preparation", "/admin/reclamations", "/admin/lien", "/admin/newsletter", "/admin/flow"];
 
 // Routes API protégées
 const PROTECTED_API_ROUTES = ["/api/admin", "/api/account"];
@@ -76,15 +79,21 @@ export async function proxy(request: NextRequest) {
 }
 
 // Configuration du matcher
+// Important : on évite "/admin/:path*" qui capturerait /admin/login.
+// On liste donc explicitement le hub (/admin exact) puis chaque sous-route.
 export const config = {
   matcher: [
     // Routes admin
+    "/admin",
     "/admin/dashboard/:path*",
     "/admin/links/:path*",
     "/admin/users/:path*",
     "/admin/account/:path*",
     "/admin/preparation/:path*",
     "/admin/reclamations/:path*",
+    "/admin/lien/:path*",
+    "/admin/newsletter/:path*",
+    "/admin/flow/:path*",
     // API admin
     "/api/admin/:path*",
     "/api/account/:path*",
