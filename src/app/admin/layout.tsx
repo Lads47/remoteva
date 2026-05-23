@@ -22,8 +22,8 @@ export default function AdminLayout({
 
   // Vérifie l'authentification au chargement
   useEffect(() => {
-    // La page de login est accessible sans auth
-    if (pathname === "/admin/login") {
+    // Pages publiques (sans auth) : login + inscription
+    if (pathname === "/admin/login" || pathname === "/admin/inscription") {
       setIsAuthenticated(false);
       return;
     }
@@ -50,8 +50,8 @@ export default function AdminLayout({
     router.push("/admin/login");
   };
 
-  // Page de login: pas de navigation
-  if (pathname === "/admin/login") {
+  // Pages publiques sans navigation admin
+  if (pathname === "/admin/login" || pathname === "/admin/inscription") {
     return <>{children}</>;
   }
 

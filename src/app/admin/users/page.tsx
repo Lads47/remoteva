@@ -1,322 +1,330 @@
 "use client";
 
+// Page de gestion des comptes EVA (Phase 4 réorganisation).
+// Réservée aux super-administrateurs. L'API renvoie 403 si non-super-admin,
+// le proxy ne bloque pas cette route (transverse), et le hub ne montre le
+// lien qu'aux super-admins ; cette page est une défense supplémentaire.
+
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 interface AdminUser {
   id: string;
   email: string;
+  firstName: string | null;
+  lastName: string | null;
+  status: "pending" | "validated";
+  isSuperAdmin: boolean;
   createdAt: string;
+  validatedAt: string | null;
+  universes: string[];
 }
 
-// Page de gestion des utilisateurs admin
+const EVA_DARK = "#1f2244";
+const EVA_ACCENT = "#7dcef5";
+const EVA_MUTED = "#727485";
+
+const ALL_UNIVERSES = [
+  { id: "lien", label: "EVA Lien" },
+  { id: "newsletter", label: "EVA Newsletter" },
+  { id: "flow", label: "EVA Flow" },
+  { id: "stream", label: "EVA Stream" },
+  { id: "formations", label: "EVA Formations" },
+];
+
 export default function UsersPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [showResetForm, setShowResetForm] = useState<string | null>(null);
-  const [formError, setFormError] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
-
-  // Formulaire création
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-
-  // Formulaire reset
-  const [newPassword, setNewPassword] = useState("");
+  const [feedback, setFeedback] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [edits, setEdits] = useState<Record<string, { universes: string[]; isSuperAdmin: boolean }>>({});
 
   useEffect(() => {
-    fetchUsers();
+    void fetchUsers();
   }, []);
 
   const fetchUsers = async () => {
+    setLoading(true);
     try {
       const res = await fetch("/api/admin/users");
-      const data = await res.json();
-      if (data.users) {
-        setUsers(data.users);
+      if (res.status === 403) {
+        setFeedback({ kind: "err", text: "Réservé aux super-administrateurs." });
+        setUsers([]);
+        return;
       }
-    } catch (error) {
-      console.error("Erreur chargement utilisateurs:", error);
+      const data = await res.json();
+      const list: AdminUser[] = data.users || [];
+      setUsers(list);
+      setEdits(
+        Object.fromEntries(
+          list.map((u) => [u.id, { universes: u.universes, isSuperAdmin: u.isSuperAdmin }])
+        )
+      );
+    } catch {
+      setFeedback({ kind: "err", text: "Erreur de chargement." });
     } finally {
       setLoading(false);
     }
   };
 
-  const resetForm = () => {
-    setEmail("");
-    setPassword("");
-    setNewPassword("");
-    setFormError("");
-    setShowForm(false);
-    setShowResetForm(null);
+  const toggleUniverse = (userId: string, universe: string) => {
+    setEdits((prev) => {
+      const current = prev[userId] || { universes: [], isSuperAdmin: false };
+      const universes = current.universes.includes(universe)
+        ? current.universes.filter((u) => u !== universe)
+        : [...current.universes, universe];
+      return { ...prev, [userId]: { ...current, universes } };
+    });
   };
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setFormError("");
-    setSuccessMessage("");
+  const toggleSuperAdmin = (userId: string) => {
+    setEdits((prev) => {
+      const current = prev[userId] || { universes: [], isSuperAdmin: false };
+      return { ...prev, [userId]: { ...current, isSuperAdmin: !current.isSuperAdmin } };
+    });
+  };
 
+  const save = async (user: AdminUser, opts: { validate?: boolean }) => {
+    setFeedback(null);
+    const edit = edits[user.id] || { universes: user.universes, isSuperAdmin: user.isSuperAdmin };
     try {
       const res = await fetch("/api/admin/users", {
-        method: "POST",
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({
+          id: user.id,
+          universes: edit.universes,
+          isSuperAdmin: edit.isSuperAdmin,
+          status: opts.validate ? "validated" : undefined,
+        }),
       });
-
       const data = await res.json();
-
       if (!res.ok) {
-        setFormError(data.error || "Erreur lors de la création");
+        setFeedback({ kind: "err", text: data.error || "Erreur lors de la sauvegarde." });
         return;
       }
-
-      setSuccessMessage("Utilisateur créé avec succès");
+      setFeedback({ kind: "ok", text: opts.validate ? "Compte validé." : "Modifications enregistrées." });
       await fetchUsers();
-      resetForm();
     } catch {
-      setFormError("Erreur de connexion");
+      setFeedback({ kind: "err", text: "Erreur de connexion." });
     }
   };
 
-  const handleResetPassword = async (e: React.FormEvent, userId: string) => {
-    e.preventDefault();
-    setFormError("");
-    setSuccessMessage("");
-
+  const remove = async (user: AdminUser) => {
+    if (!confirm(`Supprimer définitivement ${user.email} ?`)) return;
     try {
-      const res = await fetch("/api/admin/users", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: userId, newPassword }),
-      });
-
+      const res = await fetch(`/api/admin/users?id=${user.id}`, { method: "DELETE" });
       const data = await res.json();
-
       if (!res.ok) {
-        setFormError(data.error || "Erreur lors de la réinitialisation");
+        setFeedback({ kind: "err", text: data.error || "Erreur de suppression." });
         return;
       }
-
-      setSuccessMessage("Mot de passe réinitialisé avec succès");
-      resetForm();
-    } catch {
-      setFormError("Erreur de connexion");
-    }
-  };
-
-  const handleDelete = async (id: string, email: string) => {
-    if (!confirm(`Supprimer l'utilisateur ${email} ?`)) return;
-
-    setSuccessMessage("");
-    try {
-      const res = await fetch(`/api/admin/users?id=${id}`, { method: "DELETE" });
-      const data = await res.json();
-
-      if (!res.ok) {
-        alert(data.error || "Erreur lors de la suppression");
-        return;
-      }
-
-      setSuccessMessage("Utilisateur supprimé");
+      setFeedback({ kind: "ok", text: "Compte supprimé." });
       await fetchUsers();
-    } catch (error) {
-      console.error("Erreur suppression:", error);
+    } catch {
+      setFeedback({ kind: "err", text: "Erreur de connexion." });
     }
   };
 
   if (loading) {
     return (
       <div className="text-center py-12">
-        <div className="animate-pulse" style={{ color: "#727485" }}>Chargement...</div>
+        <div className="animate-pulse" style={{ color: EVA_MUTED }}>Chargement...</div>
       </div>
     );
   }
 
+  const pending = users.filter((u) => u.status === "pending");
+  const validated = users.filter((u) => u.status === "validated");
+
   return (
-    <div className="space-y-6">
-      {/* En-tête */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold" style={{ color: "#1f2244" }}>Utilisateurs</h1>
-          <p className="mt-1" style={{ color: "#727485" }}>
-            Gérez les comptes administrateurs
-          </p>
-        </div>
-        <button
-          onClick={() => {
-            resetForm();
-            setShowForm(true);
-          }}
-          className="px-4 py-2 text-white rounded-full text-sm font-medium transition-colors"
-          style={{ backgroundColor: "#1f2244" }}
-        >
-          Nouvel utilisateur
-        </button>
+    <div className="space-y-8">
+      <div>
+        <Link href="/admin" className="text-xs underline" style={{ color: EVA_MUTED }}>
+          ← Hub EVA
+        </Link>
+        <h1 className="text-2xl font-bold mt-2" style={{ color: EVA_DARK }}>
+          Gestion des comptes
+        </h1>
+        <p className="mt-1 text-sm" style={{ color: EVA_MUTED }}>
+          Valider les inscriptions, attribuer les univers EVA, gérer les super-administrateurs.
+        </p>
       </div>
 
-      {/* Message de succès */}
-      {successMessage && (
-        <div className="p-4 rounded-lg text-sm" style={{ backgroundColor: "#e8f9f0", color: "#1f2244" }}>
-          {successMessage}
+      {feedback && (
+        <div
+          className="p-3 rounded text-sm"
+          style={{
+            backgroundColor: feedback.kind === "ok" ? "#e8f9f0" : "#fef2f2",
+            color: feedback.kind === "ok" ? "#1f6e3a" : "#b91c1c",
+          }}
+        >
+          {feedback.text}
         </div>
       )}
 
-      {/* Formulaire création */}
-      {showForm && (
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <h2 className="text-lg font-semibold mb-4" style={{ color: "#1f2244" }}>
-            Créer un utilisateur
-          </h2>
-
-          <form onSubmit={handleCreate} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: "#1f2244" }}>
-                  Email
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2"
-                  placeholder="utilisateur@eva.com"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: "#1f2244" }}>
-                  Mot de passe
-                </label>
-                <input
-                  type="password"
-                  required
-                  minLength={6}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2"
-                  placeholder="Minimum 6 caractères"
-                />
-              </div>
-            </div>
-
-            {formError && (
-              <div className="text-red-600 text-sm bg-red-50 py-2 px-3 rounded">
-                {formError}
-              </div>
-            )}
-
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                className="px-4 py-2 text-white rounded-full text-sm font-medium transition-colors"
-                style={{ backgroundColor: "#1f2244" }}
-              >
-                Créer
-              </button>
-              <button
-                type="button"
-                onClick={resetForm}
-                className="px-4 py-2 border border-gray-300 rounded-full text-sm font-medium transition-colors"
-                style={{ color: "#1f2244" }}
-              >
-                Annuler
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* Liste des utilisateurs */}
-      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-        {users.length === 0 ? (
-          <div className="p-8 text-center" style={{ color: "#727485" }}>
-            Aucun utilisateur
+      <section>
+        <h2 className="text-lg font-semibold mb-3" style={{ color: EVA_DARK }}>
+          En attente de validation ({pending.length})
+        </h2>
+        {pending.length === 0 ? (
+          <div className="p-4 rounded border text-sm" style={{ borderColor: "#e5e7eb", color: EVA_MUTED }}>
+            Aucun compte en attente.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="border-b border-gray-200" style={{ backgroundColor: "#f5f5f7" }}>
-                <tr>
-                  <th className="text-left px-4 py-3 text-sm font-medium" style={{ color: "#727485" }}>
-                    Email
-                  </th>
-                  <th className="text-left px-4 py-3 text-sm font-medium hidden sm:table-cell" style={{ color: "#727485" }}>
-                    Créé le
-                  </th>
-                  <th className="text-right px-4 py-3 text-sm font-medium" style={{ color: "#727485" }}>
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {users.map((user) => (
-                  <tr key={user.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm" style={{ color: "#1f2244" }}>
-                      {user.email}
-                    </td>
-                    <td className="px-4 py-3 text-sm hidden sm:table-cell" style={{ color: "#727485" }}>
-                      {new Date(user.createdAt).toLocaleDateString("fr-FR")}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => {
-                            setShowResetForm(user.id);
-                            setNewPassword("");
-                            setFormError("");
-                          }}
-                          className="text-xs transition-colors"
-                          style={{ color: "#7dcef5" }}
-                        >
-                          Réinitialiser MDP
-                        </button>
-                        <button
-                          onClick={() => handleDelete(user.id, user.email)}
-                          className="text-xs text-red-600 hover:text-red-800 transition-colors"
-                        >
-                          Supprimer
-                        </button>
-                      </div>
-
-                      {/* Formulaire reset inline */}
-                      {showResetForm === user.id && (
-                        <form
-                          onSubmit={(e) => handleResetPassword(e, user.id)}
-                          className="mt-2 flex items-center gap-2 justify-end"
-                        >
-                          <input
-                            type="password"
-                            required
-                            minLength={6}
-                            value={newPassword}
-                            onChange={(e) => setNewPassword(e.target.value)}
-                            className="px-2 py-1 border border-gray-300 rounded text-sm w-32"
-                            placeholder="Nouveau MDP"
-                          />
-                          <button
-                            type="submit"
-                            className="px-2 py-1 text-xs text-white rounded transition-colors"
-                            style={{ backgroundColor: "#1f2244" }}
-                          >
-                            OK
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setShowResetForm(null)}
-                            className="px-2 py-1 text-xs border border-gray-300 rounded"
-                          >
-                            X
-                          </button>
-                        </form>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="space-y-3">
+            {pending.map((u) => (
+              <UserCard
+                key={u.id}
+                user={u}
+                edit={edits[u.id] || { universes: u.universes, isSuperAdmin: u.isSuperAdmin }}
+                onToggleUniverse={(uv) => toggleUniverse(u.id, uv)}
+                onToggleSuperAdmin={() => toggleSuperAdmin(u.id)}
+                onSave={() => save(u, { validate: true })}
+                onDelete={() => remove(u)}
+                primaryAction="Valider"
+              />
+            ))}
           </div>
         )}
+      </section>
+
+      <section>
+        <h2 className="text-lg font-semibold mb-3" style={{ color: EVA_DARK }}>
+          Comptes validés ({validated.length})
+        </h2>
+        {validated.length === 0 ? (
+          <div className="p-4 rounded border text-sm" style={{ borderColor: "#e5e7eb", color: EVA_MUTED }}>
+            Aucun compte validé.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {validated.map((u) => (
+              <UserCard
+                key={u.id}
+                user={u}
+                edit={edits[u.id] || { universes: u.universes, isSuperAdmin: u.isSuperAdmin }}
+                onToggleUniverse={(uv) => toggleUniverse(u.id, uv)}
+                onToggleSuperAdmin={() => toggleSuperAdmin(u.id)}
+                onSave={() => save(u, {})}
+                onDelete={() => remove(u)}
+                primaryAction="Enregistrer"
+              />
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function UserCard({
+  user,
+  edit,
+  onToggleUniverse,
+  onToggleSuperAdmin,
+  onSave,
+  onDelete,
+  primaryAction,
+}: {
+  user: AdminUser;
+  edit: { universes: string[]; isSuperAdmin: boolean };
+  onToggleUniverse: (u: string) => void;
+  onToggleSuperAdmin: () => void;
+  onSave: () => void;
+  onDelete: () => void;
+  primaryAction: string;
+}) {
+  const internal = user.email.endsWith("@lesateliersdustream.fr");
+  const displayName = [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email;
+
+  return (
+    <div className="p-4 rounded-lg border" style={{ borderColor: "#e5e7eb", backgroundColor: "white" }}>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <strong style={{ color: EVA_DARK }}>{displayName}</strong>
+            {internal && (
+              <span
+                className="text-xs px-2 py-0.5 rounded-full"
+                style={{ backgroundColor: EVA_ACCENT, color: EVA_DARK }}
+              >
+                interne
+              </span>
+            )}
+            {user.isSuperAdmin && (
+              <span
+                className="text-xs px-2 py-0.5 rounded-full"
+                style={{ backgroundColor: "#1f2244", color: "white" }}
+              >
+                super-admin
+              </span>
+            )}
+          </div>
+          <div className="text-sm mt-0.5" style={{ color: EVA_MUTED }}>
+            {user.email}
+          </div>
+          <div className="text-xs mt-1" style={{ color: EVA_MUTED }}>
+            Inscrit le {new Date(user.createdAt).toLocaleDateString("fr-FR")}
+            {user.validatedAt && ` — validé le ${new Date(user.validatedAt).toLocaleDateString("fr-FR")}`}
+          </div>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <button
+            onClick={onSave}
+            className="px-3 py-1.5 text-xs text-white rounded-full"
+            style={{ backgroundColor: EVA_DARK }}
+          >
+            {primaryAction}
+          </button>
+          <button
+            onClick={onDelete}
+            className="px-3 py-1.5 text-xs text-red-600 hover:text-red-800 border border-red-200 rounded-full"
+          >
+            Supprimer
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-3 pt-3 border-t" style={{ borderColor: "#f3f4f6" }}>
+        <div className="text-xs font-medium mb-2" style={{ color: EVA_MUTED }}>
+          Univers EVA autorisés
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {ALL_UNIVERSES.map((u) => {
+            const checked = edit.universes.includes(u.id);
+            return (
+              <label
+                key={u.id}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full border cursor-pointer text-xs"
+                style={{
+                  borderColor: checked ? EVA_DARK : "#e5e7eb",
+                  backgroundColor: checked ? "#fafbff" : "white",
+                  color: EVA_DARK,
+                  fontWeight: checked ? 600 : 400,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => onToggleUniverse(u.id)}
+                  className="h-3 w-3"
+                />
+                {u.label}
+              </label>
+            );
+          })}
+        </div>
+
+        <div className="mt-3">
+          <label className="inline-flex items-center gap-2 text-xs cursor-pointer" style={{ color: EVA_DARK }}>
+            <input
+              type="checkbox"
+              checked={edit.isSuperAdmin}
+              onChange={onToggleSuperAdmin}
+            />
+            Super-administrateur (accès complet et gestion des comptes)
+          </label>
+        </div>
       </div>
     </div>
   );

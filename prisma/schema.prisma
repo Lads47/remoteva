@@ -10,14 +10,43 @@ datasource db {
   provider = "sqlite"
 }
 
-// Utilisateurs administrateurs (salariés EVA)
+// Utilisateurs administrateurs / salariés / formateurs / réalisateurs EVA.
+// Phase 4 réorganisation EVA :
+//   - status : "pending" (inscription non validée) | "validated"
+//   - isSuperAdmin : Lads + Noémie au sommet, peuvent valider les comptes
+//     et attribuer les univers.
+//   - firstName / lastName : récoltés à l'inscription, optionnels pour les
+//     comptes legacy migrés.
+//   - universes : table relationnelle UserUniverseAccess (1 ligne = 1 droit).
 model AdminUser {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  passwordHash String   @map("password_hash")
-  createdAt    DateTime @default(now()) @map("created_at")
+  id           String                @id @default(cuid())
+  email        String                @unique
+  passwordHash String                @map("password_hash")
+  firstName    String?               @map("first_name")
+  lastName     String?               @map("last_name")
+  status       String                @default("pending")    // pending | validated
+  isSuperAdmin Boolean               @default(false) @map("is_super_admin")
+  createdAt    DateTime              @default(now()) @map("created_at")
+  validatedAt  DateTime?             @map("validated_at")
+  universes    UserUniverseAccess[]
 
   @@map("admin_users")
+  @@index([status])
+}
+
+// Droit d'accès d'un utilisateur à un univers EVA.
+// 1 ligne = 1 droit (lien / newsletter / flow / stream / formations).
+// L'absence de ligne = pas d'accès. Les super-admins bypassent ce contrôle.
+model UserUniverseAccess {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  universe  String                                         // lien | newsletter | flow | stream | formations
+  grantedAt DateTime  @default(now()) @map("granted_at")
+  user      AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, universe])
+  @@map("user_universe_access")
+  @@index([userId])
 }
 
 // === EVA FLOW : Projets de captation vidéo ===

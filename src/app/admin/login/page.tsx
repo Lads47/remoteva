@@ -32,8 +32,9 @@ export default function LoginPage() {
         return;
       }
 
-      // Redirection vers le dashboard
-      router.push("/admin/dashboard");
+      // Redirection vers le hub EVA (le proxy renverra vers /admin/pending
+      // si le compte n'est pas encore validé)
+      router.push("/admin");
     } catch {
       setError("Erreur de connexion au serveur");
     } finally {
@@ -131,8 +132,20 @@ export default function LoginPage() {
               </button>
             </form>
 
+            {/* Lien inscription */}
+            <p className="mt-6 text-sm text-white/70 text-center">
+              Pas encore de compte ?{" "}
+              <Link
+                href="/admin/inscription"
+                className="underline hover:text-white"
+                style={{ color: "#7dcef5" }}
+              >
+                S&apos;inscrire
+              </Link>
+            </p>
+
             {/* Mot de passe oublié */}
-            <p className="mt-6 text-sm text-white/50 text-center italic">
+            <p className="mt-2 text-sm text-white/50 text-center italic">
               Mot de passe oublié ? Contactez un administrateur.
             </p>
           </div>
