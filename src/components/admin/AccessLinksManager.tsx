@@ -1,5 +1,17 @@
 "use client";
 
+// Composant partagé de gestion des liens d'accès (AccessLink).
+// Utilisé par EVA Lien (serviceType="download") et EVA Newsletter
+// (serviceType="newsletter") — Phase 2 réorganisation EVA.
+//
+// La plomberie API (/api/admin/links) reste partagée entre les 2 univers
+// (audit §43 : "La séparation est une affaire d'organisation et d'interface,
+// pas de réécriture de la base").
+//
+// Le composant force le type de service via prop : la liste est filtrée
+// côté client, le sélecteur de type est masqué dans le formulaire, et le
+// type est appliqué automatiquement aux nouvelles entrées.
+
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
@@ -13,8 +25,15 @@ interface AccessLink {
   isActive: boolean;
 }
 
-// Page de gestion des liens clients - Design inspiré des Ateliers du Stream
-export default function LinksPage() {
+type ServiceType = "newsletter" | "download";
+
+interface Props {
+  serviceType: ServiceType;
+  title: string;
+  subtitle: string;
+}
+
+export default function AccessLinksManager({ serviceType, title, subtitle }: Props) {
   const searchParams = useSearchParams();
   const [links, setLinks] = useState<AccessLink[]>([]);
   const [loading, setLoading] = useState(true);
@@ -22,10 +41,9 @@ export default function LinksPage() {
   const [editingLink, setEditingLink] = useState<AccessLink | null>(null);
   const [formError, setFormError] = useState("");
 
-  // Formulaire
+  // Formulaire : serviceType est forcé par la prop
   const [formData, setFormData] = useState({
     slug: "",
-    serviceType: "newsletter" as "newsletter" | "download",
     clientName: "",
     serviceName: "",
     expiresAt: "",
@@ -52,7 +70,6 @@ export default function LinksPage() {
   const resetForm = () => {
     setFormData({
       slug: "",
-      serviceType: "newsletter",
       clientName: "",
       serviceName: "",
       expiresAt: "",
@@ -64,7 +81,6 @@ export default function LinksPage() {
   const openEditForm = (link: AccessLink) => {
     setFormData({
       slug: link.slug,
-      serviceType: link.serviceType,
       clientName: link.clientName,
       serviceName: link.serviceName,
       expiresAt: new Date(link.expiresAt).toISOString().split("T")[0],
@@ -81,8 +97,8 @@ export default function LinksPage() {
       const url = "/api/admin/links";
       const method = editingLink ? "PUT" : "POST";
       const body = editingLink
-        ? { id: editingLink.id, ...formData }
-        : formData;
+        ? { id: editingLink.id, serviceType, ...formData }
+        : { serviceType, ...formData };
 
       const res = await fetch(url, {
         method,
@@ -131,6 +147,9 @@ export default function LinksPage() {
 
   const isExpired = (date: string) => new Date(date) < new Date();
 
+  // Filtre côté client sur le type de service
+  const filteredLinks = links.filter((l) => l.serviceType === serviceType);
+
   if (loading) {
     return (
       <div className="text-center py-12">
@@ -144,10 +163,8 @@ export default function LinksPage() {
       {/* En-tête */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: "#1f2244" }}>Liens clients</h1>
-          <p className="mt-1" style={{ color: "#727485" }}>
-            Gérez les accès aux services EVA
-          </p>
+          <h2 className="text-xl font-semibold" style={{ color: "#1f2244" }}>{title}</h2>
+          <p className="mt-1 text-sm" style={{ color: "#727485" }}>{subtitle}</p>
         </div>
         <button
           onClick={() => {
@@ -164,9 +181,9 @@ export default function LinksPage() {
       {/* Formulaire */}
       {showForm && (
         <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <h2 className="text-lg font-semibold mb-4" style={{ color: "#1f2244" }}>
+          <h3 className="text-lg font-semibold mb-4" style={{ color: "#1f2244" }}>
             {editingLink ? "Modifier le lien" : "Créer un lien"}
-          </h2>
+          </h3>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -176,7 +193,7 @@ export default function LinksPage() {
                   Slug (URL)
                 </label>
                 <div className="flex items-center">
-                  <span className="text-sm mr-1" style={{ color: "#727485" }}>remoteva.com/</span>
+                  <span className="text-sm mr-1" style={{ color: "#727485" }}>evaremote.com/</span>
                   <input
                     type="text"
                     required
@@ -191,26 +208,6 @@ export default function LinksPage() {
                     placeholder="agrotic2026"
                   />
                 </div>
-              </div>
-
-              {/* Type de service */}
-              <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: "#1f2244" }}>
-                  Type de service
-                </label>
-                <select
-                  value={formData.serviceType}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      serviceType: e.target.value as "newsletter" | "download",
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2"
-                >
-                  <option value="newsletter">Newsletter Live</option>
-                  <option value="download">Téléchargement</option>
-                </select>
               </div>
 
               {/* Nom du client */}
@@ -298,7 +295,7 @@ export default function LinksPage() {
 
       {/* Liste des liens */}
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-        {links.length === 0 ? (
+        {filteredLinks.length === 0 ? (
           <div className="p-8 text-center" style={{ color: "#727485" }}>
             Aucun lien créé pour le moment
           </div>
@@ -316,9 +313,6 @@ export default function LinksPage() {
                   <th className="text-left px-4 py-3 text-sm font-medium hidden sm:table-cell" style={{ color: "#727485" }}>
                     Service
                   </th>
-                  <th className="text-left px-4 py-3 text-sm font-medium hidden md:table-cell" style={{ color: "#727485" }}>
-                    Type
-                  </th>
                   <th className="text-left px-4 py-3 text-sm font-medium" style={{ color: "#727485" }}>
                     Statut
                   </th>
@@ -328,7 +322,7 @@ export default function LinksPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {links.map((link) => (
+                {filteredLinks.map((link) => (
                   <tr key={link.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3">
                       <a
@@ -346,20 +340,6 @@ export default function LinksPage() {
                     </td>
                     <td className="px-4 py-3 text-sm hidden sm:table-cell" style={{ color: "#727485" }}>
                       {link.serviceName}
-                    </td>
-                    <td className="px-4 py-3 hidden md:table-cell">
-                      <span
-                        className="text-xs px-2 py-1 rounded-full"
-                        style={
-                          link.serviceType === "newsletter"
-                            ? { backgroundColor: "#e8f4fd", color: "#1f2244" }
-                            : { backgroundColor: "#f3e8ff", color: "#1f2244" }
-                        }
-                      >
-                        {link.serviceType === "newsletter"
-                          ? "Newsletter"
-                          : "Download"}
-                      </span>
                     </td>
                     <td className="px-4 py-3">
                       {isExpired(link.expiresAt) ? (

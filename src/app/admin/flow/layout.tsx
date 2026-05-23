@@ -1,19 +1,18 @@
 "use client";
 
-// Layout de l'univers EVA Flow (Phase 1 réorganisation EVA).
-// Compromis Phase 1 validé : les onglets "Réalisateurs" et "Clés API"
-// pointent vers les routes actuelles /admin/directors et /admin/api-keys,
-// qui vivent en dehors de ce layout. Au clic, on sort visuellement de la
-// navigation Flow. Le déplacement effectif sous /admin/flow/* est prévu en
-// Phase 2.
+// Layout de l'univers EVA Flow (Phase 2 réorganisation EVA).
+// Toutes les sous-pages vivent désormais sous /admin/flow/* :
+//   /admin/flow              → Événements
+//   /admin/flow/directors    → Réalisateurs (anciennement /admin/directors)
+//   /admin/flow/api-keys     → Clés API (anciennement /admin/api-keys)
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const TABS = [
   { href: "/admin/flow", label: "Événements", match: "exact" as const },
-  { href: "/admin/directors", label: "Réalisateurs", match: "startsWith" as const },
-  { href: "/admin/api-keys", label: "Clés API", match: "startsWith" as const },
+  { href: "/admin/flow/directors", label: "Réalisateurs", match: "startsWith" as const },
+  { href: "/admin/flow/api-keys", label: "Clés API", match: "startsWith" as const },
 ];
 
 export default function FlowLayout({ children }: { children: React.ReactNode }) {
