@@ -1,230 +1,216 @@
-# Remoteva
+# Remoteva — evaremote.com
 
-Portail de services pour EVA - Electronic Virtual Assistant.
+Portail interne **EVA — Electronic Virtual Assistant** des Ateliers du Stream.
 
-## Description
+## Vue d'ensemble
 
-Remoteva est une application web Next.js permettant de gérer et distribuer des services à des clients via des liens uniques. Les clients accèdent aux services sans créer de compte, simplement via une URL personnalisée.
+Remoteva est l'application web Next.js qui héberge le portail interne **evaremote.com**.
+Elle est organisée autour de **5 univers EVA** indépendants, accessibles depuis un hub
+d'accueil après connexion, et d'un système de comptes modéré par super-administrateurs.
 
-### Fonctionnalités
+### Les 5 univers EVA
 
-- **Accès client par lien unique** : URLs simples comme `/agrotic2026` ou `/filmscdc`
-- **Administration sécurisée** : Authentification email + mot de passe pour les salariés
-- **Services modulaires** :
-  - Newsletter Live : Résumés de conférences avec génération HTML
-  - Téléchargement : Partage de fichiers volumineux
-- **Design responsive** : Mobile-first, compatible PC, tablette et smartphone
+| Univers | Route | Description |
+|---|---|---|
+| **EVA Lien** | `/admin/lien` | Partage et téléchargement de fichiers volumineux via lien d'accès unique. |
+| **EVA Newsletter** | `/admin/newsletter` | Résumés de conférences en direct, génération HTML, lexiques de préparation. |
+| **EVA Flow** | `/admin/flow` | Captation vidéo : événements, conférences, réalisateurs intermittents, clés API des machines. |
+| **EVA Stream** | _externe_ | Lien externe vers Gate SRT (`gatesrt.evaremote.com`, hébergé sur OVH). |
+| **EVA Formations** | `/admin/formations` | Gestion Qualiopi complète : catalogue, sessions, stagiaires, formateurs, évaluations, réclamations. |
+
+Chaque univers a sa propre navigation contextuelle ; le hub d'accueil (`/admin`) filtre
+les tuiles selon les permissions de l'utilisateur connecté.
+
+### Modèle de comptes
+
+Modèle hybride introduit en Phase 4 de la réorganisation :
+
+- **Salariés, formateurs, réalisateurs** → comptes avec **inscription libre**, puis
+  **validation par un super-administrateur** qui coche les univers autorisés.
+- **Clients** → gardent les **liens d'accès uniques** (aucun compte, zéro friction).
+- **2 super-administrateurs** au sommet : Lads (`jerome@lesateliersdustream.fr`) et
+  Noémie (`noemie@lesateliersdustream.fr`).
+
+Politique d'inscription :
+- Inscription ouverte à tous via `/admin/inscription`.
+- Emails `@lesateliersdustream.fr` → **auto-validés** (sans univers attribués tant qu'un
+  super-admin n'a pas coché).
+- Autres emails → **status `pending`**, validation manuelle requise.
 
 ## Stack technique
 
-- **Framework** : Next.js 15 (App Router)
+- **Framework** : Next.js 16 (App Router) + Turbopack
 - **Langage** : TypeScript
 - **Styles** : Tailwind CSS
-- **Base de données** : SQLite (via Prisma)
-- **Authentification** : JWT (jose) + bcrypt
+- **Base de données** : SQLite via Prisma 7 (`/data/remoteva.db`)
+- **Authentification** : JWT signé (jose) + bcrypt (12 rounds)
+- **Intégrations** : Google Drive / Docs / Sheets, Sellsy, n8n, envoi d'e-mails, crons
+- **Déploiement** : Hostinger (Docker) pour `evaremote.com` ; Gate SRT séparé sur OVH
 
 ## Structure du projet
 
 ```
 remoteva/
-├── data/                    # Base de données SQLite
+├── data/                              # Base SQLite
 │   └── remoteva.db
 ├── prisma/
-│   ├── migrations/          # Migrations de base de données
-│   └── schema.prisma        # Schéma Prisma
+│   ├── migrations/                    # Migrations Prisma
+│   └── schema.prisma
 ├── scripts/
-│   └── seed.ts              # Script de création admin initial
+│   ├── seed.ts                        # Super-admin initial (dev only)
+│   └── deploy-vps.sh                  # Script de déploiement Hostinger
 ├── src/
 │   ├── app/
-│   │   ├── [accessSlug]/    # Pages client dynamiques
-│   │   │   ├── page.tsx
-│   │   │   └── expired/
-│   │   ├── admin/           # Back-office
-│   │   │   ├── login/
-│   │   │   ├── dashboard/
-│   │   │   └── links/
-│   │   ├── api/
-│   │   │   ├── auth/        # Authentification
-│   │   │   ├── admin/       # API admin
-│   │   │   └── services/    # API services
-│   │   └── page.tsx         # Page d'accueil
+│   │   ├── [accessSlug]/              # Espace client (lien d'accès)
+│   │   ├── presta/                    # Espace réalisateurs (jeton)
+│   │   ├── formateur/                 # Espace formateurs (jeton)
+│   │   ├── formations/[code]/         # Inscription publique formations
+│   │   ├── eval-chaud/, eval-froid/,  # Évaluations Qualiopi publiques
+│   │   │   eval-formateur/, reclamation/
+│   │   ├── admin/                     # Back-office EVA
+│   │   │   ├── page.tsx               # Hub d'accueil (5 tuiles filtrées)
+│   │   │   ├── inscription/           # Formulaire d'inscription public
+│   │   │   ├── pending/               # Page d'attente comptes non validés
+│   │   │   ├── login/, account/, users/
+│   │   │   ├── lien/                  # EVA Lien
+│   │   │   ├── newsletter/            # EVA Newsletter (+ preparation)
+│   │   │   ├── flow/                  # EVA Flow (+ directors, api-keys)
+│   │   │   ├── formations/            # EVA Formations
+│   │   │   └── reclamations/          # Réclamations Qualiopi
+│   │   └── api/
+│   │       ├── auth/                  # login, logout, register
+│   │       ├── admin/                 # API admin (links, users, flow, ...)
+│   │       ├── formateur/, presta/    # APIs espaces tiers
+│   │       ├── public/                # APIs publiques (inscriptions, eval)
+│   │       ├── cron/                  # Jobs planifiés
+│   │       └── webhooks/sellsy/
 │   ├── components/
-│   │   └── services/        # Composants des services
-│   ├── lib/
-│   │   ├── db.ts            # Client Prisma
-│   │   ├── auth.ts          # Utilitaires d'authentification
-│   │   └── services.ts      # Logique métier des services
-│   ├── generated/           # Client Prisma généré
-│   └── middleware.ts        # Protection des routes
-├── .env                     # Variables d'environnement
+│   ├── lib/                           # Helpers (auth, db, services métiers)
+│   ├── generated/prisma/              # Client Prisma généré
+│   └── proxy.ts                       # Middleware d'authentification
+├── next.config.ts                     # Inclut les redirections Phase 2
 └── package.json
 ```
 
 ## Installation locale
 
 ### Prérequis
-
-- Node.js 18+
-- npm ou yarn
+- Node.js 20+
+- npm 10+
 
 ### Étapes
 
-1. **Cloner le projet**
-   ```bash
-   git clone <url-du-repo>
-   cd remoteva
-   ```
+```bash
+git clone git@github.com:Lads47/remoteva.git
+cd remoteva
+npm install
 
-2. **Installer les dépendances**
-   ```bash
-   npm install
-   ```
+# Configurer .env (au minimum)
+echo 'JWT_SECRET="change-me-in-prod"' > .env
 
-3. **Configurer les variables d'environnement**
+# Initialiser la base
+npm run db:migrate
+npm run db:generate
 
-   Le fichier `.env` est déjà créé. Modifiez `JWT_SECRET` pour la production :
-   ```env
-   JWT_SECRET="votre-secret-securise-en-production"
-   ```
+# Créer un super-admin de dev (à supprimer ensuite via /admin/users)
+npm run db:seed
 
-4. **Initialiser la base de données**
-   ```bash
-   npm run db:migrate
-   npm run db:generate
-   ```
+# Lancer
+npm run dev
+```
 
-5. **Créer l'utilisateur admin**
-   ```bash
-   npm run db:seed
-   ```
+Identifiants seed (dev uniquement) :
+- Email : `admin@eva.local`
+- Mot de passe : `ChangeMe!123`
 
-   Identifiants par défaut :
-   - Email : `admin@eva.com`
-   - Mot de passe : `admin123`
+**Changez ce mot de passe immédiatement après le premier login.**
 
-6. **Lancer le serveur de développement**
-   ```bash
-   npm run dev
-   ```
+### URLs locales
+- Accueil public : `http://localhost:3000`
+- Inscription : `http://localhost:3000/admin/inscription`
+- Connexion : `http://localhost:3000/admin/login`
+- Hub : `http://localhost:3000/admin`
 
-7. **Accéder à l'application**
-   - Accueil : http://localhost:3000
-   - Administration : http://localhost:3000/admin/login
-   - Lien de test : http://localhost:3000/demo2026
+## Authentification & permissions
 
-## Utilisation
+### Flux
 
-### Administration
+1. **Inscription** (`/admin/inscription`) → compte créé en `pending` (ou `validated`
+   si email interne).
+2. **Login** (`/admin/login`) → JWT signé contenant `{ userId, email, status,
+   isSuperAdmin, universes }`. Cookie httpOnly 24h.
+3. **Proxy** (`src/proxy.ts`) intercepte chaque route protégée :
+   - Pas de session → `/admin/login`
+   - `status: pending` → `/admin/pending` (sauf `/admin/account` et logout)
+   - `status: validated`, pas super-admin, route appartient à un univers non
+     autorisé → `/admin` (hub)
+   - `/admin/users` → super-admin uniquement
+4. **Hub** (`/admin`) filtre les tuiles selon `universes` ou affiche tout pour les
+   super-admins.
 
-1. Connectez-vous via `/admin/login`
-2. Accédez au tableau de bord
-3. Créez des liens clients avec :
-   - Un slug unique (ex: `agrotic2026`)
-   - Le type de service (Newsletter ou Téléchargement)
-   - Le nom du client
-   - Le nom du service
-   - La date d'expiration
+### Bypass Bearer pour les crons
 
-### Clients
+Le header `Authorization: Bearer $CRON_SECRET` permet aux jobs planifiés
+(`/api/cron/*`) d'accéder à toutes les routes protégées sans cookie.
+Variable d'environnement : `CRON_SECRET`.
 
-Les clients accèdent directement via leur lien :
-- Newsletter : Peuvent modifier le texte, ajouter une image, valider et générer le HTML
-- Téléchargement : Peuvent télécharger les fichiers disponibles
+### Espaces tiers (hors back-office)
 
-## Déploiement sur Hostinger (Node.js)
+| Espace | Public | Mécanisme d'accès |
+|---|---|---|
+| `/[accessSlug]` | Clients | Lien d'accès unique (modèle `AccessLink`) |
+| `/presta` | Réalisateurs (EVA Flow) | Jeton dans l'URL |
+| `/formateur` | Formateurs (EVA Formations) | Jeton dans l'URL |
+| `/formations/[code]/inscription` | Stagiaires | Page publique |
+| `/eval-chaud`, `/eval-froid`, `/eval-formateur`, `/reclamation` | Stagiaires & public | Pages publiques / jetons |
 
-### Prérequis Hostinger
+Ces espaces **n'utilisent pas** le système de comptes : ils restent inchangés.
 
-- Plan d'hébergement avec Node.js
-- Accès SSH ou File Manager
-- Node.js 18+ disponible
+## Déploiement
 
-### Étapes de déploiement
+Le script `scripts/deploy-vps.sh` automatise le déploiement sur le VPS Hostinger :
 
-1. **Préparer le build**
-   ```bash
-   npm run build
-   ```
+```bash
+bash scripts/deploy-vps.sh
+```
 
-2. **Transférer les fichiers**
+Étapes du script :
+1. Backup automatique de la DB SQLite (`/root/evaremote-backups/`)
+2. `git pull` depuis `origin/master`
+3. Build Next.js dans un container Node Linux
+4. Stop du container, déploiement du nouveau standalone
+5. `npm install --production` dans le container
+6. Application des migrations Prisma manquantes
+7. Restart + health checks HTTP
 
-   Via SSH ou File Manager, transférez :
-   - Dossier `.next/`
-   - Dossier `data/` (avec la base de données)
-   - Dossier `node_modules/`
-   - Dossier `public/`
-   - Fichier `package.json`
-   - Fichier `.env` (avec les secrets de production)
-   - Fichier `next.config.ts`
-
-3. **Configurer les variables d'environnement**
-
-   Sur Hostinger, définissez :
-   ```env
-   NODE_ENV=production
-   JWT_SECRET=votre-secret-tres-securise
-   ```
-
-4. **Configurer le point d'entrée**
-
-   Dans la configuration Node.js de Hostinger :
-   ```
-   Entry point: node_modules/.bin/next start
-   ```
-
-   Ou créez un fichier `server.js` :
-   ```javascript
-   const { createServer } = require('http');
-   const { parse } = require('url');
-   const next = require('next');
-
-   const dev = false;
-   const hostname = '0.0.0.0';
-   const port = process.env.PORT || 3000;
-
-   const app = next({ dev, hostname, port });
-   const handle = app.getRequestHandler();
-
-   app.prepare().then(() => {
-     createServer((req, res) => {
-       const parsedUrl = parse(req.url, true);
-       handle(req, res, parsedUrl);
-     }).listen(port, () => {
-       console.log(`> Ready on http://${hostname}:${port}`);
-     });
-   });
-   ```
-
-5. **Démarrer l'application**
-   ```bash
-   npm start
-   ```
-
-### Configuration DNS
-
-Pointez votre domaine `evaremote.com` vers votre serveur Hostinger.
+Variables d'environnement à définir sur le VPS :
+- `JWT_SECRET` — secret de signature des JWT (obligatoire)
+- `CRON_SECRET` — secret partagé pour les jobs cron (optionnel)
+- `DATABASE_URL` — non utilisé, le client Prisma utilise le chemin direct
 
 ## Sécurité
 
-- Les mots de passe sont hashés avec bcrypt (12 rounds)
-- Les sessions utilisent des JWT signés avec expiration de 24h
-- Les routes admin sont protégées par middleware
-- Les slugs sont normalisés (minuscules, alphanumériques uniquement)
-- Les fichiers de téléchargement sont protégés contre les traversées de répertoire
+- Mots de passe hashés bcrypt 12 rounds, minimum 8 caractères.
+- JWT HS256 signé, expiration 24h, cookie `httpOnly` + `secure` en production.
+- Proxy (`src/proxy.ts`) vérifie statut + univers à **chaque** requête sur `/admin/*`
+  et `/api/admin/*`.
+- Garde-fous super-admin : impossible de retirer son propre rôle, de se supprimer,
+  ou de laisser le portail sans aucun super-admin.
+- Slugs normalisés (alphanumériques en minuscule).
+- Fichiers de téléchargement protégés contre les traversées de répertoire.
 
-## Extension
+## Réorganisation EVA — historique des phases
 
-### Ajouter un nouveau service
+| Phase | Objet | PR |
+|---|---|---|
+| 1 | Hub d'accueil à 5 tuiles + navigation par univers | #1 |
+| 2 | Regroupement effectif des routes par univers + redirections 308 | #2 |
+| 3 | _Reportée_ — EVA Lien comme univers dédié dépendra du dev fichiers à venir | — |
+| 4 | Comptes, inscription libre, validation super-admin, table `UserUniverseAccess` | #3 |
+| 5 | Harmonisation cosmétique, doc, nettoyage | #4 |
 
-1. Définir le type dans `src/lib/services.ts`
-2. Créer le composant dans `src/components/services/`
-3. Ajouter la route API dans `src/app/api/services/`
-4. Mettre à jour la page client `src/app/[accessSlug]/page.tsx`
-
-### Brancher une API externe (Newsletter)
-
-La fonction `generateNewsletterHtml()` dans `/api/services/newsletter/route.ts` peut être modifiée pour appeler une API externe (GPT, etc.) au lieu de générer le HTML localement.
+Voir `Audit_EVA_Remoteva.docx` (hors repo) pour le plan détaillé.
 
 ## Licence
 
-Propriétaire - EVA Services
+Propriétaire — Les Ateliers du Stream.
