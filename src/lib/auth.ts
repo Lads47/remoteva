@@ -86,6 +86,16 @@ export async function getSession(): Promise<TokenPayload | null> {
   return verifyToken(token);
 }
 
+// Domaine du cookie de session.
+// En production on pose le cookie sur le domaine PARENT (.evaremote.com) pour
+// permettre le SSO avec les sous-domaines de la galaxie EVA (notamment
+// gatesrt.evaremote.com qui héberge EVA Stream). En dev/test on laisse Next
+// poser le cookie sur le host courant (localhost, etc.) — domain=undefined.
+function getCookieDomain(): string | undefined {
+  if (process.env.NODE_ENV !== "production") return undefined;
+  return process.env.COOKIE_DOMAIN || ".evaremote.com";
+}
+
 // Crée une session (définit le cookie)
 export async function createSession(payload: TokenPayload): Promise<void> {
   const token = await createToken(payload);
@@ -97,13 +107,27 @@ export async function createSession(payload: TokenPayload): Promise<void> {
     sameSite: "lax",
     maxAge: 60 * 60 * 24, // 24 heures
     path: "/",
+    domain: getCookieDomain(),
   });
 }
 
-// Supprime la session (efface le cookie)
+// Supprime la session (efface le cookie). Important : il FAUT préciser le
+// même `domain` et `path` qu'au moment du set, sinon le navigateur garde
+// silencieusement l'ancien cookie posé sur le domaine parent (le SSO ne se
+// déconnecte alors plus correctement).
 export async function destroySession(): Promise<void> {
   const cookieStore = await cookies();
-  cookieStore.delete(COOKIE_NAME);
+  // On set un cookie expiré explicitement plutôt qu'un .delete() simple :
+  // permet de cibler le domain/path exact utilisés au set.
+  cookieStore.set(COOKIE_NAME, "", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 0,
+    expires: new Date(0),
+    path: "/",
+    domain: getCookieDomain(),
+  });
 }
 
 // Vérifie qu'une chaîne est un univers EVA valide.
