@@ -602,6 +602,158 @@ export async function getBpfStats(year: number): Promise<BpfStats> {
   };
 }
 
+// === Résultats publics par formation (Qualiopi indicateur 1) ===
+//
+// Agrégats "all-time" pour une formation donnée, destinés à être affichés
+// publiquement sur le site lads-website. Ne renvoie QUE des chiffres
+// agrégés (jamais de nom individuel) → 0 souci RGPD.
+//
+// Si moins de MIN_TRAINEES_FOR_PUBLIC stagiaires formés sur toutes les
+// sessions terminées, on retourne `hasEnoughData: false` et un volume nul
+// — l'UI publique masque alors le bloc plutôt que d'afficher "100% sur
+// 1 stagiaire" qui ne signifie rien statistiquement.
+
+const MIN_TRAINEES_FOR_PUBLIC = 5;
+
+export interface FormationPublicResults {
+  code: string;
+  nomLong: string;
+  hasEnoughData: boolean;
+  traineesAccueillisTotal: number;
+  sessionsCount: number;
+  satisfactionAverage: number | null;   // /5
+  npsScore: number | null;               // -100..+100
+  objectifsAtteintsRate: number;         // 0..100 — sur les évalués uniquement
+  responseRate: number;                  // 0..100 — éval à chaud
+  lastUpdated: string;                   // ISO timestamp
+}
+
+export async function getFormationPublicResults(code: string): Promise<FormationPublicResults | null> {
+  const formation = await prisma.formation.findUnique({
+    where: { code },
+    select: { id: true, code: true, nomLong: true, active: true },
+  });
+  if (!formation || !formation.active) return null;
+
+  const now = new Date();
+
+  // On charge toutes les sessions terminées de cette formation, avec les
+  // données nécessaires aux agrégats (satisfaction + cold eval + override +
+  // grilles d'évaluation).
+  const sessions = await prisma.session.findMany({
+    where: {
+      formationId: formation.id,
+      status: { notIn: EXCLUDED_SESSION_STATUSES },
+      dateFin: { lte: now },
+    },
+    select: {
+      _count: { select: { trainees: true } },
+      satisfactionResponses: {
+        where: { submittedAt: { not: null } },
+        select: { answers: { select: { questionName: true, value: true } } },
+      },
+      trainees: {
+        select: {
+          objectifsAtteintsOverride: true,
+          exerciseEvaluations: {
+            where: { exercise: { active: true } },
+            select: { globalNote: true, exerciseId: true },
+          },
+        },
+      },
+      formation: {
+        select: {
+          evaluationExercises: { where: { active: true }, select: { id: true } },
+        },
+      },
+    },
+  });
+
+  let invitedTotal = 0;
+  let submittedTotal = 0;
+  let likertSum = 0;
+  let likertCount = 0;
+  const npsValues: number[] = [];
+
+  let traineesTotal = 0;
+  let atteints = 0;
+  let partiellement = 0;
+  let nonAtteints = 0;
+  let nonEvalues = 0;
+
+  for (const s of sessions) {
+    invitedTotal += s._count.trainees;
+    submittedTotal += s.satisfactionResponses.length;
+    for (const r of s.satisfactionResponses) {
+      for (const a of r.answers) {
+        if (a.questionName === NPS_QUESTION_CHAUD) {
+          const n = Number(a.value);
+          if (Number.isFinite(n) && n >= 0 && n <= 10) npsValues.push(n);
+        } else if (SATISFACTION_LIKERT_KEYS_CHAUD.has(a.questionName)) {
+          const n = Number(a.value);
+          if (Number.isFinite(n) && n >= 1 && n <= 5) {
+            likertSum += n;
+            likertCount++;
+          }
+        }
+      }
+    }
+
+    const expectedExercises = s.formation.evaluationExercises.length;
+    for (const t of s.trainees) {
+      traineesTotal++;
+      const override = t.objectifsAtteintsOverride as
+        | "atteints" | "partiellement_atteints" | "non_atteints" | "";
+      if (override === "atteints") { atteints++; continue; }
+      if (override === "partiellement_atteints") { partiellement++; continue; }
+      if (override === "non_atteints") { nonAtteints++; continue; }
+
+      if (expectedExercises === 0) { nonEvalues++; continue; }
+
+      const noteByExercise = new Map<string, string>();
+      for (const e of t.exerciseEvaluations) {
+        if (e.globalNote) noteByExercise.set(e.exerciseId, e.globalNote);
+      }
+      if (noteByExercise.size === 0) { nonEvalues++; continue; }
+
+      let cAcquis = 0, cEnCours = 0, cNonAcquis = 0;
+      for (const note of noteByExercise.values()) {
+        if (note === "acquis") cAcquis++;
+        else if (note === "en_cours") cEnCours++;
+        else if (note === "non_acquis") cNonAcquis++;
+      }
+      const cSansNote = expectedExercises - noteByExercise.size;
+      if (cNonAcquis > 0) nonAtteints++;
+      else if (cEnCours > 0 || cSansNote > 0) partiellement++;
+      else atteints++;
+    }
+  }
+
+  const nps = computeNps(npsValues);
+  const evalues = atteints + partiellement + nonAtteints;
+  const hasEnoughData = traineesTotal >= MIN_TRAINEES_FOR_PUBLIC;
+
+  return {
+    code: formation.code,
+    nomLong: formation.nomLong,
+    hasEnoughData,
+    traineesAccueillisTotal: hasEnoughData ? traineesTotal : 0,
+    sessionsCount: hasEnoughData ? sessions.length : 0,
+    satisfactionAverage:
+      hasEnoughData && likertCount > 0
+        ? Math.round((likertSum / likertCount) * 10) / 10
+        : null,
+    npsScore: hasEnoughData ? nps.score : null,
+    objectifsAtteintsRate:
+      hasEnoughData && evalues > 0 ? Math.round((atteints / evalues) * 100) : 0,
+    responseRate:
+      hasEnoughData && invitedTotal > 0
+        ? Math.round((submittedTotal / invitedTotal) * 100)
+        : 0,
+    lastUpdated: now.toISOString(),
+  };
+}
+
 /**
  * Liste les années où on a au moins 1 session non-cancelled qui s'est
  * terminée. Utilisé pour alimenter un sélecteur d'année côté UI.
