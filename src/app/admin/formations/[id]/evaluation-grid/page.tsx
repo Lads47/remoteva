@@ -256,12 +256,27 @@ export default function EvaluationGridEditorPage({ params }: { params: Promise<{
             {formation.code}
           </span>
         </div>
-        <h1 className="text-3xl font-bold mt-1" style={{ color: "#1f2244" }}>
-          Grille d&apos;évaluation pratique
-        </h1>
-        <p className="text-sm mt-1 font-jetbrains" style={{ color: "#727485" }}>
-          {formation.nomLong}
-        </p>
+        <div className="flex items-start justify-between gap-3 flex-wrap mt-1">
+          <div>
+            <h1 className="text-3xl font-bold" style={{ color: "#1f2244" }}>
+              Grille d&apos;évaluation pratique
+            </h1>
+            <p className="text-sm mt-1 font-jetbrains" style={{ color: "#727485" }}>
+              {formation.nomLong}
+            </p>
+          </div>
+          {exercises.length > 0 && (
+            <Link
+              href={`/admin/formations/${id}/evaluation-grid/print`}
+              target="_blank"
+              className="text-sm font-medium px-4 py-2 rounded-full border cursor-pointer whitespace-nowrap"
+              style={{ borderColor: "#1f2244", color: "#1f2244", backgroundColor: "white" }}
+              title="Aperçu A4 imprimable des énoncés à distribuer aux stagiaires"
+            >
+              📄 Énoncés stagiaires
+            </Link>
+          )}
+        </div>
       </div>
 
       <div className="mb-6 p-4 rounded-xl text-xs font-jetbrains" style={{ backgroundColor: "#fafbff", color: "#727485" }}>
