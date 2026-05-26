@@ -52,7 +52,7 @@ export default function QualiopiLiensPage() {
   }
 
   if (loading) {
-    return <p className="font-jetbrains text-sm" style={{ color: "#727485" }}>Chargement…</p>;
+    return <div className="text-center py-12 font-jetbrains text-sm" style={{ color: "#727485" }}>Chargement...</div>;
   }
 
   return (

@@ -75,9 +75,9 @@ export default function NonEvaluesPage() {
       </p>
 
       {loading ? (
-        <p className="mt-8 font-jetbrains text-sm" style={{ color: "#727485" }}>
-          Chargement…
-        </p>
+        <div className="text-center py-12 font-jetbrains text-sm" style={{ color: "#727485" }}>
+          Chargement...
+        </div>
       ) : list && list.length === 0 ? (
         <div
           className="mt-8 p-6 rounded-xl border text-center font-jetbrains text-sm"
