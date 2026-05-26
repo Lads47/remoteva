@@ -13,7 +13,7 @@
 // La liste des variables disponibles est exportée pour pouvoir l'afficher
 // côté admin (page de configuration de la formation) — voir DOCUMENT_VARIABLES.
 
-import { getDriveAttachments, getDriveDefaultTemplates } from "./appConfig";
+import { getDriveAttachments, getDriveDefaultTemplates, getSellsyStepMapping } from "./appConfig";
 import prisma from "./db";
 import { provisionSessionDriveFolder } from "./drive-provisioning";
 import { replaceTextInDoc } from "./google-docs";
@@ -26,6 +26,7 @@ import {
   uploadFile,
 } from "./google-drive";
 import { sendContractToStagiaire, sendConvocationToStagiaire, sendEndOfTrainingDocs } from "./mailer";
+import { updateOpportunityStep } from "./sellsy";
 import { recordTraineeEvent } from "./trainee";
 
 const INSCRIPTIONS_FOLDER_NAME = "01_INSCRIPTIONS_CONVENTIONS";
@@ -688,6 +689,56 @@ export async function generateAndMailContract(traineeId: string): Promise<Genera
       attachments: { contract: true, cgv: !!cgvBuffer, ri: !!riBuffer },
     }
   );
+
+  // 5. Transition de statut → "convention_envoyee" si le mail est bien parti
+  //    (et si le stagiaire n'y est pas déjà). Best-effort : si l'update BDD
+  //    échoue, on ne bloque pas le retour OK puisque le mail est déjà envoyé.
+  //
+  //    On ne distingue PAS convention/contrat au niveau du statut — les deux
+  //    déclenchent la transition vers "convention_envoyee" (le label inclut
+  //    "Convention/contrat envoyé(e)" — voir EVA_STATUS_LABELS).
+  if (mailRes.success && trainee.status !== "convention_envoyee" && trainee.status !== "convention_signee") {
+    try {
+      await prisma.trainee.update({
+        where: { id: traineeId },
+        data: { status: "convention_envoyee", dateEnvoiConvention: new Date() },
+      });
+      await recordTraineeEvent(
+        traineeId,
+        "status_change",
+        `Statut → Convention/contrat envoyé(e) (auto post-${docType})`,
+        { status: "convention_envoyee", autoTrigger: docType }
+      );
+
+      // Sync Sellsy step si configuré et opportunité existante
+      if (trainee.sellsyOpportunityId) {
+        try {
+          const stepMapping = await getSellsyStepMapping();
+          const stepId = stepMapping.convention_envoyee;
+          if (stepId) {
+            await updateOpportunityStep(trainee.sellsyOpportunityId, stepId);
+            await recordTraineeEvent(
+              traineeId,
+              "sellsy_synced",
+              "Sellsy step → convention envoyée",
+              { opportunityId: trainee.sellsyOpportunityId, stepId }
+            );
+          }
+        } catch (err) {
+          console.warn("[generateAndMailContract] Sellsy step update échoué:", err);
+          await recordTraineeEvent(
+            traineeId,
+            "sellsy_synced",
+            `Sellsy step update échoué : ${err instanceof Error ? err.message : "?"}`,
+            { type: "opportunity_step_failed" }
+          );
+        }
+      }
+    } catch (err) {
+      // On log mais on ne fait pas échouer la fonction — le mail est parti
+      console.error("[generateAndMailContract] transition de statut échouée:", err);
+    }
+  }
 
   return {
     ok: true,
