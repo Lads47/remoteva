@@ -9,18 +9,12 @@
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
 
-interface Criterion {
-  id: string;
-  ordre: number;
-  libelle: string;
-}
 interface Exercise {
   id: string;
   ordre: number;
   titre: string;
   description: string;
   active: boolean;
-  criteria: Criterion[];
 }
 interface FormationLite {
   id: string;
@@ -93,13 +87,10 @@ export default function EvaluationGridPrintPage({ params }: { params: Promise<{ 
 
           <div className="intro">
             <p>
-              Cette grille d&apos;évaluation pratique présente les <strong>{exercises.length} exercice{exercises.length > 1 ? "s" : ""}</strong> que vous serez amené·e à réaliser au cours de la formation, ainsi que les <strong>critères d&apos;évaluation</strong> utilisés par votre formateur·rice.
+              Vous trouverez dans ce document les énoncés des <strong>{exercises.length} exercice{exercises.length > 1 ? "s" : ""} pratique{exercises.length > 1 ? "s" : ""}</strong> que vous serez amené·e à réaliser au cours de la formation.
             </p>
             <p>
-              L&apos;évaluation se fait selon une grille à <strong>3 niveaux</strong> :
-              <span className="legend-chip" style={{ backgroundColor: "#dcfce7", color: "#166534" }}>Acquis</span>
-              <span className="legend-chip" style={{ backgroundColor: "#fef3c7", color: "#92400e" }}>En cours</span>
-              <span className="legend-chip" style={{ backgroundColor: "#fee2e2", color: "#991b1b" }}>Non acquis</span>
+              Chaque exercice sera évalué par votre formateur·rice sur la base de critères de compétences précis. Cet exercice est avant tout une mise en situation pour vous permettre d&apos;appliquer et de consolider les acquis.
             </p>
             <p style={{ marginTop: 24, fontSize: 13, color: "#727485" }}>
               Sommaire :
@@ -124,23 +115,6 @@ export default function EvaluationGridPrintPage({ params }: { params: Promise<{ 
               <div className="exercise-desc">
                 <h3>Énoncé</h3>
                 <p style={{ whiteSpace: "pre-wrap" }}>{e.description}</p>
-              </div>
-            )}
-            {e.criteria.length > 0 && (
-              <div className="exercise-criteria">
-                <h3>Critères d&apos;évaluation</h3>
-                <ul>
-                  {e.criteria.map((c) => (
-                    <li key={c.id}>
-                      <span className="criterion-libelle">{c.libelle}</span>
-                      <span className="criterion-grades">
-                        <span className="grade-box" title="Acquis">A</span>
-                        <span className="grade-box" title="En cours">EC</span>
-                        <span className="grade-box" title="Non acquis">NA</span>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
               </div>
             )}
             <footer className="doc-footer">
@@ -176,7 +150,6 @@ export default function EvaluationGridPrintPage({ params }: { params: Promise<{ 
         .doc-meta { font-size: 11px; color: #727485; margin: 4px 0 0; font-family: "JetBrains Mono", monospace; }
 
         .intro p { font-size: 14px; line-height: 1.6; color: #374151; }
-        .legend-chip { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; margin-left: 6px; }
 
         .toc { font-size: 14px; line-height: 1.8; color: #1f2244; padding-left: 20px; }
 
@@ -203,36 +176,6 @@ export default function EvaluationGridPrintPage({ params }: { params: Promise<{ 
         }
         .exercise-desc { margin-bottom: 24px; }
         .exercise-desc p { font-size: 14px; line-height: 1.6; color: #1f2244; margin: 0; }
-
-        .exercise-criteria { margin-top: 24px; }
-        .exercise-criteria ul { list-style: none; padding: 0; margin: 0; }
-        .exercise-criteria li {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 12px;
-          padding: 10px 12px;
-          border: 1px solid #e5e7eb;
-          border-radius: 6px;
-          margin-bottom: 6px;
-          background: #fafbff;
-        }
-        .criterion-libelle { font-size: 13px; color: #1f2244; flex: 1; }
-        .criterion-grades { display: flex; gap: 6px; flex-shrink: 0; }
-        .grade-box {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          width: 32px;
-          height: 22px;
-          border: 1.5px solid #cbd5e1;
-          border-radius: 4px;
-          font-size: 10px;
-          font-weight: 600;
-          color: #727485;
-          background: white;
-          font-family: "JetBrains Mono", monospace;
-        }
 
         .doc-footer {
           position: absolute;
