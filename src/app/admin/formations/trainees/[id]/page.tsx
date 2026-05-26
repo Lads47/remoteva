@@ -246,6 +246,36 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
+  async function handleSendConvocation() {
+    if (!trainee) return;
+    const isResend = trainee.status === "convoque" || trainee.status === "en_formation";
+    const verb = isResend ? "Renvoyer" : "Envoyer";
+    if (!confirm(`${verb} la convocation à ${trainee.prenom} ${trainee.nom} (${trainee.email}) ?\nLa convocation sera générée à partir du template Drive et envoyée par mail (avec RI en PJ).`)) {
+      return;
+    }
+    setActionLoading(true);
+    setActionFeedback(null);
+    try {
+      const res = await fetch(`/api/admin/trainees/${id}/send-convocation`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setActionFeedback({ type: "error", msg: data.error || "Erreur" });
+        return;
+      }
+      setActionFeedback({
+        type: "success",
+        msg: data.emailSent
+          ? `Convocation ${isResend ? "renvoyée" : "envoyée"} par email au stagiaire ✓`
+          : "Convocation générée mais l'envoi du mail a échoué — vérifie les logs.",
+      });
+      await refresh();
+    } catch {
+      setActionFeedback({ type: "error", msg: "Erreur de connexion" });
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
   const prerequisAnswers = useMemo<Record<string, unknown>>(() => {
     if (!trainee) return {};
     try {
@@ -356,6 +386,57 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
       {trainee.status !== "inscrit" && trainee.sellsyEstimateId && (
         <div className="p-3 rounded-lg border text-sm font-jetbrains flex items-center gap-2" style={{ borderColor: "#dcfce7", backgroundColor: "#f0fdf4", color: "#166534" }}>
           ✓ Devis Sellsy <strong>#{trainee.sellsyEstimateId}</strong> envoyé. Opportunité Sellsy : #{trainee.sellsyOpportunityId}.
+        </div>
+      )}
+
+      {/* Bandeau convocation — disponible dès convention envoyée. Permet
+          envoi manuel hors fenêtre normale du cron J-14 (last-minute, ré-envoi). */}
+      {trainee.formation.hasTemplateConvocation &&
+        ["convention_envoyee", "convention_signee", "valide", "convoque", "en_formation"].includes(trainee.status) && (
+        <div
+          className="p-5 rounded-xl border flex items-center justify-between gap-3 flex-wrap"
+          style={
+            trainee.status === "convoque" || trainee.status === "en_formation"
+              ? { borderColor: "#bfdbfe", backgroundColor: "#eff6ff" }
+              : { borderColor: "#fde68a", backgroundColor: "#fffbeb" }
+          }
+        >
+          <div className="flex-1 min-w-0">
+            <div
+              className="text-sm font-semibold"
+              style={{
+                color: trainee.status === "convoque" || trainee.status === "en_formation" ? "#1d4ed8" : "#92400e",
+              }}
+            >
+              {trainee.status === "convoque" || trainee.status === "en_formation"
+                ? "Convocation envoyée — renvoi possible"
+                : "Convocation manuelle (hors cron J-14)"}
+            </div>
+            <div
+              className="text-xs mt-0.5 font-jetbrains"
+              style={{
+                color: trainee.status === "convoque" || trainee.status === "en_formation" ? "#1e40af" : "#b45309",
+              }}
+            >
+              {trainee.status === "convoque" || trainee.status === "en_formation"
+                ? "Le stagiaire a déjà reçu sa convocation. Tu peux la renvoyer (correction email, document perdu…)."
+                : "Le cron quotidien envoie automatiquement les convocations à J-14. Utilise ce bouton pour les cas exceptionnels (inscription last-minute, ré-envoi)."}
+            </div>
+          </div>
+          <button
+            onClick={handleSendConvocation}
+            disabled={actionLoading}
+            className="px-4 py-2 rounded-full text-sm font-medium text-white cursor-pointer disabled:opacity-50 whitespace-nowrap"
+            style={{
+              backgroundColor: trainee.status === "convoque" || trainee.status === "en_formation" ? "#1d4ed8" : "#1f2244",
+            }}
+          >
+            {actionLoading
+              ? "Envoi en cours..."
+              : trainee.status === "convoque" || trainee.status === "en_formation"
+              ? "Renvoyer la convocation"
+              : "Envoyer la convocation"}
+          </button>
         </div>
       )}
       {actionFeedback && (

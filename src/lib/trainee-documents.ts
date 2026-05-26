@@ -820,14 +820,6 @@ export async function generateAndMailConvocation(traineeId: string): Promise<Gen
     riFilename,
   });
 
-  // 5. Update trainee.dateConvocation
-  if (mailRes.success && !trainee.dateConvocation) {
-    await prisma.trainee.update({
-      where: { id: traineeId },
-      data: { dateConvocation: new Date() },
-    });
-  }
-
   await recordTraineeEvent(
     traineeId,
     mailRes.success ? "email_sent" : "email_failed",
@@ -836,6 +828,59 @@ export async function generateAndMailConvocation(traineeId: string): Promise<Gen
       : `Échec mail convocation : ${mailRes.error}`,
     { type: "convocation", to: trainee.email, messageId: mailRes.messageId, ri: !!riBuffer }
   );
+
+  // 5. Update trainee.dateConvocation + transition de statut → "convoque"
+  //    (sauf si déjà en convoque/en_formation/termine, pour permettre les
+  //    ré-envois manuels sans régresser un statut plus avancé).
+  if (mailRes.success) {
+    const dataUpdate: { dateConvocation?: Date; status?: string } = {};
+    if (!trainee.dateConvocation) dataUpdate.dateConvocation = new Date();
+    const shouldPromote =
+      trainee.status !== "convoque" &&
+      trainee.status !== "en_formation" &&
+      trainee.status !== "termine";
+    if (shouldPromote) dataUpdate.status = "convoque";
+    if (Object.keys(dataUpdate).length > 0) {
+      try {
+        await prisma.trainee.update({ where: { id: traineeId }, data: dataUpdate });
+        if (dataUpdate.status) {
+          await recordTraineeEvent(
+            traineeId,
+            "status_change",
+            "Statut → Convoqué (auto post-convocation)",
+            { status: "convoque", autoTrigger: "convocation" }
+          );
+
+          // Sync Sellsy step si configuré
+          if (trainee.sellsyOpportunityId) {
+            try {
+              const stepMapping = await getSellsyStepMapping();
+              const stepId = stepMapping.convoque;
+              if (stepId) {
+                await updateOpportunityStep(trainee.sellsyOpportunityId, stepId);
+                await recordTraineeEvent(
+                  traineeId,
+                  "sellsy_synced",
+                  "Sellsy step → convoqué",
+                  { opportunityId: trainee.sellsyOpportunityId, stepId }
+                );
+              }
+            } catch (err) {
+              console.warn("[generateAndMailConvocation] Sellsy step update échoué:", err);
+              await recordTraineeEvent(
+                traineeId,
+                "sellsy_synced",
+                `Sellsy step update échoué : ${err instanceof Error ? err.message : "?"}`,
+                { type: "opportunity_step_failed" }
+              );
+            }
+          }
+        }
+      } catch (err) {
+        console.error("[generateAndMailConvocation] update trainee échoué:", err);
+      }
+    }
+  }
 
   return {
     ok: true,
