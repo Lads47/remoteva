@@ -8,6 +8,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { getComplaintStats } from "@/lib/complaint";
+import { countNonEvalues } from "@/lib/trainee-non-evalues";
 
 export async function GET() {
   try {
@@ -23,6 +24,7 @@ export async function GET() {
       stagiairesAnnee,
       complaintStats,
       pendingTrainees,
+      nonEvaluesCount,
     ] = await Promise.all([
       prisma.formation.count({ where: { active: true } }),
       prisma.session.count({
@@ -50,6 +52,7 @@ export async function GET() {
           updatedAt: { lte: new Date(now.getTime() - 14 * 24 * 3600 * 1000) },
         },
       }),
+      countNonEvalues(),
     ]);
 
     return NextResponse.json({
@@ -59,6 +62,7 @@ export async function GET() {
       sessionsEnCours,
       stagiairesAnnee,
       pendingTrainees,
+      nonEvalues: nonEvaluesCount,
       complaints: {
         total: complaintStats.total,
         open: complaintStats.unresolved,

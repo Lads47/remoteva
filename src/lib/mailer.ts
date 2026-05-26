@@ -1415,3 +1415,89 @@ Les Ateliers du Stream`;
     attachments,
   });
 }
+
+/**
+ * Relance automatique pour un stagiaire bloqué en statut intermédiaire
+ * (devis_envoye OU convention_envoyee) depuis plus de 14 jours.
+ *
+ * Le ton est volontairement bienveillant et non-pushy : on demande s'il y a
+ * un blocage, on rappelle le contexte, on propose de répondre simplement
+ * au mail si besoin d'aide. L'envoi est limité à max 2 relances par
+ * stagiaire pour ne pas spammer.
+ */
+export async function sendStagiaireBlockedRelance(params: {
+  to: string;
+  prenom: string;
+  formationNomLong: string;
+  sessionDateDebut: Date | string;
+  blockedOn: "devis" | "convention";
+  reminderNumber: 1 | 2;
+  replyTo?: string;
+}): Promise<SendEmailResult> {
+  const replyTo = params.replyTo || process.env.ADMIN_NOTIFY_EMAIL || "formation@lesateliersdustream.fr";
+  const safe = {
+    prenom: escapeHtml(params.prenom),
+    formation: escapeHtml(params.formationNomLong),
+  };
+  const dateDebut = fmtDateFr(params.sessionDateDebut);
+  const docLabel = params.blockedOn === "devis" ? "devis" : "convention de formation";
+  const docArticle = params.blockedOn === "devis" ? "votre devis" : "votre convention de formation";
+  const isLast = params.reminderNumber === 2;
+
+  const subject = isLast
+    ? `Dernière relance — ${docLabel} en attente pour ${params.formationNomLong}`
+    : `Petite relance — ${docLabel} en attente pour ${params.formationNomLong}`;
+
+  const intro = isLast
+    ? `Nous nous permettons une <strong>dernière relance</strong> à propos de`
+    : `Nous nous permettons un petit rappel concernant`;
+  const introTxt = isLast
+    ? `Nous nous permettons une dernière relance à propos de`
+    : `Nous nous permettons un petit rappel concernant`;
+
+  const html = `<!DOCTYPE html>
+<html lang="fr">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #1f2244;">
+  <h1 style="font-size: 22px; margin: 0 0 16px;">${docLabel.charAt(0).toUpperCase()}${docLabel.slice(1)} en attente</h1>
+  <p>Bonjour ${safe.prenom},</p>
+  <p>${intro} ${docArticle} pour la formation
+    <strong>${safe.formation}</strong> qui doit débuter le <strong>${dateDebut}</strong>.</p>
+  <p>Nous n&apos;avons pas reçu votre retour signé à ce jour. Si vous rencontrez la moindre difficulté
+    (document non reçu, question sur le financement, planning…), n&apos;hésitez pas à
+    <strong>répondre directement à ce mail</strong> ou à nous contacter par téléphone.</p>
+  <p style="background: #fafbff; border-left: 3px solid #7dcef5; padding: 12px 16px; font-size: 14px;">
+    📩 Une réponse rapide nous permet de réserver votre place et de vous garantir le démarrage à la date prévue.
+  </p>
+  <p style="font-size: 12px; color: #727485;">
+    Si vous avez déjà finalisé la signature, merci d&apos;ignorer ce message — il sera automatiquement
+    pris en compte dans notre système.
+  </p>
+  <p>Bien à vous,<br/>Noémie Marphay<br/><em>Les Ateliers du Stream</em><br/>
+    <span style="color: #727485; font-size: 12px;">06 46 65 65 77 · formation@lesateliersdustream.fr</span>
+  </p>
+</body>
+</html>`;
+
+  const text = `Bonjour ${params.prenom},
+
+${introTxt} ${docArticle} pour la formation ${params.formationNomLong} qui doit débuter le ${dateDebut}.
+
+Nous n'avons pas reçu votre retour signé à ce jour. Si vous rencontrez la moindre difficulté (document non reçu, question sur le financement, planning…), n'hésitez pas à répondre directement à ce mail ou à nous contacter par téléphone.
+
+Une réponse rapide nous permet de réserver votre place et de vous garantir le démarrage à la date prévue.
+
+Si vous avez déjà finalisé la signature, merci d'ignorer ce message.
+
+Bien à vous,
+Noémie Marphay
+Les Ateliers du Stream
+06 46 65 65 77 · formation@lesateliersdustream.fr`;
+
+  return sendEmail({
+    to: params.to,
+    subject,
+    html,
+    text,
+    replyTo,
+  });
+}

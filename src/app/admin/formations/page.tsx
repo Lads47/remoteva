@@ -23,6 +23,7 @@ interface DashboardStats {
   sessionsEnCours: number;
   stagiairesAnnee: number;
   pendingTrainees: number;
+  nonEvalues: number;
   complaints: {
     total: number;
     open: number;
@@ -195,10 +196,20 @@ export default function FormationsDashboardPage() {
 
       {/* Alerte stagiaires bloqués */}
       {stats && stats.pendingTrainees > 0 && (
-        <div className="mb-6 p-3 rounded-lg text-sm font-jetbrains" style={{ backgroundColor: "#fef3c7", color: "#92400e" }}>
+        <div className="mb-3 p-3 rounded-lg text-sm font-jetbrains" style={{ backgroundColor: "#fef3c7", color: "#92400e" }}>
           ⚠ <strong>{stats.pendingTrainees} stagiaire{stats.pendingTrainees > 1 ? "s" : ""} bloqué{stats.pendingTrainees > 1 ? "s" : ""}</strong>
           {" "}en statut intermédiaire (devis ou convention envoyée) depuis plus de 14 jours.
           {" "}<Link href="/admin/formations/sessions" className="underline">Voir les sessions →</Link>
+          {" "}<span style={{ color: "#92400e", opacity: 0.6 }}>· relance auto quotidienne activée (max 2)</span>
+        </div>
+      )}
+
+      {/* Alerte stagiaires terminés non évalués */}
+      {stats && stats.nonEvalues > 0 && (
+        <div className="mb-6 p-3 rounded-lg text-sm font-jetbrains" style={{ backgroundColor: "#fef2f2", color: "#991b1b" }}>
+          ⚠ <strong>{stats.nonEvalues} stagiaire{stats.nonEvalues > 1 ? "s" : ""} terminé{stats.nonEvalues > 1 ? "s" : ""} non évalué{stats.nonEvalues > 1 ? "s" : ""}</strong>
+          {" "}— à compléter pour fiabiliser le bilan Qualiopi (ind. 6 et 11).
+          {" "}<Link href="/admin/formations/non-evalues" className="underline">Voir la liste →</Link>
         </div>
       )}
 
@@ -403,6 +414,16 @@ function QualiopiDashboard({
                   <option key={y} value={y}>{y}</option>
                 ))}
               </select>
+              <a
+                href={`/api/admin/formations/qualiopi-stats/pdf?year=${selectedYear}`}
+                className="text-xs font-jetbrains px-3 py-1.5 rounded-lg border cursor-pointer"
+                style={{ borderColor: "#1f2244", color: "#1f2244", backgroundColor: "white" }}
+                title="Télécharger un PDF du bilan annuel pour audit Qualiopi"
+                target="_blank"
+                rel="noreferrer"
+              >
+                📄 PDF
+              </a>
             </div>
           )}
           <span className="text-xl" style={{ color: "#9ca3af" }} aria-hidden>
