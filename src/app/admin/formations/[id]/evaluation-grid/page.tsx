@@ -429,10 +429,10 @@ function ExerciseCard({
             onBlur={() => {
               if (localDesc !== exercise.description) onUpdate({ description: localDesc });
             }}
-            placeholder="Description / objectif / contexte (optionnel)"
-            className="mt-1 w-full text-sm font-jetbrains px-2 py-1 -mx-2 rounded hover:bg-gray-50 focus:bg-gray-50 outline-none resize-none"
-            style={{ color: "#727485" }}
-            rows={2}
+            placeholder="Description / énoncé / contexte de l'exercice"
+            className="mt-1 w-full text-sm font-jetbrains px-2 py-1 -mx-2 rounded hover:bg-gray-50 focus:bg-gray-50 outline-none resize-y"
+            style={{ color: "#727485", minHeight: "8rem" }}
+            rows={6}
           />
         </div>
 
