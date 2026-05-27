@@ -98,7 +98,8 @@ export const DOCUMENT_VARIABLES: { key: string; description: string; example: st
   { key: "TAUX_PRESENCE", description: "Pourcentage de présence", example: "100 %" },
   { key: "OBJECTIFS_ATTEINTS", description: "Mention d'atteinte des objectifs (auto depuis grilles d'éval, ou override manuel)", example: "atteints" },
   { key: "OBJECTIFS_ATTEINTS_PHRASE", description: "Phrase complète sur l'atteinte des objectifs", example: "Les objectifs pédagogiques ont été atteints." },
-  { key: "LISTE_COMPETENCES_ACQUISES", description: "Liste à puces des compétences acquises (extraite des exercices notés acquis)", example: "• Maîtrise des transitions vMix\n• Configuration multicaméra" },
+  { key: "LISTE_OBJECTIFS_PEDAGOGIQUES", description: "Liste à puces des objectifs pédagogiques de la formation (extraits de la description de la formation)", example: "•  Identifier les fonctionnalités principales de vMix\n•  Configurer un projet vMix" },
+  { key: "LISTE_COMPETENCES_ACQUISES", description: "Alias rétrocompat de LISTE_OBJECTIFS_PEDAGOGIQUES — utiliser la nouvelle clé pour les nouveaux templates", example: "(même contenu que LISTE_OBJECTIFS_PEDAGOGIQUES)" },
   { key: "MODALITE_EVALUATION", description: "Description des modalités d'évaluation utilisées", example: "Évaluation continue par mises en situation pratiques" },
 ];
 
@@ -414,39 +415,37 @@ export async function computeObjectifsAtteints(traineeId: string): Promise<Objec
 }
 
 /**
- * Récupère les libellés des exercices notés "acquis" pour la liste à puces
- * des compétences validées (variable LISTE_COMPETENCES_ACQUISES).
+ * Récupère la liste des objectifs pédagogiques de la formation, formatée
+ * en liste à puces pour l'attestation (variable LISTE_OBJECTIFS_PEDAGOGIQUES,
+ * ancien nom LISTE_COMPETENCES_ACQUISES pour rétrocompat des templates Drive).
+ *
+ * Les objectifs sont extraits de Formation.description :
+ *   - Si la description contient des lignes commençant par "- " ou "* "
+ *     (cas normal d'une formation Qualiopi configurée), on les garde et
+ *     on les normalise en "• ..."
+ *   - Sinon, retourne une chaîne vide (pas d'objectifs à lister)
+ *
+ * Ne dépend PAS des évaluations pratiques du stagiaire : les objectifs
+ * pédagogiques sont la promesse de la formation, pas la conséquence des
+ * exercices passés. Le niveau d'atteinte est porté par OBJECTIFS_ATTEINTS_PHRASE.
  */
-async function listeCompetencesAcquises(traineeId: string): Promise<string> {
+async function listeObjectifsPedagogiques(traineeId: string): Promise<string> {
   const trainee = await prisma.trainee.findUnique({
     where: { id: traineeId },
     select: {
-      session: {
-        select: {
-          formation: {
-            select: {
-              evaluationExercises: {
-                where: { active: true },
-                orderBy: { ordre: "asc" },
-                select: {
-                  titre: true,
-                  evaluations: {
-                    where: { traineeId },
-                    select: { globalNote: true },
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
+      session: { select: { formation: { select: { description: true } } } },
     },
   });
   if (!trainee) return "";
-  const acquis = trainee.session.formation.evaluationExercises
-    .filter((ex) => ex.evaluations[0]?.globalNote === "acquis")
-    .map((ex) => `•  ${ex.titre}`);
-  return acquis.join("\n");
+  const description = trainee.session.formation.description || "";
+  const lines = description
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const bulletLines = lines
+    .filter((line) => line.startsWith("- ") || line.startsWith("* ") || line.startsWith("• "))
+    .map((line) => `•  ${line.replace(/^[-*•]\s+/, "").trim()}`);
+  return bulletLines.join("\n");
 }
 
 /**
@@ -491,9 +490,9 @@ async function computePresenceVariables(traineeId: string): Promise<{
  * de réalisation et l'attestation de fin de formation.
  */
 export async function computeEndOfTrainingVariables(traineeId: string): Promise<Record<string, string>> {
-  const [objectifs, competences, presence] = await Promise.all([
+  const [objectifs, objectifsList, presence] = await Promise.all([
     computeObjectifsAtteints(traineeId),
-    listeCompetencesAcquises(traineeId),
+    listeObjectifsPedagogiques(traineeId),
     computePresenceVariables(traineeId),
   ]);
   return {
@@ -501,7 +500,8 @@ export async function computeEndOfTrainingVariables(traineeId: string): Promise<
     OBJECTIFS_ATTEINTS_PHRASE: OBJECTIFS_ATTEINTS_PHRASES[objectifs],
     NB_HEURES_PRESENCE: presence.nbHeures,
     TAUX_PRESENCE: presence.taux,
-    LISTE_COMPETENCES_ACQUISES: competences,
+    LISTE_OBJECTIFS_PEDAGOGIQUES: objectifsList,
+    LISTE_COMPETENCES_ACQUISES: objectifsList,
     MODALITE_EVALUATION: "Évaluation continue par mises en situation pratiques (exercices notés acquis / en cours / non acquis sur grilles critères).",
   };
 }
