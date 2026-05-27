@@ -276,6 +276,40 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
+  async function handleRegenerateEndOfTraining() {
+    if (!trainee) return;
+    if (!confirm(
+      `Re-générer le certificat de réalisation + l'attestation de fin de formation pour ${trainee.prenom} ${trainee.nom} et lui re-envoyer par mail ?\n\n` +
+      "Utile après :\n" +
+      "  • Mise à jour du template (formulation, charte…)\n" +
+      "  • Correction de données (nom, dates, atteinte des objectifs…)\n\n" +
+      "Le stagiaire recevra un nouveau mail avec les 2 PDF mis à jour."
+    )) {
+      return;
+    }
+    setActionLoading(true);
+    setActionFeedback(null);
+    try {
+      const res = await fetch(`/api/admin/trainees/${id}/regenerate-end-of-training`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setActionFeedback({ type: "error", msg: data.error || "Erreur" });
+        return;
+      }
+      setActionFeedback({
+        type: "success",
+        msg: data.emailSent
+          ? "Certificat + attestation re-générés et re-envoyés au stagiaire ✓"
+          : "Documents re-générés mais l'envoi du mail a échoué — vérifie les logs.",
+      });
+      await refresh();
+    } catch {
+      setActionFeedback({ type: "error", msg: "Erreur de connexion" });
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
   const prerequisAnswers = useMemo<Record<string, unknown>>(() => {
     if (!trainee) return {};
     try {
@@ -439,6 +473,35 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
           </button>
         </div>
       )}
+
+      {/* Bandeau re-génération docs de fin — disponible quand statut = termine.
+          Permet de re-générer + re-envoyer certif + attestation après modif
+          de template ou correction de données. */}
+      {trainee.status === "termine" && (
+        <div
+          className="p-5 rounded-xl border flex items-center justify-between gap-3 flex-wrap"
+          style={{ borderColor: "#bbf7d0", backgroundColor: "#f0fdf4" }}
+        >
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold" style={{ color: "#166534" }}>
+              Documents de fin envoyés — re-génération possible
+            </div>
+            <div className="text-xs mt-0.5 font-jetbrains" style={{ color: "#15803d" }}>
+              Re-génère le certificat + l&apos;attestation et les renvoie au stagiaire.
+              Utile après mise à jour de template ou correction de données (override objectifs, dates, etc.).
+            </div>
+          </div>
+          <button
+            onClick={handleRegenerateEndOfTraining}
+            disabled={actionLoading}
+            className="px-4 py-2 rounded-full text-sm font-medium text-white cursor-pointer disabled:opacity-50 whitespace-nowrap"
+            style={{ backgroundColor: "#166534" }}
+          >
+            {actionLoading ? "Re-génération..." : "🔄 Re-générer les docs de fin"}
+          </button>
+        </div>
+      )}
+
       {actionFeedback && (
         <div
           className={`p-3 rounded-lg text-sm font-jetbrains ${
