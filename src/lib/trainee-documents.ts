@@ -343,8 +343,10 @@ type ObjectifsAtteintsValue = "atteints" | "partiellement_atteints" | "non_attei
 
 const OBJECTIFS_ATTEINTS_PHRASES: Record<ObjectifsAtteintsValue, string> = {
   atteints: "Les objectifs pédagogiques ont été atteints.",
-  partiellement_atteints: "Les objectifs pédagogiques ont été partiellement atteints.",
-  non_atteints: "Les objectifs pédagogiques n'ont pas été atteints.",
+  partiellement_atteints:
+    "Les objectifs pédagogiques ont été partiellement atteints ; certains acquis restent à consolider en situation professionnelle.",
+  non_atteints:
+    "Les compétences visées par les objectifs pédagogiques sont en cours d'acquisition et restent à consolider par la pratique.",
   "": "",
 };
 
