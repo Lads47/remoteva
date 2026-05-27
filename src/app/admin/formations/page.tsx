@@ -254,6 +254,12 @@ export default function FormationsDashboardPage() {
           }
         />
         <AccessCard
+          href="/admin/formations/finances"
+          icon="💶"
+          title="Finances par session"
+          description="CA HT, coûts de sous-traitance et marge brute par session. Vue YTD + détail."
+        />
+        <AccessCard
           href="/reclamation"
           icon="🔗"
           title="Formulaire public réclamation"
@@ -423,6 +429,14 @@ function QualiopiDashboard({
                 rel="noreferrer"
               >
                 📄 PDF
+              </a>
+              <a
+                href={`/api/admin/audit/zip?year=${selectedYear}`}
+                className="text-xs font-jetbrains px-3 py-1.5 rounded-lg cursor-pointer"
+                style={{ backgroundColor: "#1f2244", color: "white" }}
+                title="Préparer un ZIP avec le bilan Qualiopi + les contrats de sous-traitance + le manifest formateurs (Qualiopi audit)"
+              >
+                📦 Dossier audit
               </a>
             </div>
           )}
