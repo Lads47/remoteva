@@ -18,6 +18,18 @@ import SVGtoPDF from "svg-to-pdfkit";
 import prisma from "./db";
 import { SCORE_LABELS, type ScoreValue } from "./evaluation-grids";
 
+// Labels courts spécifiques au PDF : la pastille des scores fait ~110-130pt
+// de large, "En cours d'acquisition" ne rentre pas. On surcharge le label
+// long sans toucher à l'UI formateur (où la version complète reste plus
+// claire pédagogiquement).
+const SCORE_LABELS_PDF: Partial<Record<ScoreValue, string>> = {
+  en_cours: "En cours",
+};
+
+function pdfLabelForScore(score: ScoreValue): string {
+  return SCORE_LABELS_PDF[score] ?? SCORE_LABELS[score];
+}
+
 // Logo LADS — chargé une fois en mémoire au premier appel et cached.
 let cachedLogoSvg: string | null | undefined;
 function loadLogoSvg(): string | null {
@@ -747,7 +759,7 @@ function drawScoreChip(
     return;
   }
   const colors = SCORE_COLORS[score as ScoreValue];
-  const label = SCORE_LABELS[score as ScoreValue];
+  const label = pdfLabelForScore(score as ScoreValue);
   doc.save();
   const padX = 6;
   const padY = 3;
