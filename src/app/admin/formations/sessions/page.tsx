@@ -470,11 +470,17 @@ function SessionsPageInner() {
                 required
               >
                 <option value="">— Sélectionner —</option>
-                {formations.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.code} — {f.nomLong}
-                  </option>
-                ))}
+                {formations
+                  // Cache les formations archivées du sélecteur — sauf si on
+                  // édite une session déjà liée à une formation archivée
+                  // (sinon le select se vide et la formation actuelle disparaît).
+                  .filter((f) => f.active || f.id === form.formationId)
+                  .map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.code} — {f.nomLong}
+                      {!f.active ? " (archivée)" : ""}
+                    </option>
+                  ))}
               </select>
             </Field>
             <Field label="Code session">

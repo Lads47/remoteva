@@ -78,6 +78,7 @@ export default function FormationsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
   useEffect(() => {
     fetchFormations();
   }, []);
@@ -190,6 +191,38 @@ export default function FormationsPage() {
         return;
       }
       setFeedback({ type: "success", msg: "Formation supprimée" });
+      await fetchFormations();
+      setTimeout(() => setFeedback(null), 3000);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  /**
+   * Toggle archivage d'une formation. On garde toutes les données (sessions
+   * passées, historique...) mais on retire la formation des sélecteurs de
+   * création de session et du site public. Plus sûr qu'une suppression
+   * définitive (impossible de toute façon si des sessions existent).
+   */
+  async function handleToggleActive(f: Formation) {
+    const action = f.active ? "archiver" : "réactiver";
+    if (!confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} la formation « ${f.nomLong} » ?`)) return;
+    try {
+      const res = await fetch("/api/admin/formations", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: f.id, active: !f.active }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setFeedback({ type: "error", msg: data.error || "Erreur" });
+        setTimeout(() => setFeedback(null), 5000);
+        return;
+      }
+      setFeedback({
+        type: "success",
+        msg: f.active ? "Formation archivée" : "Formation réactivée",
+      });
       await fetchFormations();
       setTimeout(() => setFeedback(null), 3000);
     } catch (err) {
@@ -427,16 +460,36 @@ export default function FormationsPage() {
           Aucune formation. Crée la première via &laquo; + Nouvelle formation &raquo;.
         </div>
       ) : (
-        <div className="space-y-3">
-          {formations.map((f) => (
-            <FormationRow
-              key={f.id}
-              formation={f}
-              onEdit={() => handleEdit(f)}
-              onDelete={() => handleDelete(f.id)}
-            />
-          ))}
-        </div>
+        <>
+          {/* Toggle d'affichage des formations archivées */}
+          {formations.some((f) => !f.active) && (
+            <div className="flex items-center justify-end mb-3">
+              <label className="flex items-center gap-2 text-xs font-jetbrains cursor-pointer" style={{ color: "#727485" }}>
+                <input
+                  type="checkbox"
+                  checked={showArchived}
+                  onChange={(e) => setShowArchived(e.target.checked)}
+                />
+                Inclure les formations archivées
+                {" "}
+                ({formations.filter((f) => !f.active).length})
+              </label>
+            </div>
+          )}
+          <div className="space-y-3">
+            {formations
+              .filter((f) => showArchived || f.active)
+              .map((f) => (
+                <FormationRow
+                  key={f.id}
+                  formation={f}
+                  onEdit={() => handleEdit(f)}
+                  onDelete={() => handleDelete(f.id)}
+                  onToggleActive={() => handleToggleActive(f)}
+                />
+              ))}
+          </div>
+        </>
       )}
     </div>
   );
@@ -452,10 +505,12 @@ function FormationRow({
   formation: f,
   onEdit,
   onDelete,
+  onToggleActive,
 }: {
   formation: Formation;
   onEdit: () => void;
   onDelete: () => void;
+  onToggleActive: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -520,8 +575,12 @@ function FormationRow({
             {f.code}
           </span>
           {!f.active && (
-            <span className="px-2 py-0.5 rounded text-xs font-jetbrains bg-gray-200 text-gray-600">
-              inactive
+            <span
+              className="px-2 py-0.5 rounded text-xs font-jetbrains"
+              style={{ backgroundColor: "#fed7aa", color: "#9a3412" }}
+              title="Formation archivée — n'apparaît plus dans le sélecteur de création de session ni sur le site public"
+            >
+              archivée
             </span>
           )}
           <h3 className="font-semibold" style={{ color: "#1f2244" }}>
@@ -597,11 +656,29 @@ function FormationRow({
           )}
         </div>
 
+        {/* Archiver / Réactiver — préférable à la suppression (préserve l'historique) */}
+        <button
+          onClick={onToggleActive}
+          className="text-xs px-3 py-1.5 rounded-full border cursor-pointer"
+          style={
+            f.active
+              ? { borderColor: "#9a3412", color: "#9a3412" }
+              : { borderColor: "#166534", color: "#166534" }
+          }
+          title={
+            f.active
+              ? "Archiver — la formation reste en base et l'historique est préservé, mais elle n'apparaît plus dans les sélecteurs ni sur le site public"
+              : "Réactiver — la formation redevient visible dans les sélecteurs et sur le site public"
+          }
+        >
+          {f.active ? "Archiver" : "Réactiver"}
+        </button>
+
         {/* Action destructive : discrète, à part visuellement */}
         <button
           onClick={onDelete}
           className="text-xs px-3 py-1.5 rounded-full border border-red-200 text-red-600 hover:bg-red-50 cursor-pointer"
-          title="Supprimer (impossible si des sessions existent)"
+          title="Supprimer (impossible si des sessions existent — préfère Archiver)"
         >
           Supprimer
         </button>
