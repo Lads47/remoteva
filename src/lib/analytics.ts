@@ -325,9 +325,18 @@ export async function getPedagogyStats(year: number): Promise<PedagogyStats> {
       else if (note === "non_acquis") cNonAcquis++;
     }
     const cSansNote = expectedExercises - noted;
-    if (cNonAcquis > 0) nonAtteints++;
-    else if (cEnCours > 0 || cSansNote > 0) partiellement++;
-    else atteints++;
+    // Système pondéré (identique à la suggestion de note globale par exercice) :
+    //   - acquis=2, en_cours=1, non_acquis=0, sans_note=0
+    //   - ratio ≥ 80% ET aucun non_acquis ET tous notés → "atteints"
+    //   - ratio ≥ 50% → "partiellement_atteints"
+    //   - sinon → "non_atteints"
+    const points = cAcquis * 2 + cEnCours * 1;
+    const maxPoints = expectedExercises * 2;
+    const ratio = maxPoints > 0 ? points / maxPoints : 0;
+    const isComplete = cSansNote === 0 && cNonAcquis === 0 && cEnCours === 0;
+    if (ratio >= 0.8 && isComplete) atteints++;
+    else if (ratio >= 0.5) partiellement++;
+    else nonAtteints++;
   }
 
   const evalues = atteints + partiellement + nonAtteints;

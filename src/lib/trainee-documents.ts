@@ -409,9 +409,20 @@ export async function computeObjectifsAtteints(traineeId: string): Promise<Objec
 
   // Si aucun exercice n'a été noté → vide (auto inconclusif)
   if (countAcquis + countEnCours + countNonAcquis === 0) return "";
-  if (countNonAcquis > 0) return "non_atteints";
-  if (countEnCours > 0 || countSansNote > 0) return "partiellement_atteints";
-  return "atteints";
+
+  // Système pondéré (identique à la logique du dashboard Qualiopi + suggestion
+  // de note globale par exercice) :
+  //   - acquis=2, en_cours=1, non_acquis=0, sans_note=0
+  //   - ratio ≥ 80% ET tout est noté ET aucun non_acquis ET aucun en_cours → "atteints"
+  //   - ratio ≥ 50% → "partiellement_atteints"
+  //   - sinon → "non_atteints"
+  const points = countAcquis * 2 + countEnCours * 1;
+  const maxPoints = exercises.length * 2;
+  const ratio = maxPoints > 0 ? points / maxPoints : 0;
+  const isComplete = countSansNote === 0 && countNonAcquis === 0 && countEnCours === 0;
+  if (ratio >= 0.8 && isComplete) return "atteints";
+  if (ratio >= 0.5) return "partiellement_atteints";
+  return "non_atteints";
 }
 
 /**
