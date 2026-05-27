@@ -19,6 +19,10 @@ interface Session {
   driveFolderId: string | null;
   trainerId: string | null;
   trainerNomComplet: string | null;
+  trainerIsExternal: boolean;
+  trainerFeeAmount: number | null;
+  trainerContractDriveFileId: string | null;
+  trainerContractSentAt: string | null;
   notes: string;
   traineeCount: number;
 }
@@ -36,6 +40,7 @@ interface TrainerOption {
   prenom: string;
   nom: string;
   active: boolean;
+  isExternal: boolean;
 }
 
 function addDays(yyyyMmDd: string, days: number): string {
@@ -99,6 +104,7 @@ type FormState = {
   horaires: string;
   status: string;
   trainerId: string;
+  trainerFeeAmount: string;  // saisie texte, parsée en number à l'envoi
   notes: string;
 };
 
@@ -116,6 +122,7 @@ function emptyForm(formationId = ""): FormState {
     horaires: DEFAULT_HORAIRES,
     status: "planned",
     trainerId: "",
+    trainerFeeAmount: "",
     notes: "",
   };
 }
@@ -185,6 +192,7 @@ function SessionsPageInner() {
       horaires: s.horaires,
       status: s.status,
       trainerId: s.trainerId ?? "",
+      trainerFeeAmount: s.trainerFeeAmount != null ? String(s.trainerFeeAmount) : "",
       notes: s.notes,
     };
   }
@@ -194,6 +202,16 @@ function SessionsPageInner() {
     setError("");
     setSaving(true);
     try {
+      // Si formateur externe sélectionné, on parse le montant HT pour déclencher
+      // la génération du contrat de sous-traitance (Qualiopi ind. 27).
+      const selectedTrainer = trainers.find((t) => t.id === form.trainerId);
+      const feeRaw = form.trainerFeeAmount.replace(",", ".").trim();
+      const feeNumber = feeRaw === "" ? null : parseFloat(feeRaw);
+      const trainerFeeAmount =
+        selectedTrainer?.isExternal && feeNumber != null && !Number.isNaN(feeNumber) && feeNumber > 0
+          ? feeNumber
+          : null;
+
       const payload = {
         formationId: form.formationId,
         code: form.code.trim(),
@@ -204,6 +222,7 @@ function SessionsPageInner() {
         horaires: form.horaires.trim(),
         status: form.status,
         trainerId: form.trainerId === "" ? null : form.trainerId,
+        trainerFeeAmount,
         notes: form.notes.trim(),
       };
       const method = editingId ? "PUT" : "POST";
@@ -218,6 +237,7 @@ function SessionsPageInner() {
             horaires: payload.horaires,
             status: payload.status,
             trainerId: payload.trainerId,
+            trainerFeeAmount: payload.trainerFeeAmount,
             notes: payload.notes,
           }
         : payload;
@@ -233,11 +253,21 @@ function SessionsPageInner() {
       }
       // Si le serveur a notifié le formateur d'une assignation, on l'indique
       // dans le toast pour rassurer l'admin (sinon le mail part en silence).
-      const notif = data.trainerNotified as { emailSent?: boolean; error?: string } | null | undefined;
+      const notif = data.trainerNotified as {
+        emailSent?: boolean;
+        error?: string;
+        contractGenerated?: boolean;
+        contractSkipReason?: string;
+      } | null | undefined;
       let trainerNote = "";
       if (notif) {
-        if (notif.emailSent) trainerNote = " · Formateur prévenu par mail ✓";
-        else if (notif.error) trainerNote = ` · Mail formateur en erreur (${String(notif.error).slice(0, 60)})`;
+        if (notif.emailSent) {
+          trainerNote = " · Formateur prévenu par mail ✓";
+          if (notif.contractGenerated) trainerNote += " (contrat de sous-traitance joint 📎)";
+          else if (notif.contractSkipReason) trainerNote += ` (contrat non généré : ${notif.contractSkipReason})`;
+        } else if (notif.error) {
+          trainerNote = ` · Mail formateur en erreur (${String(notif.error).slice(0, 60)})`;
+        }
       }
       setFeedback({
         type: "success",
@@ -480,11 +510,40 @@ function SessionsPageInner() {
                   .map((t) => (
                     <option key={t.id} value={t.id}>
                       {t.prenom} {t.nom}
+                      {t.isExternal ? " — externe" : ""}
                       {!t.active ? " (désactivé)" : ""}
                     </option>
                   ))}
               </select>
             </Field>
+
+            {/* === Qualiopi ind. 27 — Montant HT si formateur externe ===
+                Quand un formateur externe est sélectionné, on demande le
+                montant HT du contrat. Si rempli + envoi, on génère et joint
+                automatiquement le contrat de sous-traitance au mail
+                d'assignation. */}
+            {(() => {
+              const selected = trainers.find((t) => t.id === form.trainerId);
+              if (!selected?.isExternal) return null;
+              return (
+                <Field label="Montant HT du contrat de sous-traitance (€)" full>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={form.trainerFeeAmount}
+                    onChange={(e) => setForm({ ...form, trainerFeeAmount: e.target.value })}
+                    placeholder="ex : 1250.00"
+                    className="input"
+                  />
+                  <p className="text-xs mt-1.5 font-jetbrains" style={{ color: "#92400e" }}>
+                    📎 Formateur externe : un contrat de sous-traitance sera généré et joint
+                    au mail d&apos;assignation (Qualiopi ind. 27). Laisser vide pour envoyer
+                    juste le mail sans contrat.
+                  </p>
+                </Field>
+              );
+            })()}
             <Field label="Lieu" full>
               <input
                 type="text"

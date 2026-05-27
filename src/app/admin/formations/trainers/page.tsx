@@ -15,6 +15,13 @@ interface Trainer {
   sessionCount: number;
   qualifications: string;
   driveCvFolderId: string | null;
+  // Qualiopi indicateur 27 — sous-traitance
+  isExternal: boolean;
+  raisonSociale: string;
+  siret: string;
+  adresse: string;
+  numeroDa: string;
+  representantLegal: string;
 }
 
 const EMPTY_FORM = {
@@ -24,6 +31,12 @@ const EMPTY_FORM = {
   telephone: "",
   qualifications: "",
   driveCvFolderId: "",
+  isExternal: false,
+  raisonSociale: "",
+  siret: "",
+  adresse: "",
+  numeroDa: "",
+  representantLegal: "",
 };
 
 export default function TrainersPage() {
@@ -120,6 +133,12 @@ export default function TrainersPage() {
       telephone: t.telephone,
       qualifications: t.qualifications,
       driveCvFolderId: t.driveCvFolderId ?? "",
+      isExternal: t.isExternal ?? false,
+      raisonSociale: t.raisonSociale ?? "",
+      siret: t.siret ?? "",
+      adresse: t.adresse ?? "",
+      numeroDa: t.numeroDa ?? "",
+      representantLegal: t.representantLegal ?? "",
     });
     setShowForm(true);
     setError("");
@@ -324,6 +343,81 @@ export default function TrainersPage() {
             </div>
           </div>
 
+          {/* === Qualiopi indicateur 27 — sous-traitance ===
+              Si coché, un contrat de sous-traitance personnalisé est généré
+              et envoyé au formateur à chaque assignation de session
+              (montant HT saisi au moment de l'assignation). */}
+          <div className="pt-3 border-t" style={{ borderColor: "#e5e7eb" }}>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.isExternal}
+                onChange={(e) => setForm({ ...form, isExternal: e.target.checked })}
+                className="mt-1"
+              />
+              <div className="flex-1">
+                <span className="text-sm font-medium" style={{ color: "#1f2244" }}>
+                  Formateur externe (sous-traitant)
+                </span>
+                <p className="text-xs font-jetbrains mt-0.5" style={{ color: "#727485" }}>
+                  À chaque assignation à une session, un contrat de sous-traitance
+                  personnalisé sera généré et joint au mail d&apos;assignation
+                  <em> (Qualiopi ind. 27)</em>.
+                </p>
+              </div>
+            </label>
+
+            {form.isExternal && (
+              <div className="mt-4 pl-7 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Field label="Raison sociale">
+                  <input
+                    type="text"
+                    value={form.raisonSociale}
+                    onChange={(e) => setForm({ ...form, raisonSociale: e.target.value })}
+                    placeholder="ex : Marie Dupont EI, ou SARL TechFormation"
+                    className="input"
+                  />
+                </Field>
+                <Field label="SIRET">
+                  <input
+                    type="text"
+                    value={form.siret}
+                    onChange={(e) => setForm({ ...form, siret: e.target.value })}
+                    placeholder="14 chiffres"
+                    className="input font-jetbrains text-xs"
+                  />
+                </Field>
+                <Field label="Adresse postale complète">
+                  <input
+                    type="text"
+                    value={form.adresse}
+                    onChange={(e) => setForm({ ...form, adresse: e.target.value })}
+                    placeholder="N°, rue, code postal, ville"
+                    className="input"
+                  />
+                </Field>
+                <Field label="N° de déclaration d'activité (si OF déclaré)">
+                  <input
+                    type="text"
+                    value={form.numeroDa}
+                    onChange={(e) => setForm({ ...form, numeroDa: e.target.value })}
+                    placeholder="ex : 75470196847"
+                    className="input font-jetbrains text-xs"
+                  />
+                </Field>
+                <Field label="Représentant légal (si différent du formateur)">
+                  <input
+                    type="text"
+                    value={form.representantLegal}
+                    onChange={(e) => setForm({ ...form, representantLegal: e.target.value })}
+                    placeholder="ex : Jean Dupont, gérant"
+                    className="input"
+                  />
+                </Field>
+              </div>
+            )}
+          </div>
+
           {editingId && magicLink && (
             <div className="p-3 rounded-lg border" style={{ borderColor: "#e5e7eb", backgroundColor: "white" }}>
               <p className="text-xs font-jetbrains mb-2" style={{ color: "#727485" }}>
@@ -390,6 +484,15 @@ export default function TrainersPage() {
                   <h3 className="font-semibold" style={{ color: "#1f2244" }}>
                     {t.prenom} {t.nom}
                   </h3>
+                  {t.isExternal && (
+                    <span
+                      className="px-2 py-0.5 rounded text-xs font-jetbrains"
+                      style={{ backgroundColor: "#fef3c7", color: "#92400e" }}
+                      title="Formateur externe (sous-traitant) — un contrat est généré à chaque assignation"
+                    >
+                      externe
+                    </span>
+                  )}
                   {!t.active && (
                     <span className="px-2 py-0.5 rounded text-xs font-jetbrains bg-gray-200 text-gray-600">
                       désactivé

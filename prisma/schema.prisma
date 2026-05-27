@@ -210,6 +210,16 @@ model Session {
   driveFolderId    String?  @map("drive_folder_id")                          // Dossier session sur Drive
   driveSuiviFileId String?  @map("drive_suivi_file_id")                      // Sheet de suivi (legacy)
   trainerId        String?  @map("trainer_id")                                // Formateur assigné (optionnel)
+
+  // === Sous-traitance (Qualiopi indicateur 27) ===
+  // Si le formateur assigné est externe (Trainer.isExternal = true) on
+  // saisit ici le montant HT contractualisé pour CETTE session, on génère
+  // un contrat de sous-traitance personnalisé et on garde la trace du
+  // fichier Drive généré + de la date d'envoi (audit Qualiopi).
+  trainerFeeAmount         Float?    @map("trainer_fee_amount")
+  trainerContractDriveFileId String? @map("trainer_contract_drive_file_id")
+  trainerContractSentAt    DateTime? @map("trainer_contract_sent_at")
+
   notes            String   @default("")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt      @map("updated_at")
@@ -417,6 +427,18 @@ model Trainer {
   // domaine d'expertise et son expérience pertinente — utile pour audit
   // rapide sans devoir ouvrir le Drive (Qualiopi indicateur 21).
   qualifications  String  @default("")
+
+  // === Formateur externe / sous-traitant (Qualiopi indicateur 27) ===
+  // Si true, à chaque assignation à une session on génère un contrat de
+  // sous-traitance personnalisé (montant saisi à l'assignation) et on
+  // l'envoie en PJ du mail "session assignée". Les 5 champs ci-dessous
+  // alimentent les variables du template du contrat.
+  isExternal        Boolean @default(false) @map("is_external")
+  raisonSociale     String  @default("")    @map("raison_sociale")
+  siret             String  @default("")
+  adresse           String  @default("")
+  numeroDa          String  @default("")    @map("numero_da")           // N° de déclaration d'activité (si OF déclaré)
+  representantLegal String  @default("")    @map("representant_legal") // si différent du formateur (ex: gérant SARL)
 
   createdAt   DateTime @default(now()) @map("created_at")
 

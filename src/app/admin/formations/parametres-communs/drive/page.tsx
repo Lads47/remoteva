@@ -9,6 +9,7 @@ interface Templates {
   convocation?: string;
   certificat?: string;
   attestation?: string;
+  externalTrainerContract?: string;
 }
 
 interface Attachments {
@@ -126,6 +127,12 @@ export default function DriveConfigPage() {
           value={templates.attestation ?? ""}
           onChange={(v) => setTemplates({ ...templates, attestation: v })}
           help="ID Google Doc de l'attestation (acquis pédagogiques : compétences acquises, atteinte des objectifs)."
+        />
+        <TemplateField
+          label="Contrat de sous-traitance — formateur externe (Doc)"
+          value={templates.externalTrainerContract ?? ""}
+          onChange={(v) => setTemplates({ ...templates, externalTrainerContract: v })}
+          help="ID Google Doc du contrat de sous-traitance généré quand on assigne un formateur externe à une session (Qualiopi indicateur 27). Le template doit utiliser les variables {{FORMATEUR_*}}, {{SESSION_*}}, {{FORMATION_*}}, {{MONTANT_HT}}."
         />
 
         <div className="border-t pt-4 mt-2" style={{ borderColor: "#e5e7eb" }}>

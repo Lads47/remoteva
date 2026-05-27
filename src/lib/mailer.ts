@@ -414,6 +414,11 @@ export async function sendTrainerSessionAssignment(params: {
   sessionCapacite: number;
   sessionUrl: string;       // /formateur/sessions/[id]?token=<magicToken>
   replyTo?: string;
+  // Optionnel : si fourni, le contrat de sous-traitance est joint au mail
+  // et un paragraphe additionnel est ajouté pour annoncer la PJ (Qualiopi ind. 27).
+  contractPdfBuffer?: Buffer;
+  contractPdfFilename?: string;
+  contractMontantHt?: number;
 }): Promise<SendEmailResult> {
   const replyTo = params.replyTo || process.env.ADMIN_NOTIFY_EMAIL;
   const safe = {
@@ -426,6 +431,25 @@ export async function sendTrainerSessionAssignment(params: {
   };
   const dateDebut = fmtDateFr(params.sessionDateDebut);
   const dateFin = fmtDateFr(params.sessionDateFin);
+
+  const hasContract = Boolean(params.contractPdfBuffer && params.contractPdfFilename);
+  const montantFmt = hasContract && params.contractMontantHt
+    ? new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(params.contractMontantHt) + " € HT"
+    : "";
+
+  const contractBlockHtml = hasContract
+    ? `<div style="margin: 20px 0; padding: 14px 16px; background: #fef3c7; border-left: 3px solid #92400e; border-radius: 6px;">
+    <p style="margin: 0 0 6px; font-weight: 600; color: #92400e;">📎 Contrat de sous-traitance joint</p>
+    <p style="margin: 0; font-size: 13px; color: #92400e;">
+      Vous trouverez en pièce jointe le contrat de sous-traitance correspondant à cette session
+      ${montantFmt ? `(rémunération : <strong>${escapeHtml(montantFmt)}</strong>)` : ""}.
+      Merci de le retourner signé à <a href="mailto:formation@lesateliersdustream.fr">formation@lesateliersdustream.fr</a>.
+    </p>
+  </div>`
+    : "";
+  const contractBlockText = hasContract
+    ? `\n📎 CONTRAT DE SOUS-TRAITANCE\nVous trouverez en pièce jointe le contrat de sous-traitance correspondant à cette session${montantFmt ? ` (rémunération : ${montantFmt})` : ""}. Merci de le retourner signé à formation@lesateliersdustream.fr.\n`
+    : "";
 
   const html = `<!DOCTYPE html>
 <html lang="fr">
@@ -442,6 +466,8 @@ export async function sendTrainerSessionAssignment(params: {
     <tr><td style="padding: 8px 12px; color: #727485;">Horaires</td><td style="padding: 8px 12px;">${safe.horaires}</td></tr>
     <tr><td style="padding: 8px 12px; color: #727485;">Effectif max</td><td style="padding: 8px 12px;">${params.sessionCapacite} stagiaire${params.sessionCapacite > 1 ? "s" : ""}</td></tr>
   </table>
+
+  ${contractBlockHtml}
 
   <p style="margin: 24px 0; text-align: center;">
     <a href="${safe.url}" style="display: inline-block; padding: 12px 22px; background: #1f2244; color: white; text-decoration: none; border-radius: 999px; font-weight: 600;">
@@ -474,7 +500,7 @@ Dates : du ${dateDebut} au ${dateFin}
 Lieu : ${params.sessionLieu || "Lieu à préciser"}
 Horaires : ${params.sessionHoraires || "Horaires à préciser"}
 Effectif max : ${params.sessionCapacite} stagiaire${params.sessionCapacite > 1 ? "s" : ""}
-
+${contractBlockText}
 Accéder à votre espace formateur :
 ${params.sessionUrl}
 
@@ -486,12 +512,21 @@ Bien cordialement,
 Noémie Marphay
 Les Ateliers du Stream`;
 
+  const attachments: EmailAttachment[] = [];
+  if (hasContract && params.contractPdfBuffer && params.contractPdfFilename) {
+    attachments.push({
+      filename: params.contractPdfFilename,
+      content: params.contractPdfBuffer.toString("base64"),
+    });
+  }
+
   return sendEmail({
     to: params.to,
     subject: `Nouvelle session assignée — ${params.formationNomLong}`,
     html,
     text,
     replyTo,
+    attachments: attachments.length ? attachments : undefined,
   });
 }
 

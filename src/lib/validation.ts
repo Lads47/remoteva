@@ -193,6 +193,9 @@ export const createSessionSchema = z.object({
   horaires: z.string().trim().optional().default(""),
   status: sessionStatusSchema.optional(),
   trainerId: z.string().trim().nullable().optional(),
+  // Qualiopi ind. 27 — montant HT à fournir si on assigne un formateur externe
+  // (déclenche la génération du contrat de sous-traitance joint au mail).
+  trainerFeeAmount: z.number().nonnegative().nullable().optional(),
   notes: z.string().trim().optional().default(""),
 });
 
@@ -273,6 +276,13 @@ export const createTrainerSchema = z.object({
   // Qualiopi indicateur 21 — pièces justificatives compétences
   qualifications: z.string().trim().optional().default(""),
   driveCvFolderId: z.string().trim().optional().default(""),
+  // Qualiopi indicateur 27 — sous-traitance (champs juridiques)
+  isExternal: z.boolean().optional().default(false),
+  raisonSociale: z.string().trim().optional().default(""),
+  siret: z.string().trim().optional().default(""),
+  adresse: z.string().trim().optional().default(""),
+  numeroDa: z.string().trim().optional().default(""),
+  representantLegal: z.string().trim().optional().default(""),
 });
 
 export const updateTrainerSchema = z.object({
@@ -283,6 +293,13 @@ export const updateTrainerSchema = z.object({
   active: z.boolean().optional(),
   qualifications: z.string().trim().optional(),
   driveCvFolderId: z.string().trim().optional(),
+  // Qualiopi indicateur 27 — sous-traitance
+  isExternal: z.boolean().optional(),
+  raisonSociale: z.string().trim().optional(),
+  siret: z.string().trim().optional(),
+  adresse: z.string().trim().optional(),
+  numeroDa: z.string().trim().optional(),
+  representantLegal: z.string().trim().optional(),
 });
 
 // Admin update d'un stagiaire (correction de saisie principalement).
@@ -330,6 +347,7 @@ export const updateSessionSchema = z.object({
   driveFolderId: z.string().trim().nullable().optional(),
   driveSuiviFileId: z.string().trim().nullable().optional(),
   trainerId: z.string().trim().nullable().optional(),
+  trainerFeeAmount: z.number().nonnegative().nullable().optional(),
   notes: z.string().trim().optional(),
 });
 

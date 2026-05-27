@@ -14,6 +14,13 @@ export interface TrainerInfo {
   // Qualiopi indicateur 21
   qualifications: string;
   driveCvFolderId: string | null;
+  // Qualiopi indicateur 27 — sous-traitance
+  isExternal: boolean;
+  raisonSociale: string;
+  siret: string;
+  adresse: string;
+  numeroDa: string;
+  representantLegal: string;
 }
 
 export interface TrainerCreateInput {
@@ -23,6 +30,12 @@ export interface TrainerCreateInput {
   telephone?: string;
   qualifications?: string;
   driveCvFolderId?: string;
+  isExternal?: boolean;
+  raisonSociale?: string;
+  siret?: string;
+  adresse?: string;
+  numeroDa?: string;
+  representantLegal?: string;
 }
 
 export interface TrainerUpdateInput {
@@ -33,6 +46,12 @@ export interface TrainerUpdateInput {
   active?: boolean;
   qualifications?: string;
   driveCvFolderId?: string;
+  isExternal?: boolean;
+  raisonSociale?: string;
+  siret?: string;
+  adresse?: string;
+  numeroDa?: string;
+  representantLegal?: string;
 }
 
 /**
@@ -92,6 +111,12 @@ export async function createTrainer(input: TrainerCreateInput): Promise<TrainerI
       telephone: input.telephone ?? "",
       qualifications: input.qualifications ?? "",
       driveCvFolderId: input.driveCvFolderId?.trim() || null,
+      isExternal: input.isExternal ?? false,
+      raisonSociale: input.raisonSociale ?? "",
+      siret: input.siret ?? "",
+      adresse: input.adresse ?? "",
+      numeroDa: input.numeroDa ?? "",
+      representantLegal: input.representantLegal ?? "",
       magicToken: generateMagicToken(),
     },
     include: { _count: { select: { sessions: true } } },
@@ -110,6 +135,12 @@ export async function updateTrainer(id: string, input: TrainerUpdateInput): Prom
   if (input.driveCvFolderId !== undefined) {
     data.driveCvFolderId = input.driveCvFolderId.trim() || null;
   }
+  if (input.isExternal !== undefined) data.isExternal = input.isExternal;
+  if (input.raisonSociale !== undefined) data.raisonSociale = input.raisonSociale;
+  if (input.siret !== undefined) data.siret = input.siret;
+  if (input.adresse !== undefined) data.adresse = input.adresse;
+  if (input.numeroDa !== undefined) data.numeroDa = input.numeroDa;
+  if (input.representantLegal !== undefined) data.representantLegal = input.representantLegal;
   const t = await prisma.trainer.update({
     where: { id },
     data,
@@ -268,5 +299,11 @@ function toInfo(t: TrainerRow): TrainerInfo {
     sessionCount: t._count.sessions,
     qualifications: t.qualifications,
     driveCvFolderId: t.driveCvFolderId,
+    isExternal: t.isExternal,
+    raisonSociale: t.raisonSociale,
+    siret: t.siret,
+    adresse: t.adresse,
+    numeroDa: t.numeroDa,
+    representantLegal: t.representantLegal,
   };
 }

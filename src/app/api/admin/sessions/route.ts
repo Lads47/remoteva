@@ -63,11 +63,27 @@ export async function POST(request: NextRequest) {
       : await generateSessionCode(parsed.data.formationId, parsed.data.dateDebut);
     const session = await createSession({ ...parsed.data, code });
 
-    // Si la session est créée avec un formateur assigné, on le prévient par mail.
-    let trainerNotified: { emailSent?: boolean; error?: string } | null = null;
+    // Si la session est créée avec un formateur assigné, on le prévient par
+    // mail. Si formateur externe + montant fourni, le contrat de
+    // sous-traitance est généré et joint au mail (Qualiopi ind. 27).
+    let trainerNotified: {
+      emailSent?: boolean;
+      error?: string;
+      contractGenerated?: boolean;
+      contractSkipReason?: string;
+    } | null = null;
     if (parsed.data.trainerId) {
-      const res = await notifyTrainerOfSessionAssignment(session.id, parsed.data.trainerId);
-      trainerNotified = { emailSent: res.emailSent, error: res.error };
+      const res = await notifyTrainerOfSessionAssignment(
+        session.id,
+        parsed.data.trainerId,
+        parsed.data.trainerFeeAmount ?? undefined
+      );
+      trainerNotified = {
+        emailSent: res.emailSent,
+        error: res.error,
+        contractGenerated: res.contractGenerated,
+        contractSkipReason: res.contractSkipReason,
+      };
     }
     return NextResponse.json({ session, trainerNotified }, { status: 201 });
   } catch (error) {
@@ -107,10 +123,24 @@ export async function PUT(request: NextRequest) {
 
     const session = await updateSession(id, parsed.data);
 
-    let trainerNotified: { emailSent?: boolean; error?: string } | null = null;
+    let trainerNotified: {
+      emailSent?: boolean;
+      error?: string;
+      contractGenerated?: boolean;
+      contractSkipReason?: string;
+    } | null = null;
     if (trainerChanged && newTrainerId) {
-      const res = await notifyTrainerOfSessionAssignment(session.id, newTrainerId);
-      trainerNotified = { emailSent: res.emailSent, error: res.error };
+      const res = await notifyTrainerOfSessionAssignment(
+        session.id,
+        newTrainerId,
+        parsed.data.trainerFeeAmount ?? undefined
+      );
+      trainerNotified = {
+        emailSent: res.emailSent,
+        error: res.error,
+        contractGenerated: res.contractGenerated,
+        contractSkipReason: res.contractSkipReason,
+      };
     }
     return NextResponse.json({ session, trainerNotified });
   } catch (error) {

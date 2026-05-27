@@ -18,6 +18,10 @@ export interface SessionInfo {
   driveSuiviFileId: string | null;
   trainerId: string | null;
   trainerNomComplet: string | null;          // "Prénom NOM" dénormalisé pour affichage
+  trainerIsExternal: boolean;                // Permet à l'UI de demander un montant si externe
+  trainerFeeAmount: number | null;
+  trainerContractDriveFileId: string | null;
+  trainerContractSentAt: Date | null;
   notes: string;
   traineeCount: number;
   createdAt: Date;
@@ -34,6 +38,7 @@ export interface SessionCreateInput {
   horaires?: string;
   status?: string;
   trainerId?: string | null;
+  trainerFeeAmount?: number | null;
   notes?: string;
 }
 
@@ -48,6 +53,7 @@ export interface SessionUpdateInput {
   driveFolderId?: string | null;
   driveSuiviFileId?: string | null;
   trainerId?: string | null;
+  trainerFeeAmount?: number | null;
   notes?: string;
 }
 
@@ -56,15 +62,33 @@ export interface SessionUpdateInput {
  * Best-effort : ne fait pas échouer l'opération si le mail plante (juste
  * un warn dans les logs). Skip si le trainer n'existe pas, est inactif,
  * ou n'a pas d'email.
+ *
+ * Si le formateur est externe (Trainer.isExternal = true) ET qu'un
+ * `trainerFeeAmount` est fourni, on génère un contrat de sous-traitance
+ * personnalisé (PDF) et on le joint au mail (Qualiopi indicateur 27).
  */
 export async function notifyTrainerOfSessionAssignment(
   sessionId: string,
-  trainerId: string
-): Promise<{ ok: boolean; emailSent?: boolean; error?: string }> {
+  trainerId: string,
+  trainerFeeAmount?: number
+): Promise<{
+  ok: boolean;
+  emailSent?: boolean;
+  error?: string;
+  contractGenerated?: boolean;
+  contractSkipReason?: string;
+}> {
   try {
     const trainer = await prisma.trainer.findUnique({
       where: { id: trainerId },
-      select: { id: true, prenom: true, email: true, magicToken: true, active: true },
+      select: {
+        id: true,
+        prenom: true,
+        email: true,
+        magicToken: true,
+        active: true,
+        isExternal: true,
+      },
     });
     if (!trainer || !trainer.active || !trainer.email) {
       return { ok: true, emailSent: false, error: "Formateur introuvable, inactif ou sans email" };
@@ -84,6 +108,30 @@ export async function notifyTrainerOfSessionAssignment(
     });
     if (!session) return { ok: false, error: "Session introuvable" };
 
+    // Si formateur externe + montant fourni : on génère le contrat de
+    // sous-traitance et on le joindra au mail. Sinon mail simple.
+    let contractPdfBuffer: Buffer | undefined;
+    let contractPdfFilename: string | undefined;
+    let contractGenerated = false;
+    let contractSkipReason: string | undefined;
+    if (trainer.isExternal && trainerFeeAmount && trainerFeeAmount > 0) {
+      const { generateExternalTrainerContract } = await import("./trainer-contract");
+      const contract = await generateExternalTrainerContract(sessionId, trainerFeeAmount);
+      if (contract.ok && !contract.skipped) {
+        contractPdfBuffer = contract.pdfBuffer;
+        contractPdfFilename = contract.pdfFilename;
+        contractGenerated = true;
+      } else if (contract.skipped) {
+        contractSkipReason = contract.skipReason;
+      } else {
+        contractSkipReason = contract.error;
+        console.warn(
+          `[notifyTrainerOfSessionAssignment] génération contrat KO sessionId=${sessionId}:`,
+          contract.error
+        );
+      }
+    }
+
     const base = process.env.PUBLIC_BASE_URL || "https://evaremote.com";
     const sessionUrl = `${base}/formateur/sessions/${session.id}?token=${encodeURIComponent(trainer.magicToken)}`;
 
@@ -98,8 +146,17 @@ export async function notifyTrainerOfSessionAssignment(
       sessionHoraires: session.horaires,
       sessionCapacite: session.capacite,
       sessionUrl,
+      contractPdfBuffer,
+      contractPdfFilename,
+      contractMontantHt: contractGenerated ? trainerFeeAmount : undefined,
     });
-    return { ok: true, emailSent: res.success, error: res.error };
+    return {
+      ok: true,
+      emailSent: res.success,
+      error: res.error,
+      contractGenerated,
+      contractSkipReason,
+    };
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Erreur inconnue";
     console.warn(`[notifyTrainerOfSessionAssignment] échec sessionId=${sessionId} trainerId=${trainerId}:`, msg);
@@ -151,7 +208,7 @@ export async function getAllSessions(): Promise<SessionInfo[]> {
   const list = await prisma.session.findMany({
     include: {
       formation: { select: { code: true, nomLong: true } },
-      trainer: { select: { id: true, prenom: true, nom: true } },
+      trainer: { select: { id: true, prenom: true, nom: true, isExternal: true } },
       _count: { select: { trainees: true } },
     },
     orderBy: { dateDebut: "desc" },
@@ -164,7 +221,7 @@ export async function getSessionsByFormation(formationId: string): Promise<Sessi
     where: { formationId },
     include: {
       formation: { select: { code: true, nomLong: true } },
-      trainer: { select: { id: true, prenom: true, nom: true } },
+      trainer: { select: { id: true, prenom: true, nom: true, isExternal: true } },
       _count: { select: { trainees: true } },
     },
     orderBy: { dateDebut: "desc" },
@@ -177,7 +234,7 @@ export async function getSessionById(id: string): Promise<SessionInfo | null> {
     where: { id },
     include: {
       formation: { select: { code: true, nomLong: true } },
-      trainer: { select: { id: true, prenom: true, nom: true } },
+      trainer: { select: { id: true, prenom: true, nom: true, isExternal: true } },
       _count: { select: { trainees: true } },
     },
   });
@@ -224,11 +281,12 @@ export async function createSession(input: SessionCreateInput): Promise<SessionI
       horaires: input.horaires ?? "",
       status: input.status ?? "planned",
       trainerId: input.trainerId ?? null,
+      trainerFeeAmount: input.trainerFeeAmount ?? null,
       notes: input.notes ?? "",
     },
     include: {
       formation: { select: { code: true, nomLong: true } },
-      trainer: { select: { id: true, prenom: true, nom: true } },
+      trainer: { select: { id: true, prenom: true, nom: true, isExternal: true } },
       _count: { select: { trainees: true } },
     },
   });
@@ -245,7 +303,7 @@ export async function createSession(input: SessionCreateInput): Promise<SessionI
     where: { id: s.id },
     include: {
       formation: { select: { code: true, nomLong: true } },
-      trainer: { select: { id: true, prenom: true, nom: true } },
+      trainer: { select: { id: true, prenom: true, nom: true, isExternal: true } },
       _count: { select: { trainees: true } },
     },
   });
@@ -264,6 +322,7 @@ export async function updateSession(id: string, input: SessionUpdateInput): Prom
   if (input.driveFolderId !== undefined) data.driveFolderId = input.driveFolderId;
   if (input.driveSuiviFileId !== undefined) data.driveSuiviFileId = input.driveSuiviFileId;
   if (input.trainerId !== undefined) data.trainerId = input.trainerId;
+  if (input.trainerFeeAmount !== undefined) data.trainerFeeAmount = input.trainerFeeAmount;
   if (input.notes !== undefined) data.notes = input.notes;
 
   const s = await prisma.session.update({
@@ -271,7 +330,7 @@ export async function updateSession(id: string, input: SessionUpdateInput): Prom
     data,
     include: {
       formation: { select: { code: true, nomLong: true } },
-      trainer: { select: { id: true, prenom: true, nom: true } },
+      trainer: { select: { id: true, prenom: true, nom: true, isExternal: true } },
       _count: { select: { trainees: true } },
     },
   });
@@ -284,7 +343,7 @@ export async function deleteSession(id: string): Promise<void> {
 
 type SessionRow = Awaited<ReturnType<typeof prisma.session.findUniqueOrThrow>> & {
   formation: { code: string; nomLong: string };
-  trainer: { id: string; prenom: string; nom: string } | null;
+  trainer: { id: string; prenom: string; nom: string; isExternal: boolean } | null;
   _count: { trainees: number };
 };
 
@@ -305,6 +364,10 @@ function toInfo(s: SessionRow): SessionInfo {
     driveSuiviFileId: s.driveSuiviFileId,
     trainerId: s.trainerId,
     trainerNomComplet: s.trainer ? `${s.trainer.prenom} ${s.trainer.nom}` : null,
+    trainerIsExternal: s.trainer?.isExternal ?? false,
+    trainerFeeAmount: s.trainerFeeAmount,
+    trainerContractDriveFileId: s.trainerContractDriveFileId,
+    trainerContractSentAt: s.trainerContractSentAt,
     notes: s.notes,
     traineeCount: s._count.trainees,
     createdAt: s.createdAt,
