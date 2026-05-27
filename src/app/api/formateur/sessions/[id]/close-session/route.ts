@@ -1,16 +1,22 @@
-// POST /api/formateur/sessions/[id]/satisfaction/send?token=...
+// POST /api/formateur/sessions/[id]/close-session?token=<magicToken>
 //
-// Envoie le mail d'invitation à tous les stagiaires de la session.
-// L'URL envoyée dans le mail est la même pour tous : page publique
-// /eval-chaud/session/[id] qui mène directement au formulaire anonyme.
+// Clôture la session : pour chaque stagiaire actif (≠ termine/abandonne),
+// bascule en "termine" → ce qui déclenche en cascade :
+//   - sync Sellsy step
+//   - génération + envoi mail certif + attestation
+//   - archivage Drive de la synthèse globale d'évaluation pratique
 //
-// Pas de création préalable d'invitations en BDD : les réponses sont
-// créées de façon anonyme à la soumission.
+// Cas d'usage typique : à la fin de la session, le formateur a affiché le
+// QR code et les stagiaires ont rempli leur éval à chaud sur place — pas
+// besoin d'envoyer de mail mais besoin de générer les docs de fin.
+//
+// Idempotent : si tous les stagiaires sont déjà en "termine", la route
+// ne fait rien (skip).
 
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
-import { sendSatisfactionSurveyInvite } from "@/lib/mailer";
 import { getSessionContacts } from "@/lib/satisfaction";
+import { promoteTraineeToTermine } from "@/lib/trainee-documents";
 
 async function authTrainerForSession(token: string | null, sessionId: string) {
   if (!token) return null;
@@ -24,10 +30,7 @@ async function authTrainerForSession(token: string | null, sessionId: string) {
   return trainer;
 }
 
-export async function POST(
-  request: NextRequest,
-  ctx: { params: Promise<{ id: string }> }
-) {
+export async function POST(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
     const { searchParams } = new URL(request.url);
     const token = searchParams.get("token");
@@ -42,46 +45,43 @@ export async function POST(
       return NextResponse.json({ error: "Aucun stagiaire inscrit dans cette session." }, { status: 400 });
     }
 
-    const publicBaseUrl = process.env.PUBLIC_BASE_URL || "https://evaremote.com";
-    const surveyUrl = `${publicBaseUrl}/eval-chaud/session/${id}`;
-
-    const sendResults = [];
+    const promotions = [];
     for (const t of contacts.trainees) {
       try {
-        const r = await sendSatisfactionSurveyInvite({
-          to: t.email,
-          prenom: t.prenom,
-          formationNomLong: contacts.formation.nomLong,
-          surveyUrl,
-        });
-        sendResults.push({
+        const res = await promoteTraineeToTermine(t.traineeId);
+        promotions.push({
           traineeId: t.traineeId,
           traineeName: `${t.prenom} ${t.nom}`,
-          email: t.email,
-          ok: r.success,
-          error: r.error,
+          promoted: res.promoted,
+          alreadyTerminated: res.alreadyTerminated,
+          endOfTrainingTriggered: res.endOfTrainingTriggered,
+          error: res.error,
         });
       } catch (err) {
-        sendResults.push({
+        promotions.push({
           traineeId: t.traineeId,
           traineeName: `${t.prenom} ${t.nom}`,
-          email: t.email,
-          ok: false,
+          promoted: false,
           error: err instanceof Error ? err.message : "Erreur inconnue",
         });
       }
     }
 
+    const newlyTerminated = promotions.filter((p) => p.promoted).length;
+    const alreadyTerminated = promotions.filter((p) => p.alreadyTerminated).length;
+    const failed = promotions.filter((p) => !p.promoted && !p.alreadyTerminated).length;
+
     return NextResponse.json({
       success: true,
       sessionId: id,
       total: contacts.trainees.length,
-      mailsSent: sendResults.filter((r) => r.ok).length,
-      results: sendResults,
-      surveyUrl,
+      newlyTerminated,
+      alreadyTerminated,
+      failed,
+      promotions,
     });
   } catch (error) {
-    console.error("[/api/formateur/sessions/[id]/satisfaction/send] error:", error);
+    console.error("[/api/formateur/sessions/[id]/close-session] error:", error);
     const message = error instanceof Error ? error.message : "Erreur serveur";
     return NextResponse.json({ error: message }, { status: 500 });
   }
