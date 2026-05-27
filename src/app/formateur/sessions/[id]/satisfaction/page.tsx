@@ -172,10 +172,8 @@ function SatisfactionPage({ id }: { id: string }) {
       </h1>
 
       <div className="mb-6 p-4 rounded-xl text-sm font-jetbrains" style={{ backgroundColor: "#fafbff", color: "#727485" }}>
-        Questionnaire de satisfaction <strong>anonyme</strong> (≈ 3 min, 13 questions en 5 sections).
-        Deux actions possibles : <strong>aperçu</strong> du formulaire pour vérifier les questions, ou{" "}
-        <strong>envoi par mail</strong> à tous les stagiaires. Le QR code et l&apos;URL ci-dessous sont permanents
-        et utilisables en présentiel (les réponses ne sont pas associées à l&apos;identité des stagiaires).
+        Questionnaire <strong>anonyme</strong> (≈ 3 min). Envoi par mail, ou QR à projeter en salle.
+        Les 2 voies pointent vers la même URL — pas besoin de choisir.
       </div>
 
       <div className="mb-4 flex gap-2 flex-wrap">
@@ -195,8 +193,7 @@ function SatisfactionPage({ id }: { id: string }) {
             Envoyer par mail
           </h2>
           <p className="text-xs font-jetbrains mb-3" style={{ color: "#727485" }}>
-            Envoie un mail à chaque stagiaire de la session avec le lien vers le formulaire anonyme.
-            Tous les stagiaires reçoivent la même URL — leurs réponses ne sont pas rattachées à leur identité.
+            Envoie le lien du formulaire anonyme à chaque stagiaire de la session.
           </p>
           <div className="flex gap-2 flex-wrap">
             <button
@@ -248,18 +245,16 @@ function SatisfactionPage({ id }: { id: string }) {
             QR code à scanner
           </h2>
           <p className="text-xs font-jetbrains mb-3" style={{ color: "#727485" }}>
-            Affiche-le sur ton écran ou imprime-le : les stagiaires scannent au téléphone et accèdent
-            directement au formulaire anonyme.<br/>
-            L&apos;URL ci-dessous ouvre une <strong>page de présentation</strong> avec un QR géant
+            À scanner par les stagiaires. L&apos;URL ouvre une <strong>page de présentation</strong> avec un QR géant
             (idéale pour vidéoprojeter en salle).
           </p>
-          <div className="flex flex-col items-center gap-3">
+          <div className="flex flex-col items-center gap-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={qrUrl}
               alt="QR code éval à chaud"
-              width={300}
-              height={300}
+              width={180}
+              height={180}
               style={{ border: "1px solid #e5e7eb", borderRadius: 8 }}
             />
             <a
@@ -295,30 +290,25 @@ function SatisfactionPage({ id }: { id: string }) {
       </div>
 
       {/* Bloc clôture session — pleine largeur sous le grid */}
-      <div className="mt-6 p-5 rounded-xl border" style={{ borderColor: "#fde68a", backgroundColor: "#fffbeb" }}>
-        <h2 className="text-sm font-semibold uppercase tracking-wide mb-2" style={{ color: "#92400e" }}>
-          🎓 Clôturer la session
-        </h2>
-        <p className="text-xs font-jetbrains mb-3" style={{ color: "#b45309" }}>
-          Une fois la formation finie et les stagiaires ayant rempli l&apos;éval à chaud (via le QR ou le mail),
-          tu peux clôturer la session. Pour chaque stagiaire actif :
-          <br/>
-          • passage du statut à <strong>Terminé</strong>
-          <br/>
-          • envoi par mail du <strong>certificat de réalisation</strong> + <strong>attestation de fin de formation</strong>
-          <br/>
-          • archivage de la <strong>synthèse globale d&apos;évaluation</strong> sur Drive
-          <br/>
-          <em>Les stagiaires déjà terminés ne sont pas affectés (idempotent).</em>
-        </p>
-        <button
-          onClick={closeSession}
-          disabled={closing}
-          className="px-4 py-2 rounded-full text-sm font-medium text-white cursor-pointer disabled:opacity-50"
-          style={{ backgroundColor: "#92400e" }}
-        >
-          {closing ? "Clôture en cours..." : "Clôturer la session"}
-        </button>
+      <div className="mt-6 p-4 rounded-xl border" style={{ borderColor: "#fde68a", backgroundColor: "#fffbeb" }}>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex-1 min-w-0">
+            <h2 className="text-sm font-semibold" style={{ color: "#92400e" }}>
+              🎓 Clôturer la session
+            </h2>
+            <p className="text-xs font-jetbrains mt-0.5" style={{ color: "#b45309" }}>
+              Statut <strong>Terminé</strong> + envoi <strong>certificat</strong> + <strong>attestation</strong> + archivage <strong>synthèse éval</strong> Drive. Idempotent.
+            </p>
+          </div>
+          <button
+            onClick={closeSession}
+            disabled={closing}
+            className="px-4 py-2 rounded-full text-sm font-medium text-white cursor-pointer disabled:opacity-50 whitespace-nowrap"
+            style={{ backgroundColor: "#92400e" }}
+          >
+            {closing ? "Clôture en cours..." : "Clôturer la session"}
+          </button>
+        </div>
         {closeResult && (
           <div className="mt-3 pt-3 border-t" style={{ borderColor: "#fde68a" }}>
             <div className="text-xs font-semibold mb-2" style={{ color: "#92400e" }}>
