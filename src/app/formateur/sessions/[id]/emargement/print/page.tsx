@@ -67,22 +67,15 @@ function PrintInner({ id }: { id: string }) {
     const pageElement = pageRef.current.querySelector<HTMLElement>(".page");
     if (!pageElement) return;
     setDownloading(true);
-    // Force la hauteur exacte à 297mm pour éviter tout débordement
-    const originalMinHeight = pageElement.style.minHeight;
-    const originalHeight = pageElement.style.height;
-    const originalOverflow = pageElement.style.overflow;
-    pageElement.style.minHeight = "297mm";
-    pageElement.style.height = "297mm";
-    pageElement.style.overflow = "hidden";
     try {
-      // On utilise html2canvas + jsPDF directement (sous-déps de html2pdf.js
-      // déjà installées) pour avoir un contrôle total sur le nombre de pages.
       const html2canvasMod = await import("html2canvas");
       const jsPDFMod = await import("jspdf");
       const html2canvas = html2canvasMod.default;
       const JsPDFCtor = jsPDFMod.jsPDF;
       const filename = `Emargement_${data.session.code}_${selectedDay}.pdf`;
 
+      // Capture du DOM à sa hauteur NATURELLE (pas de forçage 297mm).
+      // Le contenu garde son ratio réel — pas d'étirement / compression.
       const canvas = await html2canvas(pageElement, {
         scale: 2,
         useCORS: true,
@@ -91,20 +84,36 @@ function PrintInner({ id }: { id: string }) {
       });
       const imgData = canvas.toDataURL("image/jpeg", 0.95);
 
-      // PDF unique 1 page A4 portrait : on force le contenu sur 210×297mm.
-      // Si le ratio du canvas dépasse 297mm en hauteur (très long contenu),
-      // on cap à 297mm — le contenu sera légèrement compressé verticalement
-      // mais on reste sur 1 page.
       const pdf = new JsPDFCtor("portrait", "mm", "a4");
-      pdf.addImage(imgData, "JPEG", 0, 0, 210, 297);
+      const pageWidth = 210;
+      const pageHeight = 297;
+      const imgHeight = (canvas.height * pageWidth) / canvas.width;
+
+      if (imgHeight <= pageHeight + 1) {
+        // 1 page suffit (tolérance d'1mm pour éviter les arrondis flottants
+        // qui créeraient une 2e page quasi-vide).
+        pdf.addImage(imgData, "JPEG", 0, 0, pageWidth, Math.min(imgHeight, pageHeight));
+      } else {
+        // Multi-pages : on ajoute la MÊME image sur chaque page mais avec un
+        // offset Y négatif, jsPDF clip automatiquement aux limites de la page.
+        // L'image garde son ratio natif, juste répartie sur N pages.
+        let heightLeft = imgHeight;
+        let position = 0;
+        pdf.addImage(imgData, "JPEG", 0, position, pageWidth, imgHeight);
+        heightLeft -= pageHeight;
+        while (heightLeft > 0) {
+          position -= pageHeight;
+          pdf.addPage();
+          pdf.addImage(imgData, "JPEG", 0, position, pageWidth, imgHeight);
+          heightLeft -= pageHeight;
+        }
+      }
+
       pdf.save(filename);
     } catch (err) {
       console.error("Erreur génération PDF :", err);
       alert("Erreur lors de la génération du PDF. Réessayez ou utilisez le bouton Imprimer puis 'Enregistrer au format PDF'.");
     } finally {
-      pageElement.style.minHeight = originalMinHeight;
-      pageElement.style.height = originalHeight;
-      pageElement.style.overflow = originalOverflow;
       setDownloading(false);
     }
   }
