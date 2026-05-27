@@ -16,6 +16,7 @@
 import { getDriveAttachments, getDriveDefaultTemplates, getSellsyStepMapping } from "./appConfig";
 import prisma from "./db";
 import { provisionSessionDriveFolder } from "./drive-provisioning";
+import { syncGlobalEvaluationPdfToDrive } from "./evaluation-drive";
 import { replaceTextInDoc } from "./google-docs";
 import {
   copyDriveFile,
@@ -912,6 +913,96 @@ export type GenerateAndMailEndOfTrainingError = { ok: false; error: string };
  * Utilisé par le batch fin de session et accessible aussi via un bouton
  * individuel sur la fiche stagiaire.
  */
+// =========================================================================
+// Helper : passer un stagiaire à "termine" + déclencher tous les triggers
+// (génération attestation + certificat, archivage synthèse eval, sync Sellsy).
+//
+// Idempotent : skip si stagiaire déjà en "termine" / "abandonne".
+// Best-effort sur chaque étape : on log mais on ne bloque pas.
+//
+// Utilisé par :
+//   - /api/admin/trainees/[id]/status (transition manuelle par l'admin)
+//   - /api/formateur/sessions/[id]/satisfaction/send (auto-clôture en bulk
+//     quand le formateur lance les invits éval à chaud)
+// =========================================================================
+
+export interface PromoteToTermineResult {
+  traineeId: string;
+  promoted: boolean;     // true si on a fait la transition, false si déjà à jour
+  alreadyTerminated?: boolean;
+  endOfTrainingTriggered?: { emailSent?: boolean; error?: string; skipped?: boolean };
+  error?: string;
+}
+
+export async function promoteTraineeToTermine(traineeId: string): Promise<PromoteToTermineResult> {
+  const trainee = await prisma.trainee.findUnique({
+    where: { id: traineeId },
+    select: { id: true, status: true, sellsyOpportunityId: true },
+  });
+  if (!trainee) return { traineeId, promoted: false, error: "Stagiaire introuvable" };
+
+  // Skip si déjà en termine/abandonne — idempotence
+  if (trainee.status === "termine" || trainee.status === "abandonne") {
+    return { traineeId, promoted: false, alreadyTerminated: true };
+  }
+
+  // 1. Transition de statut
+  try {
+    await prisma.trainee.update({
+      where: { id: traineeId },
+      data: { status: "termine" },
+    });
+    await recordTraineeEvent(
+      traineeId,
+      "status_change",
+      "Statut → Terminé (auto post-éval à chaud)",
+      { status: "termine", autoTrigger: "satisfaction_send" }
+    );
+  } catch (err) {
+    return { traineeId, promoted: false, error: err instanceof Error ? err.message : "update échoué" };
+  }
+
+  // 2. Sync Sellsy (best-effort)
+  if (trainee.sellsyOpportunityId) {
+    try {
+      const stepMapping = await getSellsyStepMapping();
+      const stepId = stepMapping.termine;
+      if (stepId) {
+        await updateOpportunityStep(trainee.sellsyOpportunityId, stepId);
+      }
+    } catch (err) {
+      console.warn("[promoteTraineeToTermine] Sellsy step update échoué:", err);
+    }
+  }
+
+  // 3. Génération + envoi certif + attestation + archivage synthèse eval
+  //    Skip si déjà envoyés (cas d'un re-trigger après reset)
+  const sentDocs = await prisma.traineeDocument.count({
+    where: {
+      traineeId,
+      type: { in: ["certificat", "attestation"] },
+      sentAt: { not: null },
+    },
+  });
+  if (sentDocs >= 2) {
+    return { traineeId, promoted: true, endOfTrainingTriggered: { skipped: true } };
+  }
+
+  try {
+    const res = await generateAndMailEndOfTrainingDocs(traineeId);
+    if (res.ok) {
+      return { traineeId, promoted: true, endOfTrainingTriggered: { emailSent: res.emailSent } };
+    }
+    return { traineeId, promoted: true, endOfTrainingTriggered: { error: res.error } };
+  } catch (err) {
+    return {
+      traineeId,
+      promoted: true,
+      endOfTrainingTriggered: { error: err instanceof Error ? err.message : "Erreur inconnue" },
+    };
+  }
+}
+
 export async function generateAndMailEndOfTrainingDocs(
   traineeId: string
 ): Promise<GenerateAndMailEndOfTrainingResult | GenerateAndMailEndOfTrainingError> {
@@ -974,6 +1065,25 @@ export async function generateAndMailEndOfTrainingDocs(
       : `Échec mail fin de formation : ${mailRes.error}`,
     { type: "end_of_training", to: trainee.email, messageId: mailRes.messageId }
   );
+
+  // 6. Archive la synthèse globale d'évaluation pratique sur Drive (best-effort).
+  //    Pas bloquant : si la grille n'a aucune évaluation ou si Drive échoue,
+  //    on log juste et on continue.
+  try {
+    const syncRes = await syncGlobalEvaluationPdfToDrive(traineeId);
+    if (syncRes.ok) {
+      await recordTraineeEvent(
+        traineeId,
+        "doc_generated",
+        "Synthèse globale d'évaluation pratique archivée sur Drive",
+        { type: "global_evaluation_pdf", driveFileId: syncRes.driveFileId }
+      );
+    } else {
+      console.warn("[generateAndMailEndOfTrainingDocs] sync synthèse eval Drive échoué:", syncRes.error);
+    }
+  } catch (err) {
+    console.warn("[generateAndMailEndOfTrainingDocs] sync synthèse eval Drive a throw:", err);
+  }
 
   return {
     ok: true,

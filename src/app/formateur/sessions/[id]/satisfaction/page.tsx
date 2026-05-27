@@ -12,11 +12,21 @@ interface InvitationResult {
   error?: string;
 }
 
+interface PromotionResult {
+  traineeId: string;
+  traineeName: string;
+  promoted: boolean;
+  alreadyTerminated?: boolean;
+  endOfTrainingTriggered?: { emailSent?: boolean; error?: string; skipped?: boolean };
+  error?: string;
+}
+
 interface SendResponse {
   success: boolean;
   total: number;
   mailsSent: number;
   results: InvitationResult[];
+  promotions?: PromotionResult[];
   surveyUrl: string;
 }
 
@@ -58,7 +68,15 @@ function SatisfactionPage({ id }: { id: string }) {
 
   async function sendMail() {
     if (sending) return;
-    if (!confirm("Envoyer le questionnaire d'évaluation à chaud à TOUS les stagiaires de cette session par mail ?")) {
+    if (!confirm(
+      "Envoyer le questionnaire d'évaluation à chaud à TOUS les stagiaires de cette session ?\n\n" +
+      "À noter : ce déclenchement va aussi clôturer la session pour chaque stagiaire :\n" +
+      "  • Passage automatique du statut à « Terminé »\n" +
+      "  • Génération + envoi du certificat de réalisation\n" +
+      "  • Génération + envoi de l'attestation de fin de formation\n" +
+      "  • Archivage de la synthèse globale d'évaluation sur Drive\n\n" +
+      "Les stagiaires déjà terminés ne seront pas affectés. Continuer ?"
+    )) {
       return;
     }
     setSending(true);
@@ -162,7 +180,7 @@ function SatisfactionPage({ id }: { id: string }) {
               <div className="p-2.5 rounded text-xs font-jetbrains bg-green-50 text-green-800 mb-2">
                 ✓ {result.mailsSent}/{result.total} mail{result.total > 1 ? "s" : ""} envoyé{result.mailsSent > 1 ? "s" : ""}
               </div>
-              <ul className="space-y-1 text-xs">
+              <ul className="space-y-1 text-xs mb-3">
                 {result.results.map((i) => (
                   <li
                     key={i.traineeId}
@@ -176,6 +194,49 @@ function SatisfactionPage({ id }: { id: string }) {
                   </li>
                 ))}
               </ul>
+              {result.promotions && result.promotions.length > 0 && (() => {
+                const newlyTerminated = result.promotions.filter((p) => p.promoted);
+                const alreadyTerminated = result.promotions.filter((p) => p.alreadyTerminated);
+                const failed = result.promotions.filter((p) => !p.promoted && !p.alreadyTerminated);
+                return (
+                  <div className="mt-3 pt-3 border-t" style={{ borderColor: "#e5e7eb" }}>
+                    <div className="text-xs font-semibold mb-2" style={{ color: "#1f2244" }}>
+                      Clôture session — {newlyTerminated.length} stagiaire{newlyTerminated.length > 1 ? "s" : ""} passé{newlyTerminated.length > 1 ? "s" : ""} en « Terminé »
+                    </div>
+                    <ul className="space-y-1 text-xs font-jetbrains">
+                      {newlyTerminated.map((p) => {
+                        const eot = p.endOfTrainingTriggered;
+                        const docsOk = eot?.emailSent === true;
+                        const docsSkipped = eot?.skipped === true;
+                        const docsErr = eot?.error;
+                        return (
+                          <li key={p.traineeId} className="flex flex-wrap items-center gap-1.5" style={{ color: "#1f2244" }}>
+                            <span>•</span>
+                            <span>{p.traineeName}</span>
+                            {docsOk && <span style={{ color: "#166534" }}>· certif + attestation envoyés</span>}
+                            {docsSkipped && <span style={{ color: "#9ca3af" }}>· docs déjà envoyés (skip)</span>}
+                            {docsErr && <span style={{ color: "#991b1b" }}>· erreur docs : {docsErr}</span>}
+                          </li>
+                        );
+                      })}
+                      {alreadyTerminated.map((p) => (
+                        <li key={p.traineeId} className="flex items-center gap-1.5" style={{ color: "#9ca3af" }}>
+                          <span>•</span>
+                          <span>{p.traineeName}</span>
+                          <span>· déjà terminé (aucune action)</span>
+                        </li>
+                      ))}
+                      {failed.map((p) => (
+                        <li key={p.traineeId} className="flex flex-wrap items-center gap-1.5" style={{ color: "#991b1b" }}>
+                          <span>⚠</span>
+                          <span>{p.traineeName}</span>
+                          <span>· promotion échouée : {p.error}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })()}
             </div>
           )}
         </div>

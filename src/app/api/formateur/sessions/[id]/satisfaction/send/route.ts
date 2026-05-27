@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { sendSatisfactionSurveyInvite } from "@/lib/mailer";
 import { getSessionContacts } from "@/lib/satisfaction";
+import { promoteTraineeToTermine } from "@/lib/trainee-documents";
 
 async function authTrainerForSession(token: string | null, sessionId: string) {
   if (!token) return null;
@@ -72,12 +73,42 @@ export async function POST(
       }
     }
 
+    // Auto-clôture des stagiaires : pour chaque stagiaire pas encore en
+    // "termine"/"abandonne", on bascule à "termine" → ce qui déclenche la
+    // génération + envoi automatique des docs de fin (certif + attestation)
+    // ET l'archivage Drive de la synthèse globale d'évaluation pratique.
+    //
+    // Best-effort : si une promotion échoue, on continue les autres et on
+    // remonte le détail dans la réponse pour que le formateur le sache.
+    const promotions = [];
+    for (const t of contacts.trainees) {
+      try {
+        const res = await promoteTraineeToTermine(t.traineeId);
+        promotions.push({
+          traineeId: t.traineeId,
+          traineeName: `${t.prenom} ${t.nom}`,
+          promoted: res.promoted,
+          alreadyTerminated: res.alreadyTerminated,
+          endOfTrainingTriggered: res.endOfTrainingTriggered,
+          error: res.error,
+        });
+      } catch (err) {
+        promotions.push({
+          traineeId: t.traineeId,
+          traineeName: `${t.prenom} ${t.nom}`,
+          promoted: false,
+          error: err instanceof Error ? err.message : "Erreur inconnue",
+        });
+      }
+    }
+
     return NextResponse.json({
       success: true,
       sessionId: id,
       total: contacts.trainees.length,
       mailsSent: sendResults.filter((r) => r.ok).length,
       results: sendResults,
+      promotions,
       surveyUrl,
     });
   } catch (error) {
