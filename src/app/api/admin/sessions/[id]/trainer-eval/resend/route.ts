@@ -37,7 +37,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
     const base = publicBaseUrl();
 
     if (mode === "send_initial") {
-      let result = await createTrainerEvalInvitationForSession(id);
+      const result = await createTrainerEvalInvitationForSession(id);
       if (!result) return NextResponse.json({ error: "Session introuvable" }, { status: 404 });
 
       let target = result.created;

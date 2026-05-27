@@ -4,7 +4,6 @@ import {
   isLinkValid,
   updateLinkConfig,
   NewsletterConfig,
-  Conference,
   ConferenceStatus,
 } from "@/lib/services";
 import path from "path";

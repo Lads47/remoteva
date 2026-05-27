@@ -51,9 +51,6 @@ interface Complaint {
   traineeNomComplet: string | null;
 }
 
-function fmtDate(s: string) {
-  return new Date(s).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
-}
 function fmtDateTime(s: string) {
   return new Date(s).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
 }

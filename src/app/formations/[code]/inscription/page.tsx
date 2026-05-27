@@ -167,7 +167,7 @@ export default function PublicInscriptionPage({ params }: { params: Promise<{ co
       })
       .catch((err: Error) => setLoadError(err.message))
       .finally(() => setLoading(false));
-  }, [code]);
+  }, [code, preselectSessionId]);
 
   function setPrerequis(name: string, value: PrerequisValue) {
     setForm((prev) => ({ ...prev, prerequis: { ...prev.prerequis, [name]: value } }));

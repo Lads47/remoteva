@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { AccessLinkInfo, NewsletterConfig, Conference } from "@/lib/services";
 
 interface Props {
@@ -20,7 +20,6 @@ export default function NewsletterService({ link }: Props) {
   const [conferences, setConferences] = useState<Conference[]>(
     config.conferences || []
   );
-  const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState<number | null>(null);
   const [collapsedConfs, setCollapsedConfs] = useState<Record<number, boolean>>({});
 
@@ -352,14 +351,6 @@ export default function NewsletterService({ link }: Props) {
   const hasSummary = (conf: Conference): boolean => {
     return !!(conf.summary_ia || conf.summary_corrected);
   };
-
-  if (loading) {
-    return (
-      <div className="text-center py-12">
-        <div className="animate-pulse text-gray-500">Chargement...</div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">

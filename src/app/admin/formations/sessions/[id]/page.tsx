@@ -36,19 +36,6 @@ interface Trainee {
   createdAt: string;
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  inscrit: "Inscrit",
-  devis_envoye: "Devis envoyé",
-  devis_signe: "Devis signé",
-  convention_envoyee: "Convention envoyée",
-  convention_signee: "Convention signée",
-  valide: "Validé",
-  convoque: "Convoqué",
-  en_formation: "En formation",
-  termine: "Terminé",
-  abandonne: "Abandonné",
-};
-
 function fmtDate(s: string) {
   return new Date(s).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
 }

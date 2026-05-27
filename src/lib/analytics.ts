@@ -688,7 +688,9 @@ export async function getFormationPublicResults(code: string): Promise<Formation
   let atteints = 0;
   let partiellement = 0;
   let nonAtteints = 0;
-  let nonEvalues = 0;
+  // On ne track pas les "non évalués" ici : ils sont juste exclus du calcul
+  // de ratio d'atteinte (ils incrémentent traineesTotal mais aucun des 3
+  // compteurs ci-dessus → evalues < traineesTotal et le ratio reste juste).
 
   for (const s of sessions) {
     invitedTotal += s._count.trainees;
@@ -717,14 +719,21 @@ export async function getFormationPublicResults(code: string): Promise<Formation
       if (override === "partiellement_atteints") { partiellement++; continue; }
       if (override === "non_atteints") { nonAtteints++; continue; }
 
-      if (expectedExercises === 0) { nonEvalues++; continue; }
+      if (expectedExercises === 0) continue;
 
       const noteByExercise = new Map<string, string>();
       for (const e of t.exerciseEvaluations) {
         if (e.globalNote) noteByExercise.set(e.exerciseId, e.globalNote);
       }
-      if (noteByExercise.size === 0) { nonEvalues++; continue; }
+      if (noteByExercise.size === 0) continue;
 
+      // Algo pondéré aligné sur getPedagogyStats (acquis=2, en_cours=1) :
+      //   ratio ≥ 80% + complet sans non_acquis → atteints
+      //   ratio ≥ 50% → partiellement_atteints
+      //   sinon → non_atteints
+      // Évite le biais "weakest link" (1 seul exo en_cours sur 5 acquis
+      // basculait en partiellement, ce qui est trop sévère pour l'affichage
+      // public).
       let cAcquis = 0, cEnCours = 0, cNonAcquis = 0;
       for (const note of noteByExercise.values()) {
         if (note === "acquis") cAcquis++;
@@ -732,9 +741,13 @@ export async function getFormationPublicResults(code: string): Promise<Formation
         else if (note === "non_acquis") cNonAcquis++;
       }
       const cSansNote = expectedExercises - noteByExercise.size;
-      if (cNonAcquis > 0) nonAtteints++;
-      else if (cEnCours > 0 || cSansNote > 0) partiellement++;
-      else atteints++;
+      const points = cAcquis * 2 + cEnCours * 1;
+      const maxPoints = expectedExercises * 2;
+      const ratio = maxPoints > 0 ? points / maxPoints : 0;
+      const isComplete = cSansNote === 0 && cNonAcquis === 0 && cEnCours === 0;
+      if (ratio >= 0.8 && isComplete) atteints++;
+      else if (ratio >= 0.5) partiellement++;
+      else nonAtteints++;
     }
   }
 
