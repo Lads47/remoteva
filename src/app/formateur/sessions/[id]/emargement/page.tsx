@@ -291,17 +291,9 @@ function EmargementInner({ id }: { id: string }) {
               rel="noreferrer"
               className="px-4 py-2 rounded-full text-sm font-medium border cursor-pointer"
               style={{ borderColor: "#1f2244", color: "#1f2244" }}
-              title="Aperçu navigateur — utilise la touche Imprimer du navigateur pour sortir une copie papier"
+              title="Aperçu A4 — boutons Imprimer et Télécharger PDF disponibles"
             >
-              🖨️ Imprimer
-            </a>
-            <a
-              href={`/api/formateur/sessions/${id}/attendance/pdf?token=${encodeURIComponent(token)}`}
-              className="px-4 py-2 rounded-full text-sm font-medium border cursor-pointer"
-              style={{ borderColor: "#1f2244", color: "#1f2244", backgroundColor: "#fafbff" }}
-              title="Téléchargement direct du PDF (sans passer par le dialog d'impression)"
-            >
-              📥 Télécharger PDF
+              📄 Imprimer / Télécharger PDF
             </a>
             <button
               onClick={handleSave}

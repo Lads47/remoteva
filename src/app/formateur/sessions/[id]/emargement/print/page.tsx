@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, use, useEffect, useMemo, useState } from "react";
+import { Suspense, use, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 type Slot = "morning" | "afternoon";
@@ -29,6 +29,13 @@ interface Payload {
   grid: { slots: GridSlot[]; rows: TraineeRow[] };
 }
 
+// Type minimal pour la chain API de html2pdf.js (la lib n'a pas de types officiels)
+interface Html2PdfChain {
+  from(element: HTMLElement): Html2PdfChain;
+  set(options: Record<string, unknown>): Html2PdfChain;
+  save(): Promise<void>;
+}
+
 // Heures considérées par demi-journée (modifiable au besoin)
 const HOURS_PER_SLOT = 3.5;
 
@@ -55,6 +62,36 @@ function PrintInner({ id }: { id: string }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const pageRef = useRef<HTMLDivElement>(null);
+
+  // Téléchargement PDF : utilise html2pdf.js (côté client) pour rendre fidèlement
+  // ce que l'utilisateur voit dans la preview. Import dynamique pour ne pas
+  // alourdir le bundle de la page d'émargement principale.
+  async function handleDownload() {
+    if (!pageRef.current || !data || !selectedDay) return;
+    setDownloading(true);
+    try {
+      const mod = (await import("html2pdf.js")) as unknown as { default: () => Html2PdfChain };
+      const html2pdf: () => Html2PdfChain = mod.default;
+      const filename = `Emargement_${data.session.code}_${selectedDay}.pdf`;
+      await html2pdf()
+        .from(pageRef.current)
+        .set({
+          margin: 0,
+          filename,
+          image: { type: "jpeg", quality: 0.95 },
+          html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
+          jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+        })
+        .save();
+    } catch (err) {
+      console.error("Erreur génération PDF :", err);
+      alert("Erreur lors de la génération du PDF. Réessayez ou utilisez le bouton Imprimer puis 'Enregistrer au format PDF'.");
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   useEffect(() => {
     if (!token) {
@@ -297,6 +334,7 @@ function PrintInner({ id }: { id: string }) {
           id="day-select"
           value={selectedDay ?? ""}
           onChange={(e) => setSelectedDay(e.target.value)}
+          disabled={downloading}
         >
           {days.map((d) => (
             <option key={d} value={d}>
@@ -304,12 +342,22 @@ function PrintInner({ id }: { id: string }) {
             </option>
           ))}
         </select>
-        <button type="button" onClick={() => window.print()}>
+        <button
+          type="button"
+          onClick={handleDownload}
+          disabled={downloading || !selectedDay}
+          style={{ marginLeft: "auto", background: "white", color: "var(--eva-blue)", border: "1px solid var(--eva-blue)" }}
+        >
+          {downloading ? "Génération…" : "📥 Télécharger PDF"}
+        </button>
+        <button type="button" onClick={() => window.print()} disabled={downloading}>
           🖨️ Imprimer
         </button>
       </div>
 
-      {selectedDay && <DayPage day={selectedDay} data={data} />}
+      <div ref={pageRef}>
+        {selectedDay && <DayPage day={selectedDay} data={data} />}
+      </div>
     </div>
   );
 }
