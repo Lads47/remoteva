@@ -639,7 +639,7 @@ export async function generateAndMailContract(traineeId: string): Promise<Genera
   try {
     const exported = await exportDriveDocAsPdf(gen.driveFileId);
     contractPdfBuffer = exported.buffer;
-    contractPdfFilename = `${exported.name}.pdf`;
+    contractPdfFilename = exported.name; // déjà suffixé .pdf par exportDriveDocAsPdf
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Erreur inconnue";
     return { ok: false, error: `Export PDF échoué : ${msg}` };
@@ -799,7 +799,7 @@ export async function generateAndMailConvocation(traineeId: string): Promise<Gen
   try {
     const exported = await exportDriveDocAsPdf(gen.driveFileId);
     convocPdfBuffer = exported.buffer;
-    convocPdfFilename = `${exported.name}.pdf`;
+    convocPdfFilename = exported.name; // déjà suffixé .pdf par exportDriveDocAsPdf
   } catch (err) {
     return { ok: false, error: `Export PDF convocation échoué : ${err instanceof Error ? err.message : "?"}` };
   }

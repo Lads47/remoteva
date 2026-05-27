@@ -455,6 +455,9 @@ export async function getFileAsPdf(fileId: string): Promise<{ buffer: Buffer; na
 /**
  * Exporte un Google Doc en PDF via l'API d'export Drive.
  * Pour les types natifs Google (Doc, Sheet, Slides) seulement.
+ * Garantit que le nom renvoyé se termine par ".pdf" — sinon le client mail
+ * du destinataire ne reconnaît pas le format de la pièce jointe (la PJ
+ * arrive sans extension et est considérée comme un binaire opaque).
  */
 export async function exportDriveDocAsPdf(fileId: string): Promise<{ buffer: Buffer; name: string }> {
   const token = await getAccessToken();
@@ -475,7 +478,8 @@ export async function exportDriveDocAsPdf(fileId: string): Promise<{ buffer: Buf
     throw new Error(`Drive export PDF failed (HTTP ${exportRes.status}): ${(await exportRes.text()).slice(0, 200)}`);
   }
   const arrayBuffer = await exportRes.arrayBuffer();
-  return { buffer: Buffer.from(arrayBuffer), name: meta.name };
+  const safeName = meta.name.toLowerCase().endsWith(".pdf") ? meta.name : `${meta.name}.pdf`;
+  return { buffer: Buffer.from(arrayBuffer), name: safeName };
 }
 
 /**
