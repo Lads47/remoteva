@@ -78,9 +78,17 @@ function colorNps(score: number | null): string {
 export async function buildQualiopiPdf(
   overview: QualiopiOverview
 ): Promise<{ buffer: Buffer; filename: string }> {
+  // ⚠️ bottom: 0 — on gère le footer entièrement à la main (positions
+  // absolues, voir drawFooter). Si on laisse une marge basse "raisonnable"
+  // (genre 50 ou 75), chaque appel doc.text(...) du footer dont la
+  // position dépasse `page.height - margins.bottom` déclenche un
+  // `_addPage()` automatique chez pdfkit, ce qui crée une feuille blanche
+  // et fragmente le footer sur plusieurs pages.
+  // La protection du bas de page pour le contenu est assurée séparément par
+  // ensureSpaceFor() qui utilise sa propre limite (page.height - 90).
   const doc = new PDFDocument({
     size: "A4",
-    margins: { top: 50, bottom: 75, left: 50, right: 50 },
+    margins: { top: 50, bottom: 0, left: 50, right: 50 },
     info: {
       Title: `Bilan Qualiopi ${overview.year} — Les Ateliers du Stream`,
       Author: "Les Ateliers du Stream",
@@ -102,11 +110,8 @@ export async function buildQualiopiPdf(
     { label: "Date d'édition", value: fmtDateTime(new Date()) },
   ]);
 
-  doc.moveDown(1);
-
   // === Section ACTIVITÉ ===
-  drawSectionTitle(doc, "Activité");
-  drawKeyValueGrid(doc, [
+  drawSection(doc, "Activité", [
     { label: "Sessions réalisées", value: String(overview.activity.sessionsCount) },
     { label: "Formations distinctes", value: String(overview.activity.formationsDistinctesCount) },
     { label: "Stagiaires accueillis", value: String(overview.activity.traineesAccueillis) },
@@ -123,8 +128,7 @@ export async function buildQualiopiPdf(
   ]);
 
   // === Section SATISFACTION À CHAUD ===
-  drawSectionTitle(doc, "Satisfaction à chaud (fin de session)");
-  drawKeyValueGrid(doc, [
+  drawSection(doc, "Satisfaction à chaud (fin de session)", [
     {
       label: "Taux de réponse",
       value: `${overview.satisfactionChaud.submittedTotal} / ${overview.satisfactionChaud.invitedTotal} (${pct(overview.satisfactionChaud.responseRate)})`,
@@ -149,8 +153,7 @@ export async function buildQualiopiPdf(
   ]);
 
   // === Section SATISFACTION À FROID ===
-  drawSectionTitle(doc, "Satisfaction à froid (impact 3 mois après)");
-  drawKeyValueGrid(doc, [
+  drawSection(doc, "Satisfaction à froid (impact 3 mois après)", [
     {
       label: "Taux de réponse",
       value: `${overview.satisfactionFroid.submittedTotal} / ${overview.satisfactionFroid.invitedTotal} (${pct(overview.satisfactionFroid.responseRate)})`,
@@ -175,8 +178,7 @@ export async function buildQualiopiPdf(
   ]);
 
   // === Section ATTEINTE DES OBJECTIFS ===
-  drawSectionTitle(doc, "Atteinte des objectifs pédagogiques");
-  drawKeyValueGrid(doc, [
+  drawSection(doc, "Atteinte des objectifs pédagogiques", [
     {
       label: "Taux d'atteinte (sur évalués)",
       value: `${overview.pedagogy.tauxAtteinte} %`,
@@ -189,8 +191,7 @@ export async function buildQualiopiPdf(
   ]);
 
   // === Section FORMATEURS ===
-  drawSectionTitle(doc, "Satisfaction formateurs (bilan animation)");
-  drawKeyValueGrid(doc, [
+  drawSection(doc, "Satisfaction formateurs (bilan animation)", [
     {
       label: "Taux de réponse",
       value: `${overview.trainerSat.submittedTotal} / ${overview.trainerSat.invitedTotal} (${pct(overview.trainerSat.responseRate)})`,
@@ -206,8 +207,7 @@ export async function buildQualiopiPdf(
   ]);
 
   // === Section RÉCLAMATIONS ===
-  drawSectionTitle(doc, "Réclamations (indicateur 32)");
-  drawKeyValueGrid(doc, [
+  drawSection(doc, "Réclamations (indicateur 32)", [
     { label: "Total réclamations", value: String(overview.complaints.total) },
     { label: "Résolues", value: `${overview.complaints.resolved} (${pct(overview.complaints.resolutionRate)})` },
     { label: "En cours", value: String(overview.complaints.unresolved), color: overview.complaints.unresolved > 0 ? COLOR_ORANGE : undefined },
@@ -265,8 +265,8 @@ function drawInfoBox(
 ): void {
   const x = 50;
   const w = 495;
-  const padding = 10;
-  const lineHeight = 14;
+  const padding = 8;
+  const lineHeight = 13;
   const h = padding * 2 + rows.length * lineHeight;
 
   doc.rect(x, startY, w, h)
@@ -279,45 +279,64 @@ function drawInfoBox(
     doc.fillColor(COLOR_TITLE).font("Helvetica-Bold").fontSize(10).text(r.value, x + padding + 150, y, { width: w - padding - 150 });
     y += lineHeight;
   }
-  doc.y = startY + h + 6;
+  doc.y = startY + h + 8;
 }
 
-function drawSectionTitle(doc: PDFKit.PDFDocument, title: string): void {
-  ensureSpaceFor(doc, 30);
-  doc.fillColor(COLOR_TITLE).font("Helvetica-Bold").fontSize(11).text(title, 50, doc.y);
-  doc.moveDown(0.3);
-  const y = doc.y;
-  doc.moveTo(50, y).lineTo(545, y).strokeColor(COLOR_BORDER).lineWidth(0.5).stroke();
-  doc.moveDown(0.4);
-}
-
-function drawKeyValueGrid(
+// Dessine une section complète (titre + séparateur + grille 2 colonnes) de
+// manière ATOMIQUE : on calcule la hauteur totale et on appelle ensureSpaceFor
+// une seule fois avant de dessiner quoi que ce soit. Ça évite le bug où le
+// titre tient en bas de page mais la grille bascule sur la page suivante
+// (= section coupée + impression d'une "page blanche en trop").
+function drawSection(
   doc: PDFKit.PDFDocument,
+  title: string,
   rows: { label: string; value: string; color?: string }[]
 ): void {
-  // Affichage 2 colonnes pour rester compact
-  const x1 = 60;
-  const x2 = 310;
-  const colWidth = 230;
-  const rowHeight = 16;
+  const titleBlockHeight = 20; // titre + séparateur + petit gap
+  const rowHeight = 14;
   const nbRowsPerCol = Math.ceil(rows.length / 2);
-  const totalHeight = nbRowsPerCol * rowHeight + 6;
-  ensureSpaceFor(doc, totalHeight);
+  const gridHeight = nbRowsPerCol * rowHeight;
+  const bottomSpacing = 10;
+  const sectionHeight = titleBlockHeight + gridHeight + bottomSpacing;
+
+  ensureSpaceFor(doc, sectionHeight);
 
   const startY = doc.y;
+
+  // Titre
+  doc.fillColor(COLOR_TITLE).font("Helvetica-Bold").fontSize(10.5)
+    .text(title, 50, startY, { width: 495, lineBreak: false });
+
+  // Séparateur sous le titre
+  const lineY = startY + 14;
+  doc.moveTo(50, lineY).lineTo(545, lineY)
+    .strokeColor(COLOR_BORDER).lineWidth(0.5).stroke();
+
+  // Grille 2 colonnes — positions absolues, pas de wrap (lineBreak:false)
+  const x1 = 60;
+  const x2 = 310;
+  const colWidth = 235;
+  const valueWidth = 85;
+  const labelWidth = colWidth - valueWidth - 5;
+  const gridStartY = startY + titleBlockHeight;
+
   for (let i = 0; i < rows.length; i++) {
     const isLeft = i < nbRowsPerCol;
     const col = isLeft ? x1 : x2;
     const idx = isLeft ? i : i - nbRowsPerCol;
-    const y = startY + idx * rowHeight;
+    const y = gridStartY + idx * rowHeight;
     const r = rows[i];
-    doc.fillColor(COLOR_MUTED).font("Helvetica").fontSize(9).text(r.label, col, y, { width: colWidth - 80, continued: false });
-    doc.fillColor(r.color || COLOR_TITLE).font("Helvetica-Bold").fontSize(9.5).text(r.value, col + colWidth - 80, y, { width: 80, align: "right" });
+    doc.fillColor(COLOR_MUTED).font("Helvetica").fontSize(9)
+      .text(r.label, col, y, { width: labelWidth, lineBreak: false, ellipsis: true });
+    doc.fillColor(r.color || COLOR_TITLE).font("Helvetica-Bold").fontSize(9.5)
+      .text(r.value, col + labelWidth + 5, y, { width: valueWidth, align: "right", lineBreak: false });
   }
-  doc.y = startY + totalHeight;
+
+  doc.y = startY + sectionHeight;
 }
 
 function ensureSpaceFor(doc: PDFKit.PDFDocument, requiredHeight: number): void {
+  // Marge basse 90pt (footer ~60pt + 30pt de respiration)
   if (doc.y + requiredHeight > doc.page.height - 90) {
     doc.addPage();
     doc.y = 50;
@@ -325,18 +344,31 @@ function ensureSpaceFor(doc: PDFKit.PDFDocument, requiredHeight: number): void {
 }
 
 function drawFooter(doc: PDFKit.PDFDocument): void {
+  // On fige la page range AVANT de dessiner. Si jamais une ligne du footer
+  // déclenchait une nouvelle page (ne devrait plus arriver avec
+  // margins.bottom = 0, mais ceinture + bretelles), on n'itèrerait pas
+  // dessus (le bug "footer éparpillé sur plusieurs pages").
   const range = doc.bufferedPageRange();
-  for (let i = range.start; i < range.start + range.count; i++) {
+  const pagesToDraw = range.count;
+
+  for (let i = range.start; i < range.start + pagesToDraw; i++) {
     doc.switchToPage(i);
     const y = doc.page.height - 60;
+
     doc.moveTo(50, y).lineTo(545, y).strokeColor(COLOR_BORDER).lineWidth(0.5).stroke();
-    doc.fillColor(COLOR_MUTED).font("Helvetica").fontSize(7).text(FOOTER_LINE_1, 50, y + 8, { width: 495, align: "center" });
-    doc.text(FOOTER_LINE_2, 50, y + 20, { width: 495, align: "center" });
-    doc.fillColor(COLOR_MUTED).fontSize(7).text(
-      `Page ${i + 1} / ${range.count}`,
-      50,
-      y + 40,
-      { width: 495, align: "center" }
-    );
+
+    // `height` explicite borne le frame de texte et empêche pdfkit de
+    // chercher à paginer même si lineBreak: false n'était pas suffisant.
+    doc.fillColor(COLOR_MUTED).font("Helvetica").fontSize(7)
+      .text(FOOTER_LINE_1, 50, y + 8, { width: 495, height: 10, align: "center", lineBreak: false });
+    doc.text(FOOTER_LINE_2, 50, y + 20, { width: 495, height: 10, align: "center", lineBreak: false });
+    if (pagesToDraw > 1) {
+      doc.fillColor(COLOR_MUTED).fontSize(7).text(
+        `Page ${i + 1} / ${pagesToDraw}`,
+        50,
+        y + 32,
+        { width: 495, height: 10, align: "center", lineBreak: false }
+      );
+    }
   }
 }
