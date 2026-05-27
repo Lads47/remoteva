@@ -70,25 +70,48 @@ function PrintInner({ id }: { id: string }) {
   // alourdir le bundle de la page d'émargement principale.
   async function handleDownload() {
     if (!pageRef.current || !data || !selectedDay) return;
+    // On cible la <section class="page"> précisément (pas le wrapper avec
+    // margin around it) — sinon html2canvas inclut le margin et déborde
+    // sur une 2e page A4 blanche.
+    const pageElement = pageRef.current.querySelector<HTMLElement>(".page");
+    if (!pageElement) return;
     setDownloading(true);
+    // On force la hauteur exacte à 297mm le temps de la capture pour éviter
+    // tout débordement → garantit une seule page A4. On restore l'état initial
+    // après save() dans le finally.
+    const originalMinHeight = pageElement.style.minHeight;
+    const originalHeight = pageElement.style.height;
+    const originalOverflow = pageElement.style.overflow;
+    pageElement.style.minHeight = "297mm";
+    pageElement.style.height = "297mm";
+    pageElement.style.overflow = "hidden";
     try {
       const mod = (await import("html2pdf.js")) as unknown as { default: () => Html2PdfChain };
       const html2pdf: () => Html2PdfChain = mod.default;
       const filename = `Emargement_${data.session.code}_${selectedDay}.pdf`;
       await html2pdf()
-        .from(pageRef.current)
+        .from(pageElement)
         .set({
           margin: 0,
           filename,
           image: { type: "jpeg", quality: 0.95 },
-          html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
-          jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+          // windowWidth = 794px (≈ 210mm @ 96dpi) pour que html2canvas
+          // rende exactement à la largeur d'une feuille A4
+          html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff", windowWidth: 794 },
+          jsPDF: { unit: "mm", format: "a4", orientation: "portrait", compress: true },
+          // Empêche html2pdf de créer une 2e page si le contenu déborde
+          // de quelques px à cause d'un arrondi
+          pagebreak: { mode: ["avoid-all", "css", "legacy"] },
         })
         .save();
     } catch (err) {
       console.error("Erreur génération PDF :", err);
       alert("Erreur lors de la génération du PDF. Réessayez ou utilisez le bouton Imprimer puis 'Enregistrer au format PDF'.");
     } finally {
+      // Restore les styles d'origine pour ne pas casser la preview
+      pageElement.style.minHeight = originalMinHeight;
+      pageElement.style.height = originalHeight;
+      pageElement.style.overflow = originalOverflow;
       setDownloading(false);
     }
   }
