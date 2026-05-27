@@ -15,6 +15,8 @@ interface Trainer {
   sessionCount: number;
   qualifications: string;
   driveCvFolderId: string | null;
+  // Qualiopi indicateur 22 — entretien et développement des compétences
+  developpementCompetences: string;
   // Qualiopi indicateur 27 — sous-traitance
   isExternal: boolean;
   raisonSociale: string;
@@ -31,6 +33,7 @@ const EMPTY_FORM = {
   telephone: "",
   qualifications: "",
   driveCvFolderId: "",
+  developpementCompetences: "",
   isExternal: false,
   raisonSociale: "",
   siret: "",
@@ -133,6 +136,7 @@ export default function TrainersPage() {
       telephone: t.telephone,
       qualifications: t.qualifications,
       driveCvFolderId: t.driveCvFolderId ?? "",
+      developpementCompetences: t.developpementCompetences ?? "",
       isExternal: t.isExternal ?? false,
       raisonSociale: t.raisonSociale ?? "",
       siret: t.siret ?? "",
@@ -341,6 +345,27 @@ export default function TrainersPage() {
                 />
               </Field>
             </div>
+          </div>
+
+          {/* === Qualiopi indicateur 22 — entretien & développement ===
+              Auditeur attend deux volets : entretien (pratique régulière)
+              + développement (formations suivies, certifs, veille). Ce
+              champ libre permet de tout consigner pour préparer l'audit
+              sans avoir à fouiller Drive. À mettre à jour annuellement. */}
+          <div className="pt-3 border-t" style={{ borderColor: "#e5e7eb" }}>
+            <p className="text-xs font-jetbrains mb-3" style={{ color: "#727485" }}>
+              Actions de maintien &amp; développement des compétences <em>(Qualiopi ind. 22)</em>
+            </p>
+            <Field label="Actions sur l'année en cours (formations, webinaires, certifs, veille, événements pro)">
+              <textarea
+                value={form.developpementCompetences}
+                onChange={(e) => setForm({ ...form, developpementCompetences: e.target.value })}
+                placeholder={`Ex (2026) :\n- Webinaire vMix Multi-corder (mars 2026)\n- Certification Blackmagic ATEM (avril 2026)\n- Veille : newsletters StreamGeeks + chaîne YouTube vMix officielle\n- 12 prods live livrées (factures dans Drive)\n- SATIS Paris octobre 2026`}
+                rows={5}
+                className="input font-jetbrains text-xs"
+                style={{ resize: "vertical" }}
+              />
+            </Field>
           </div>
 
           {/* === Qualiopi indicateur 27 — sous-traitance ===

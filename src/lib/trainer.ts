@@ -14,6 +14,8 @@ export interface TrainerInfo {
   // Qualiopi indicateur 21
   qualifications: string;
   driveCvFolderId: string | null;
+  // Qualiopi indicateur 22 — entretien et développement des compétences
+  developpementCompetences: string;
   // Qualiopi indicateur 27 — sous-traitance
   isExternal: boolean;
   raisonSociale: string;
@@ -30,6 +32,7 @@ export interface TrainerCreateInput {
   telephone?: string;
   qualifications?: string;
   driveCvFolderId?: string;
+  developpementCompetences?: string;
   isExternal?: boolean;
   raisonSociale?: string;
   siret?: string;
@@ -46,6 +49,7 @@ export interface TrainerUpdateInput {
   active?: boolean;
   qualifications?: string;
   driveCvFolderId?: string;
+  developpementCompetences?: string;
   isExternal?: boolean;
   raisonSociale?: string;
   siret?: string;
@@ -111,6 +115,7 @@ export async function createTrainer(input: TrainerCreateInput): Promise<TrainerI
       telephone: input.telephone ?? "",
       qualifications: input.qualifications ?? "",
       driveCvFolderId: input.driveCvFolderId?.trim() || null,
+      developpementCompetences: input.developpementCompetences ?? "",
       isExternal: input.isExternal ?? false,
       raisonSociale: input.raisonSociale ?? "",
       siret: input.siret ?? "",
@@ -134,6 +139,9 @@ export async function updateTrainer(id: string, input: TrainerUpdateInput): Prom
   if (input.qualifications !== undefined) data.qualifications = input.qualifications;
   if (input.driveCvFolderId !== undefined) {
     data.driveCvFolderId = input.driveCvFolderId.trim() || null;
+  }
+  if (input.developpementCompetences !== undefined) {
+    data.developpementCompetences = input.developpementCompetences;
   }
   if (input.isExternal !== undefined) data.isExternal = input.isExternal;
   if (input.raisonSociale !== undefined) data.raisonSociale = input.raisonSociale;
@@ -299,6 +307,7 @@ function toInfo(t: TrainerRow): TrainerInfo {
     sessionCount: t._count.sessions,
     qualifications: t.qualifications,
     driveCvFolderId: t.driveCvFolderId,
+    developpementCompetences: t.developpementCompetences,
     isExternal: t.isExternal,
     raisonSociale: t.raisonSociale,
     siret: t.siret,

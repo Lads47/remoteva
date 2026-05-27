@@ -276,6 +276,8 @@ export const createTrainerSchema = z.object({
   // Qualiopi indicateur 21 — pièces justificatives compétences
   qualifications: z.string().trim().optional().default(""),
   driveCvFolderId: z.string().trim().optional().default(""),
+  // Qualiopi indicateur 22 — entretien et développement des compétences
+  developpementCompetences: z.string().trim().optional().default(""),
   // Qualiopi indicateur 27 — sous-traitance (champs juridiques)
   isExternal: z.boolean().optional().default(false),
   raisonSociale: z.string().trim().optional().default(""),
@@ -293,6 +295,8 @@ export const updateTrainerSchema = z.object({
   active: z.boolean().optional(),
   qualifications: z.string().trim().optional(),
   driveCvFolderId: z.string().trim().optional(),
+  // Qualiopi indicateur 22
+  developpementCompetences: z.string().trim().optional(),
   // Qualiopi indicateur 27 — sous-traitance
   isExternal: z.boolean().optional(),
   raisonSociale: z.string().trim().optional(),

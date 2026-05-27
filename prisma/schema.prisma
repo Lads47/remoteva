@@ -428,6 +428,12 @@ model Trainer {
   // rapide sans devoir ouvrir le Drive (Qualiopi indicateur 21).
   qualifications  String  @default("")
 
+  // Champ libre pour documenter les actions de maintien et développement
+  // des compétences sur l'année : formations suivies, webinaires,
+  // certifications obtenues, événements pro, abonnements de veille
+  // (Qualiopi indicateur 22). À mettre à jour annuellement.
+  developpementCompetences String @default("") @map("developpement_competences")
+
   // === Formateur externe / sous-traitant (Qualiopi indicateur 27) ===
   // Si true, à chaque assignation à une session on génère un contrat de
   // sous-traitance personnalisé (montant saisi à l'assignation) et on
