@@ -259,13 +259,6 @@ export default function FormationsDashboardPage() {
           title="Finances par session"
           description="CA HT, coûts de sous-traitance et marge brute par session. Vue YTD + détail."
         />
-        <AccessCard
-          href="/reclamation"
-          icon="🔗"
-          title="Formulaire public réclamation"
-          description="Lien à diffuser sur ton site web pour permettre aux stagiaires de déposer une réclamation."
-          external
-        />
       </div>
 
       {/* === Indicateurs Qualiopi (pliable, replié par défaut) === */}
