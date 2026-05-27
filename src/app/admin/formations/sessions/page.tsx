@@ -293,6 +293,51 @@ function SessionsPageInner() {
     setError("");
   }
 
+  async function handleRegenerateTrainerContract(s: Session) {
+    // Si la session n'a pas encore de montant HT saisi, on prompt à la volée.
+    let amount = s.trainerFeeAmount;
+    if (amount == null || amount <= 0) {
+      const input = prompt(
+        `Montant HT du contrat de sous-traitance pour ${s.trainerNomComplet || "ce formateur"} (€) ?`,
+        ""
+      );
+      if (!input) return;
+      const parsed = parseFloat(input.replace(",", "."));
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        setFeedback({ type: "error", msg: "Montant invalide" });
+        setTimeout(() => setFeedback(null), 4000);
+        return;
+      }
+      amount = parsed;
+    }
+    if (!confirm(`Générer + envoyer le contrat de sous-traitance (${amount} € HT) à ${s.trainerNomComplet} ?`)) return;
+    try {
+      const res = await fetch(`/api/admin/sessions/${s.id}/regenerate-trainer-contract`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ trainerFeeAmount: amount }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setFeedback({ type: "error", msg: data.error || "Erreur" });
+        setTimeout(() => setFeedback(null), 5000);
+        return;
+      }
+      let msg = "Contrat ST ";
+      if (data.contractGenerated) msg += "généré + mail envoyé ✓";
+      else if (data.contractSkipReason) msg += `non généré : ${data.contractSkipReason}`;
+      else if (data.emailSent) msg += "mail envoyé (sans PJ)";
+      else msg += `erreur : ${data.error || "?"}`;
+      setFeedback({ type: data.contractGenerated || data.emailSent ? "success" : "error", msg });
+      await fetchSessions(filterFormationId);
+      setTimeout(() => setFeedback(null), 6000);
+    } catch (err) {
+      console.error(err);
+      setFeedback({ type: "error", msg: "Erreur de connexion" });
+      setTimeout(() => setFeedback(null), 4000);
+    }
+  }
+
   async function handleDelete(id: string, traineeCount: number) {
     const msg = traineeCount > 0
       ? `Supprimer cette session ? ${traineeCount} stagiaire(s) liés seront aussi supprimés.`
@@ -668,6 +713,16 @@ function SessionsPageInner() {
                 >
                   Détails
                 </Link>
+                {s.trainerIsExternal && (
+                  <button
+                    onClick={() => handleRegenerateTrainerContract(s)}
+                    className="text-xs px-3 py-1.5 rounded-full"
+                    style={{ backgroundColor: "#fef3c7", color: "#92400e" }}
+                    title="(Re)générer + envoyer le contrat de sous-traitance au formateur externe"
+                  >
+                    📎 Contrat ST
+                  </button>
+                )}
                 <button
                   onClick={() => handleEdit(s)}
                   className="text-xs px-3 py-1.5 rounded-full"

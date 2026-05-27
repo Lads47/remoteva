@@ -52,6 +52,9 @@ export async function PUT(request: NextRequest) {
       if (typeof raw.convocation === "string") cleaned.convocation = raw.convocation;
       if (typeof raw.certificat === "string") cleaned.certificat = raw.certificat;
       if (typeof raw.attestation === "string") cleaned.attestation = raw.attestation;
+      if (typeof raw.externalTrainerContract === "string") {
+        cleaned.externalTrainerContract = raw.externalTrainerContract;
+      }
       await setDriveDefaultTemplates(cleaned);
     }
 
