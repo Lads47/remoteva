@@ -29,12 +29,6 @@ interface Payload {
   grid: { slots: GridSlot[]; rows: TraineeRow[] };
 }
 
-// Type minimal pour la chain API de html2pdf.js (la lib n'a pas de types officiels)
-interface Html2PdfChain {
-  from(element: HTMLElement): Html2PdfChain;
-  set(options: Record<string, unknown>): Html2PdfChain;
-  save(): Promise<void>;
-}
 
 // Heures considérées par demi-journée (modifiable au besoin)
 const HOURS_PER_SLOT = 3.5;
@@ -70,15 +64,10 @@ function PrintInner({ id }: { id: string }) {
   // alourdir le bundle de la page d'émargement principale.
   async function handleDownload() {
     if (!pageRef.current || !data || !selectedDay) return;
-    // On cible la <section class="page"> précisément (pas le wrapper avec
-    // margin around it) — sinon html2canvas inclut le margin et déborde
-    // sur une 2e page A4 blanche.
     const pageElement = pageRef.current.querySelector<HTMLElement>(".page");
     if (!pageElement) return;
     setDownloading(true);
-    // On force la hauteur exacte à 297mm le temps de la capture pour éviter
-    // tout débordement → garantit une seule page A4. On restore l'état initial
-    // après save() dans le finally.
+    // Force la hauteur exacte à 297mm pour éviter tout débordement
     const originalMinHeight = pageElement.style.minHeight;
     const originalHeight = pageElement.style.height;
     const originalOverflow = pageElement.style.overflow;
@@ -86,29 +75,33 @@ function PrintInner({ id }: { id: string }) {
     pageElement.style.height = "297mm";
     pageElement.style.overflow = "hidden";
     try {
-      const mod = (await import("html2pdf.js")) as unknown as { default: () => Html2PdfChain };
-      const html2pdf: () => Html2PdfChain = mod.default;
+      // On utilise html2canvas + jsPDF directement (sous-déps de html2pdf.js
+      // déjà installées) pour avoir un contrôle total sur le nombre de pages.
+      const html2canvasMod = await import("html2canvas");
+      const jsPDFMod = await import("jspdf");
+      const html2canvas = html2canvasMod.default;
+      const JsPDFCtor = jsPDFMod.jsPDF;
       const filename = `Emargement_${data.session.code}_${selectedDay}.pdf`;
-      await html2pdf()
-        .from(pageElement)
-        .set({
-          margin: 0,
-          filename,
-          image: { type: "jpeg", quality: 0.95 },
-          // windowWidth = 794px (≈ 210mm @ 96dpi) pour que html2canvas
-          // rende exactement à la largeur d'une feuille A4
-          html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff", windowWidth: 794 },
-          jsPDF: { unit: "mm", format: "a4", orientation: "portrait", compress: true },
-          // Empêche html2pdf de créer une 2e page si le contenu déborde
-          // de quelques px à cause d'un arrondi
-          pagebreak: { mode: ["avoid-all", "css", "legacy"] },
-        })
-        .save();
+
+      const canvas = await html2canvas(pageElement, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        windowWidth: 794, // ≈ 210mm @ 96dpi
+      });
+      const imgData = canvas.toDataURL("image/jpeg", 0.95);
+
+      // PDF unique 1 page A4 portrait : on force le contenu sur 210×297mm.
+      // Si le ratio du canvas dépasse 297mm en hauteur (très long contenu),
+      // on cap à 297mm — le contenu sera légèrement compressé verticalement
+      // mais on reste sur 1 page.
+      const pdf = new JsPDFCtor("portrait", "mm", "a4");
+      pdf.addImage(imgData, "JPEG", 0, 0, 210, 297);
+      pdf.save(filename);
     } catch (err) {
       console.error("Erreur génération PDF :", err);
       alert("Erreur lors de la génération du PDF. Réessayez ou utilisez le bouton Imprimer puis 'Enregistrer au format PDF'.");
     } finally {
-      // Restore les styles d'origine pour ne pas casser la preview
       pageElement.style.minHeight = originalMinHeight;
       pageElement.style.height = originalHeight;
       pageElement.style.overflow = originalOverflow;
