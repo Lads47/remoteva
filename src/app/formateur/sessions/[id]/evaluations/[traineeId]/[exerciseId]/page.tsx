@@ -35,19 +35,34 @@ const SCORE_OPTIONS: { value: Score; label: string; bg: string; color: string }[
   { value: "non_acquis", label: "Non acquis", bg: "#fee2e2", color: "#991b1b" },
 ];
 
-// Suggère une note globale d'après les notes des critères. Règle « weakest
-// link » : la note globale prend la moins bonne note parmi les critères.
-//   - Au moins un critère "non_acquis" → "non_acquis"
-//   - Sinon, au moins un "en_cours"      → "en_cours"
-//   - Sinon, tous "acquis"               → "acquis"
+// Suggère une note globale d'après les notes des critères. Système pondéré :
+//   - Points : acquis=2, en_cours=1, non_acquis=0
+//   - ratio = points / (critères × 2)
+//   - ratio ≥ 80 % ET aucun non_acquis → "acquis"
+//   - ratio ≥ 50 %                      → "en_cours"
+//   - sinon                              → "non_acquis"
+//
+// Le "filet de sécurité" sur le non_acquis empêche de promouvoir à "acquis"
+// si un critère bloquant reste non maîtrisé, même si la majorité l'est.
+//
 // Renvoie null si au moins un critère n'a pas été noté (suggestion masquée
 // tant que la grille n'est pas complète).
 function suggestGlobalNote(criteria: { score: Score }[]): Score | null {
   if (criteria.length === 0) return null;
   if (criteria.some((c) => c.score === "")) return null;
-  if (criteria.some((c) => c.score === "non_acquis")) return "non_acquis";
-  if (criteria.some((c) => c.score === "en_cours")) return "en_cours";
-  return "acquis";
+
+  const points = criteria.reduce((sum, c) => {
+    if (c.score === "acquis") return sum + 2;
+    if (c.score === "en_cours") return sum + 1;
+    return sum;
+  }, 0);
+  const max = criteria.length * 2;
+  const ratio = points / max;
+  const hasNonAcquis = criteria.some((c) => c.score === "non_acquis");
+
+  if (ratio >= 0.8 && !hasNonAcquis) return "acquis";
+  if (ratio >= 0.5) return "en_cours";
+  return "non_acquis";
 }
 
 function EvaluationFormInner({
