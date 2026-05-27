@@ -305,7 +305,7 @@ function PrintInner({ id }: { id: string }) {
           ))}
         </select>
         <button type="button" onClick={() => window.print()}>
-          🖨️ Imprimer / Enregistrer en PDF
+          🖨️ Imprimer
         </button>
       </div>
 
