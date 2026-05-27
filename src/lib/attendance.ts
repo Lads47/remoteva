@@ -35,22 +35,75 @@ const SLOT_LABEL: Record<AttendanceSlot, string> = {
   afternoon: "Après-midi",
 };
 
+// Timezone de référence pour le calcul des jours pédagogiques. On reste
+// systématiquement en heure de Paris pour que la date affichée corresponde
+// à la date civile du stagiaire/formateur, indépendamment du fuseau du
+// container Docker (qui est en UTC).
+const TZ = "Europe/Paris";
+
+function dateInParis(date: Date): string {
+  // YYYY-MM-DD selon le calendrier civil de Paris
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+function nextDayIso(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const next = new Date(Date.UTC(y, m - 1, d + 1));
+  return next.toISOString().slice(0, 10);
+}
+
+function dayOfWeekFromIso(iso: string): number {
+  // 0 = dimanche, 6 = samedi
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+}
+
+function formatLabelFromIso(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  // On crée la date à 12h UTC pour éviter tout effet de bord aux frontières
+  // de fuseau horaire (changement d'heure été/hiver, etc.).
+  const date = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+  return date.toLocaleDateString("fr-FR", {
+    timeZone: TZ,
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+  });
+}
+
 /**
  * Génère la liste de toutes les demi-journées entre `start` et `end` inclus,
- * triées dans l'ordre chronologique.
- * Travaille en UTC pour rester insensible au fuseau du serveur.
+ * triées dans l'ordre chronologique. Les dates sont calculées en heure de
+ * Paris pour correspondre au calendrier civil du stagiaire.
+ *
+ * Par défaut, samedi et dimanche sont exclus (la majorité des formations
+ * LADS sont en semaine). Passer `includeWeekends: true` pour les inclure.
  */
-export function generateSlots(start: Date, end: Date): { date: string; slot: AttendanceSlot; label: string }[] {
+export function generateSlots(
+  start: Date,
+  end: Date,
+  options: { includeWeekends?: boolean } = {}
+): { date: string; slot: AttendanceSlot; label: string }[] {
+  const includeWeekends = options.includeWeekends ?? false;
+  const startIso = dateInParis(start);
+  const endIso = dateInParis(end);
+
   const slots: { date: string; slot: AttendanceSlot; label: string }[] = [];
-  const startDay = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()));
-  const endDay = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate()));
-  const cursor = new Date(startDay);
-  while (cursor.getTime() <= endDay.getTime()) {
-    const iso = cursor.toISOString().slice(0, 10);
-    const dateLabel = cursor.toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "short" });
-    slots.push({ date: iso, slot: "morning", label: `${dateLabel} — ${SLOT_LABEL.morning}` });
-    slots.push({ date: iso, slot: "afternoon", label: `${dateLabel} — ${SLOT_LABEL.afternoon}` });
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  let current = startIso;
+  while (current <= endIso) {
+    const dow = dayOfWeekFromIso(current);
+    const isWeekend = dow === 0 || dow === 6;
+    if (includeWeekends || !isWeekend) {
+      const label = formatLabelFromIso(current);
+      slots.push({ date: current, slot: "morning", label: `${label} — ${SLOT_LABEL.morning}` });
+      slots.push({ date: current, slot: "afternoon", label: `${label} — ${SLOT_LABEL.afternoon}` });
+    }
+    current = nextDayIso(current);
   }
   return slots;
 }
