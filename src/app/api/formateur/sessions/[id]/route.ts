@@ -27,6 +27,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ id: str
       trainer: detail.trainer,
       session: detail.session,
       formation: {
+        id: detail.formation.id,
         code: detail.formation.code,
         nomLong: detail.formation.nomLong,
         description: detail.formation.description,

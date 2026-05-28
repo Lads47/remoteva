@@ -834,6 +834,70 @@ Voir la fiche : ${fichSessionUrl}`;
 }
 
 /**
+ * Notifie l'admin qu'un formateur a modifié la grille d'évaluation d'une
+ * formation depuis son portail (garde-fou Qualiopi : le donneur d'ordre
+ * reste responsable de la cohérence objectifs/évaluation).
+ * Best-effort : ne bloque jamais la modification.
+ */
+export async function sendGridEditedNotification(params: {
+  trainerNomComplet: string;
+  formationCode: string;
+  formationNomLong: string;
+  formationId: string;
+  action: string;            // ex: "ajout d'un exercice", "suppression d'un critère"
+  detail?: string;           // ex: titre de l'exercice / libellé du critère
+}): Promise<SendEmailResult> {
+  const adminEmail = process.env.ADMIN_NOTIFY_EMAIL;
+  if (!adminEmail) {
+    console.warn("[mailer] ADMIN_NOTIFY_EMAIL absent — notif grille non envoyée");
+    return { success: false, error: "ADMIN_NOTIFY_EMAIL manquant" };
+  }
+  const baseUrl = process.env.PUBLIC_BASE_URL || "http://localhost:3000";
+  const gridUrl = `${baseUrl}/admin/formations/${params.formationId}/evaluation-grid`;
+
+  const safe = {
+    trainer: escapeHtml(params.trainerNomComplet),
+    formation: escapeHtml(params.formationNomLong),
+    code: escapeHtml(params.formationCode),
+    action: escapeHtml(params.action),
+    detail: params.detail ? escapeHtml(params.detail) : "",
+  };
+
+  const html = `<!DOCTYPE html>
+<html lang="fr">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #1f2244;">
+  <h1 style="font-size: 20px; margin: 0 0 16px;">✏️ Grille d'évaluation modifiée</h1>
+  <p><strong>${safe.trainer}</strong> a modifié la grille d'évaluation de <strong>${safe.formation}</strong> (${safe.code}).</p>
+  <table style="border-collapse: collapse; margin: 16px 0; background: #f8fafc; border-radius: 8px; padding: 12px; width: 100%; font-size: 14px;">
+    <tr><td style="padding: 6px 12px; color: #727485;">Action</td><td style="padding: 6px 12px;">${safe.action}</td></tr>
+    ${safe.detail ? `<tr><td style="padding: 6px 12px; color: #727485;">Détail</td><td style="padding: 6px 12px;">${safe.detail}</td></tr>` : ""}
+  </table>
+  <p style="font-size: 13px; color: #727485;">En tant qu'organisme de formation, vérifiez la cohérence de la grille avec les objectifs pédagogiques annoncés.</p>
+  <p style="margin-top: 24px;">
+    <a href="${gridUrl}" style="display: inline-block; padding: 10px 18px; background: #1f2244; color: white; text-decoration: none; border-radius: 999px; font-weight: 600;">
+      Voir la grille
+    </a>
+  </p>
+</body>
+</html>`;
+
+  const text = `Grille d'évaluation modifiée
+
+${params.trainerNomComplet} a modifié la grille de ${params.formationNomLong} (${params.formationCode}).
+
+Action : ${params.action}${params.detail ? `\nDétail : ${params.detail}` : ""}
+
+Vérifiez la cohérence avec les objectifs pédagogiques : ${gridUrl}`;
+
+  return sendEmail({
+    to: adminEmail,
+    subject: `Grille modifiée : ${params.formationCode} — par ${params.trainerNomComplet}`,
+    html,
+    text,
+  });
+}
+
+/**
  * Mail d'invitation à répondre à l'évaluation à chaud (fin de session).
  *
  * Le lien envoyé est l'URL publique anonyme du formulaire — la même pour tous

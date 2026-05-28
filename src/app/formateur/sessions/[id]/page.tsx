@@ -170,6 +170,14 @@ function FormateurSessionInner({ id }: { id: string }) {
               ★ Évaluations pratiques
             </Link>
             <Link
+              href={`/formateur/sessions/${id}/evaluation-grid?token=${encodeURIComponent(token)}`}
+              className="px-4 py-2 rounded-full text-sm font-medium border cursor-pointer"
+              style={{ borderColor: "#7dcef5", color: "#1f2244" }}
+              title="Configurer les exercices et critères de la grille d'évaluation"
+            >
+              ⚙ Grille d&apos;évaluation
+            </Link>
+            <Link
               href={`/formateur/sessions/${id}/satisfaction?token=${encodeURIComponent(token)}`}
               className="px-4 py-2 rounded-full text-sm font-medium cursor-pointer"
               style={{ backgroundColor: "#fef3c7", color: "#92400e" }}
