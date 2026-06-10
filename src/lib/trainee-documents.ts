@@ -27,6 +27,7 @@ import {
   uploadFile,
 } from "./google-drive";
 import { sendContractToStagiaire, sendConvocationToStagiaire, sendEndOfTrainingDocs } from "./mailer";
+import { computeObjectifs, type ObjectifsValue } from "./pedagogy";
 import { updateOpportunityStep } from "./sellsy";
 import { recordTraineeEvent } from "./trainee";
 
@@ -340,9 +341,7 @@ function buildVariablesForTrainee(
  * Si le trainee a un objectifsAtteintsOverride non vide, c'est lui qui prime
  * (saisie manuelle de l'admin/formateur).
  */
-type ObjectifsAtteintsValue = "atteints" | "partiellement_atteints" | "non_atteints" | "";
-
-const OBJECTIFS_ATTEINTS_PHRASES: Record<ObjectifsAtteintsValue, string> = {
+const OBJECTIFS_ATTEINTS_PHRASES: Record<ObjectifsValue, string> = {
   atteints: "Les objectifs pédagogiques ont été atteints.",
   partiellement_atteints:
     "Les objectifs pédagogiques ont été partiellement atteints ; certains acquis restent à consolider en situation professionnelle.",
@@ -351,14 +350,14 @@ const OBJECTIFS_ATTEINTS_PHRASES: Record<ObjectifsAtteintsValue, string> = {
   "": "",
 };
 
-const OBJECTIFS_ATTEINTS_LABELS: Record<ObjectifsAtteintsValue, string> = {
+const OBJECTIFS_ATTEINTS_LABELS: Record<ObjectifsValue, string> = {
   atteints: "atteints",
   partiellement_atteints: "partiellement atteints",
   non_atteints: "non atteints",
   "": "",
 };
 
-export async function computeObjectifsAtteints(traineeId: string): Promise<ObjectifsAtteintsValue> {
+export async function computeObjectifsAtteints(traineeId: string): Promise<ObjectifsValue> {
   const trainee = await prisma.trainee.findUnique({
     where: { id: traineeId },
     select: {
@@ -385,44 +384,17 @@ export async function computeObjectifsAtteints(traineeId: string): Promise<Objec
   });
   if (!trainee) return "";
 
-  // Override manuel : prime sur le calcul auto
-  const override = trainee.objectifsAtteintsOverride;
-  if (override === "atteints" || override === "partiellement_atteints" || override === "non_atteints") {
-    return override;
-  }
-
-  // Calcul auto depuis les grilles
   const exercises = trainee.session.formation.evaluationExercises;
-  if (exercises.length === 0) return "";
-
-  let countAcquis = 0;
-  let countEnCours = 0;
-  let countNonAcquis = 0;
-  let countSansNote = 0;
+  const notes: string[] = [];
   for (const ex of exercises) {
     const note = ex.evaluations[0]?.globalNote;
-    if (!note) { countSansNote++; continue; }
-    if (note === "acquis") countAcquis++;
-    else if (note === "en_cours") countEnCours++;
-    else if (note === "non_acquis") countNonAcquis++;
+    if (note) notes.push(note);
   }
-
-  // Si aucun exercice n'a été noté → vide (auto inconclusif)
-  if (countAcquis + countEnCours + countNonAcquis === 0) return "";
-
-  // Système pondéré (identique à la logique du dashboard Qualiopi + suggestion
-  // de note globale par exercice) :
-  //   - acquis=2, en_cours=1, non_acquis=0, sans_note=0
-  //   - ratio ≥ 80% ET tout est noté ET aucun non_acquis ET aucun en_cours → "atteints"
-  //   - ratio ≥ 50% → "partiellement_atteints"
-  //   - sinon → "non_atteints"
-  const points = countAcquis * 2 + countEnCours * 1;
-  const maxPoints = exercises.length * 2;
-  const ratio = maxPoints > 0 ? points / maxPoints : 0;
-  const isComplete = countSansNote === 0 && countNonAcquis === 0 && countEnCours === 0;
-  if (ratio >= 0.8 && isComplete) return "atteints";
-  if (ratio >= 0.5) return "partiellement_atteints";
-  return "non_atteints";
+  return computeObjectifs({
+    override: trainee.objectifsAtteintsOverride,
+    expectedCount: exercises.length,
+    notes,
+  });
 }
 
 /**

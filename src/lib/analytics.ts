@@ -11,6 +11,7 @@
 
 import prisma from "./db";
 import { getComplaintStats, type ComplaintStats } from "./complaint";
+import { computeObjectifs } from "./pedagogy";
 
 const EXCLUDED_SESSION_STATUSES = ["cancelled"];
 const NPS_QUESTION_CHAUD = "recommandation_nps";
@@ -259,8 +260,6 @@ export async function getSatisfactionFroidStats(year: number): Promise<Satisfact
 
 // === Pédagogie (atteinte objectifs) ===
 
-type ObjectifsValue = "atteints" | "partiellement_atteints" | "non_atteints" | "";
-
 export interface PedagogyStats {
   year: number;
   traineesTotal: number;
@@ -302,41 +301,20 @@ export async function getPedagogyStats(year: number): Promise<PedagogyStats> {
   let nonEvalues = 0;
 
   for (const t of trainees) {
-    // Override manuel : prime
-    const override = t.objectifsAtteintsOverride as ObjectifsValue;
-    if (override === "atteints") { atteints++; continue; }
-    if (override === "partiellement_atteints") { partiellement++; continue; }
-    if (override === "non_atteints") { nonAtteints++; continue; }
-
-    const expectedExercises = t.session.formation.evaluationExercises.length;
-    if (expectedExercises === 0) { nonEvalues++; continue; }
-
+    // Une note par exercice (dédoublonnage par exerciseId, notes vides ignorées)
     const noteByExercise = new Map<string, string>();
     for (const e of t.exerciseEvaluations) {
       if (e.globalNote) noteByExercise.set(e.exerciseId, e.globalNote);
     }
-    const noted = noteByExercise.size;
-    if (noted === 0) { nonEvalues++; continue; }
-
-    let cAcquis = 0, cEnCours = 0, cNonAcquis = 0;
-    for (const note of noteByExercise.values()) {
-      if (note === "acquis") cAcquis++;
-      else if (note === "en_cours") cEnCours++;
-      else if (note === "non_acquis") cNonAcquis++;
-    }
-    const cSansNote = expectedExercises - noted;
-    // Système pondéré (identique à la suggestion de note globale par exercice) :
-    //   - acquis=2, en_cours=1, non_acquis=0, sans_note=0
-    //   - ratio ≥ 80% ET aucun non_acquis ET tous notés → "atteints"
-    //   - ratio ≥ 50% → "partiellement_atteints"
-    //   - sinon → "non_atteints"
-    const points = cAcquis * 2 + cEnCours * 1;
-    const maxPoints = expectedExercises * 2;
-    const ratio = maxPoints > 0 ? points / maxPoints : 0;
-    const isComplete = cSansNote === 0 && cNonAcquis === 0 && cEnCours === 0;
-    if (ratio >= 0.8 && isComplete) atteints++;
-    else if (ratio >= 0.5) partiellement++;
-    else nonAtteints++;
+    const verdict = computeObjectifs({
+      override: t.objectifsAtteintsOverride,
+      expectedCount: t.session.formation.evaluationExercises.length,
+      notes: noteByExercise.values(),
+    });
+    if (verdict === "atteints") atteints++;
+    else if (verdict === "partiellement_atteints") partiellement++;
+    else if (verdict === "non_atteints") nonAtteints++;
+    else nonEvalues++;
   }
 
   const evalues = atteints + partiellement + nonAtteints;
@@ -713,41 +691,19 @@ export async function getFormationPublicResults(code: string): Promise<Formation
     const expectedExercises = s.formation.evaluationExercises.length;
     for (const t of s.trainees) {
       traineesTotal++;
-      const override = t.objectifsAtteintsOverride as
-        | "atteints" | "partiellement_atteints" | "non_atteints" | "";
-      if (override === "atteints") { atteints++; continue; }
-      if (override === "partiellement_atteints") { partiellement++; continue; }
-      if (override === "non_atteints") { nonAtteints++; continue; }
-
-      if (expectedExercises === 0) continue;
-
       const noteByExercise = new Map<string, string>();
       for (const e of t.exerciseEvaluations) {
         if (e.globalNote) noteByExercise.set(e.exerciseId, e.globalNote);
       }
-      if (noteByExercise.size === 0) continue;
-
-      // Algo pondéré aligné sur getPedagogyStats (acquis=2, en_cours=1) :
-      //   ratio ≥ 80% + complet sans non_acquis → atteints
-      //   ratio ≥ 50% → partiellement_atteints
-      //   sinon → non_atteints
-      // Évite le biais "weakest link" (1 seul exo en_cours sur 5 acquis
-      // basculait en partiellement, ce qui est trop sévère pour l'affichage
-      // public).
-      let cAcquis = 0, cEnCours = 0, cNonAcquis = 0;
-      for (const note of noteByExercise.values()) {
-        if (note === "acquis") cAcquis++;
-        else if (note === "en_cours") cEnCours++;
-        else if (note === "non_acquis") cNonAcquis++;
-      }
-      const cSansNote = expectedExercises - noteByExercise.size;
-      const points = cAcquis * 2 + cEnCours * 1;
-      const maxPoints = expectedExercises * 2;
-      const ratio = maxPoints > 0 ? points / maxPoints : 0;
-      const isComplete = cSansNote === 0 && cNonAcquis === 0 && cEnCours === 0;
-      if (ratio >= 0.8 && isComplete) atteints++;
-      else if (ratio >= 0.5) partiellement++;
-      else nonAtteints++;
+      const verdict = computeObjectifs({
+        override: t.objectifsAtteintsOverride,
+        expectedCount: expectedExercises,
+        notes: noteByExercise.values(),
+      });
+      if (verdict === "atteints") atteints++;
+      else if (verdict === "partiellement_atteints") partiellement++;
+      else if (verdict === "non_atteints") nonAtteints++;
+      // "" (non évaluable) → exclu des compteurs, voir commentaire ci-dessus
     }
   }
 
