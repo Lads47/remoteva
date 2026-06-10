@@ -198,6 +198,40 @@ export async function findFile(parentId: string, name: string): Promise<DriveFil
 }
 
 /**
+ * Liste les fichiers (non-dossiers) d'un dossier Drive, non corbeille.
+ * Paginé en interne — renvoie tout (à n'utiliser que sur des dossiers de
+ * taille raisonnable, ex. dossier de backups avec rotation).
+ */
+export async function listFilesInFolder(parentId: string): Promise<DriveFile[]> {
+  const token = await getAccessToken();
+  const q = `'${parentId}' in parents and mimeType != '${FOLDER_MIME}' and trashed = false`;
+  const files: DriveFile[] = [];
+  let pageToken: string | undefined;
+
+  do {
+    const url = new URL(`${DRIVE_API}/files`);
+    url.searchParams.set("q", q);
+    url.searchParams.set("fields", "nextPageToken,files(id,name,mimeType)");
+    url.searchParams.set("supportsAllDrives", "true");
+    url.searchParams.set("includeItemsFromAllDrives", "true");
+    url.searchParams.set("corpora", "allDrives");
+    url.searchParams.set("pageSize", "100");
+    if (pageToken) url.searchParams.set("pageToken", pageToken);
+
+    const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) {
+      const t = await res.text().catch(() => "");
+      throw new Error(`Drive listFilesInFolder failed (HTTP ${res.status}): ${t.slice(0, 300)}`);
+    }
+    const data = (await res.json()) as DriveListResponse & { nextPageToken?: string };
+    files.push(...data.files);
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+
+  return files;
+}
+
+/**
  * Upload un fichier dans le dossier Drive `parentId` via l'API multipart.
  * Retourne le DriveFile avec son id et son webViewLink.
  */
