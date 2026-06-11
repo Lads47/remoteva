@@ -3,6 +3,7 @@
 import { Suspense, use, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { apiFetch, apiErrorMessage } from "@/lib/api-client";
 
 interface InvitationResult {
   traineeId: string;
@@ -84,18 +85,13 @@ function SatisfactionPage({ id }: { id: string }) {
     setSending(true);
     setError("");
     try {
-      const r = await fetch(
+      const d = await apiFetch<SendResponse>(
         `/api/formateur/sessions/${id}/satisfaction/send?token=${encodeURIComponent(token)}`,
         { method: "POST" }
       );
-      const d = await r.json();
-      if (!r.ok) {
-        setError(d.error || "Erreur");
-        return;
-      }
       setResult(d);
-    } catch {
-      setError("Erreur réseau");
+    } catch (err) {
+      setError(apiErrorMessage(err, "Erreur réseau"));
     } finally {
       setSending(false);
     }
@@ -118,18 +114,13 @@ function SatisfactionPage({ id }: { id: string }) {
     setClosing(true);
     setError("");
     try {
-      const r = await fetch(
+      const d = await apiFetch<CloseResponse>(
         `/api/formateur/sessions/${id}/close-session?token=${encodeURIComponent(token)}`,
         { method: "POST" }
       );
-      const d = await r.json();
-      if (!r.ok) {
-        setError(d.error || "Erreur");
-        return;
-      }
       setCloseResult(d);
-    } catch {
-      setError("Erreur réseau");
+    } catch (err) {
+      setError(apiErrorMessage(err, "Erreur réseau"));
     } finally {
       setClosing(false);
     }
@@ -140,15 +131,11 @@ function SatisfactionPage({ id }: { id: string }) {
     if (preview) return;
     setPreviewLoading(true);
     try {
-      const r = await fetch(`/api/formateur/sessions/${id}/satisfaction/preview?token=${encodeURIComponent(token)}`);
-      if (!r.ok) {
-        const d = await r.json().catch(() => null);
-        setError(d?.error || "Erreur de chargement");
-        return;
-      }
-      setPreview(await r.json());
-    } catch {
-      setError("Erreur réseau");
+      setPreview(
+        await apiFetch<PreviewData>(`/api/formateur/sessions/${id}/satisfaction/preview?token=${encodeURIComponent(token)}`)
+      );
+    } catch (err) {
+      setError(apiErrorMessage(err, "Erreur réseau"));
     } finally {
       setPreviewLoading(false);
     }

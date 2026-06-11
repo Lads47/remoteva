@@ -2,6 +2,7 @@
 
 import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { apiFetch, apiErrorMessage, isAbortError } from "@/lib/api-client";
 
 interface FormationLite {
   id: string;
@@ -46,22 +47,18 @@ export default function EvaluationGridEditorPage({ params }: { params: Promise<{
 
   const refresh = useCallback(async () => {
     try {
-      const r = await fetch(`/api/admin/formations/${id}/exercises`);
-      if (!r.ok) {
-        setError("Erreur de chargement");
-        return;
-      }
-      const d = await r.json();
+      const d = await apiFetch<{ exercises?: Exercise[] }>(`/api/admin/formations/${id}/exercises`);
       setExercises(d.exercises || []);
-    } catch {
-      setError("Erreur réseau");
+    } catch (err) {
+      setError(apiErrorMessage(err, "Erreur réseau"));
     }
   }, [id]);
 
   useEffect(() => {
+    const ac = new AbortController();
     Promise.all([
-      fetch(`/api/admin/formations`).then((r) => r.json()),
-      fetch(`/api/admin/formations/${id}/exercises`).then((r) => r.json()),
+      apiFetch<{ formations?: FormationLite[] }>(`/api/admin/formations`, { signal: ac.signal }),
+      apiFetch<{ exercises?: Exercise[] }>(`/api/admin/formations/${id}/exercises`, { signal: ac.signal }),
     ])
       .then(([fs, ex]) => {
         const found = (fs.formations || []).find((f: FormationLite) => f.id === id);
@@ -72,8 +69,12 @@ export default function EvaluationGridEditorPage({ params }: { params: Promise<{
         setFormation(found);
         setExercises(ex.exercises || []);
       })
-      .catch(() => setError("Erreur de chargement"))
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        setError("Erreur de chargement");
+      })
       .finally(() => setLoading(false));
+    return () => ac.abort();
   }, [id]);
 
   async function addExercise() {
@@ -81,19 +82,15 @@ export default function EvaluationGridEditorPage({ params }: { params: Promise<{
     if (!titre) return;
     setAddingExercise(true);
     try {
-      const r = await fetch(`/api/admin/formations/${id}/exercises`, {
+      await apiFetch(`/api/admin/formations/${id}/exercises`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ titre }),
+        body: { titre },
       });
-      if (!r.ok) {
-        const d = await r.json().catch(() => null);
-        flash("error", d?.error || "Impossible de créer l'exercice");
-        return;
-      }
       setNewExerciseTitle("");
       await refresh();
       flash("success", "Exercice ajouté");
+    } catch (err) {
+      flash("error", apiErrorMessage(err, "Impossible de créer l'exercice"));
     } finally {
       setAddingExercise(false);
     }
@@ -101,34 +98,25 @@ export default function EvaluationGridEditorPage({ params }: { params: Promise<{
 
   async function updateExerciseField(exId: string, patch: Partial<Pick<Exercise, "titre" | "description" | "active">>) {
     try {
-      const r = await fetch(`/api/admin/exercises/${exId}`, {
+      await apiFetch(`/api/admin/exercises/${exId}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(patch),
+        body: patch,
       });
-      if (!r.ok) {
-        flash("error", "Échec mise à jour");
-        return;
-      }
       // Pas de refresh global : on patche en local pour éviter le flicker
       setExercises((prev) => prev.map((e) => (e.id === exId ? { ...e, ...patch } : e)));
-    } catch {
-      flash("error", "Erreur réseau");
+    } catch (err) {
+      flash("error", apiErrorMessage(err, "Erreur réseau"));
     }
   }
 
   async function deleteExerciseConfirmed(exId: string) {
     if (!confirm("Supprimer cet exercice et tous ses critères ? Les évaluations déjà saisies seront aussi perdues.")) return;
     try {
-      const r = await fetch(`/api/admin/exercises/${exId}`, { method: "DELETE" });
-      if (!r.ok) {
-        flash("error", "Échec suppression");
-        return;
-      }
+      await apiFetch(`/api/admin/exercises/${exId}`, { method: "DELETE" });
       await refresh();
       flash("success", "Exercice supprimé");
-    } catch {
-      flash("error", "Erreur réseau");
+    } catch (err) {
+      flash("error", apiErrorMessage(err, "Erreur réseau"));
     }
   }
 
@@ -142,10 +130,9 @@ export default function EvaluationGridEditorPage({ params }: { params: Promise<{
     reordered.splice(newIdx, 0, moved);
     setExercises(reordered);
     try {
-      await fetch(`/api/admin/formations/${id}/exercises`, {
+      await apiFetch(`/api/admin/formations/${id}/exercises`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderedIds: reordered.map((e) => e.id) }),
+        body: { orderedIds: reordered.map((e) => e.id) },
       });
     } catch {
       flash("error", "Échec du réordonnancement");
@@ -157,54 +144,40 @@ export default function EvaluationGridEditorPage({ params }: { params: Promise<{
     const l = libelle.trim();
     if (!l) return;
     try {
-      const r = await fetch(`/api/admin/exercises/${exId}/criteria`, {
+      await apiFetch(`/api/admin/exercises/${exId}/criteria`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ libelle: l }),
+        body: { libelle: l },
       });
-      if (!r.ok) {
-        flash("error", "Impossible d'ajouter le critère");
-        return;
-      }
       await refresh();
-    } catch {
-      flash("error", "Erreur réseau");
+    } catch (err) {
+      flash("error", apiErrorMessage(err, "Erreur réseau"));
     }
   }
 
   async function updateCriterionLibelle(criterionId: string, libelle: string) {
     try {
-      const r = await fetch(`/api/admin/criteria/${criterionId}`, {
+      await apiFetch(`/api/admin/criteria/${criterionId}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ libelle }),
+        body: { libelle },
       });
-      if (!r.ok) {
-        flash("error", "Échec mise à jour critère");
-        return;
-      }
       setExercises((prev) =>
         prev.map((e) => ({
           ...e,
           criteria: e.criteria.map((c) => (c.id === criterionId ? { ...c, libelle } : c)),
         }))
       );
-    } catch {
-      flash("error", "Erreur réseau");
+    } catch (err) {
+      flash("error", apiErrorMessage(err, "Erreur réseau"));
     }
   }
 
   async function deleteCriterion(criterionId: string) {
     if (!confirm("Supprimer ce critère ?")) return;
     try {
-      const r = await fetch(`/api/admin/criteria/${criterionId}`, { method: "DELETE" });
-      if (!r.ok) {
-        flash("error", "Échec suppression");
-        return;
-      }
+      await apiFetch(`/api/admin/criteria/${criterionId}`, { method: "DELETE" });
       await refresh();
-    } catch {
-      flash("error", "Erreur réseau");
+    } catch (err) {
+      flash("error", apiErrorMessage(err, "Erreur réseau"));
     }
   }
 
@@ -220,10 +193,9 @@ export default function EvaluationGridEditorPage({ params }: { params: Promise<{
     reordered.splice(newIdx, 0, moved);
     setExercises((prev) => prev.map((e) => (e.id === exId ? { ...e, criteria: reordered } : e)));
     try {
-      await fetch(`/api/admin/exercises/${exId}/criteria`, {
+      await apiFetch(`/api/admin/exercises/${exId}/criteria`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderedIds: reordered.map((c) => c.id) }),
+        body: { orderedIds: reordered.map((c) => c.id) },
       });
     } catch {
       flash("error", "Échec réordonnancement");

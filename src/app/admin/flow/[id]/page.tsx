@@ -3,6 +3,7 @@
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { ApiError, apiFetch, apiErrorMessage, isAbortError } from "@/lib/api-client";
 
 interface Conference {
   id: string;
@@ -87,20 +88,18 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
   const [showAddConf, setShowAddConf] = useState(false);
   const [newConf, setNewConf] = useState({ title: "", speaker: "", scheduledStart: "", scheduledEnd: "" });
 
-  useEffect(() => { fetchAll(); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const ac = new AbortController();
+    fetchAll(ac.signal);
+    return () => ac.abort();
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function fetchAll() {
+  async function fetchAll(signal?: AbortSignal) {
     try {
-      const [projRes, allDirRes] = await Promise.all([
-        fetch(`/api/admin/flow/${id}`),
-        fetch("/api/admin/directors"),
+      const [projData, allDirData] = await Promise.all([
+        apiFetch<{ project?: Project; availableDirectors?: Director[] }>(`/api/admin/flow/${id}`, { signal }),
+        apiFetch<{ directors?: Director[] }>("/api/admin/directors", { signal }),
       ]);
-      if (projRes.status === 404) {
-        router.push("/admin/flow");
-        return;
-      }
-      const projData = await projRes.json();
-      const allDirData = await allDirRes.json();
       if (projData.project) {
         setProject(projData.project);
         setEditForm({
@@ -116,6 +115,11 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
       if (Array.isArray(projData.availableDirectors)) setAvailableDirectors(projData.availableDirectors);
       if (Array.isArray(allDirData.directors)) setAllDirectors(allDirData.directors);
     } catch (err) {
+      if (isAbortError(err)) return;
+      if (err instanceof ApiError && err.status === 404) {
+        router.push("/admin/flow");
+        return;
+      }
       console.error(err);
     } finally {
       setLoading(false);
@@ -141,19 +145,12 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
         regie: editForm.regie || null,
         recordingLocalPath: editForm.recordingLocalPath || null,
       };
-      const res = await fetch("/api/admin/flow", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (res.ok) {
-        await fetchAll();
-        setEditing(false);
-        showFeedback("success", "Événement mis à jour");
-      } else {
-        const err = await res.json();
-        showFeedback("error", err.error || "Erreur");
-      }
+      await apiFetch("/api/admin/flow", { method: "PUT", body });
+      await fetchAll();
+      setEditing(false);
+      showFeedback("success", "Événement mis à jour");
+    } catch (err) {
+      showFeedback("error", apiErrorMessage(err, "Erreur"));
     } finally {
       setSavingEdit(false);
     }
@@ -161,37 +158,31 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
 
   async function handleAssignDirector(directorId: string | null) {
     try {
-      const res = await fetch(`/api/admin/flow/${id}/assign-director`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ directorId }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        await fetchAll();
-        if (directorId === null) {
-          showFeedback("success", "Réalisateur désassigné");
-        } else if (data.emailSent) {
-          showFeedback("success", `Feuille de route envoyée à ${data.director?.email}`);
-        } else {
-          showFeedback("warning", `Réal assigné mais email non envoyé (${data.emailError ?? "erreur"})`);
-        }
+      const data = await apiFetch<{ emailSent?: boolean; director?: { email?: string }; emailError?: string }>(
+        `/api/admin/flow/${id}/assign-director`,
+        { method: "POST", body: { directorId } }
+      );
+      await fetchAll();
+      if (directorId === null) {
+        showFeedback("success", "Réalisateur désassigné");
+      } else if (data.emailSent) {
+        showFeedback("success", `Feuille de route envoyée à ${data.director?.email}`);
       } else {
-        showFeedback("error", data.error || "Erreur");
+        showFeedback("warning", `Réal assigné mais email non envoyé (${data.emailError ?? "erreur"})`);
       }
     } catch (err) {
       console.error(err);
+      showFeedback("error", apiErrorMessage(err, "Erreur"));
     }
   }
 
   async function handleConfStatusChange(confId: string, newStatus: string) {
     try {
-      const res = await fetch(`/api/admin/flow/${id}/conferences/${confId}`, {
+      await apiFetch(`/api/admin/flow/${id}/conferences/${confId}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
+        body: { status: newStatus },
       });
-      if (res.ok) await fetchAll();
+      await fetchAll();
     } catch (err) {
       console.error(err);
     }
@@ -200,8 +191,8 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
   async function handleConfDelete(conf: Conference) {
     if (!confirm(`Supprimer la conférence "${conf.title}" ?`)) return;
     try {
-      const res = await fetch(`/api/admin/flow/${id}/conferences/${conf.id}`, { method: "DELETE" });
-      if (res.ok) await fetchAll();
+      await apiFetch(`/api/admin/flow/${id}/conferences/${conf.id}`, { method: "DELETE" });
+      await fetchAll();
     } catch (err) {
       console.error(err);
     }
@@ -218,21 +209,18 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
         ? new Date(`${project.date.split("T")[0]}T${newConf.scheduledEnd}:00`).toISOString()
         : undefined;
 
-      const res = await fetch(`/api/admin/flow/${id}/conferences`, {
+      await apiFetch(`/api/admin/flow/${id}/conferences`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: {
           title: newConf.title,
           speaker: newConf.speaker,
           scheduledStart: start,
           scheduledEnd: end,
-        }),
+        },
       });
-      if (res.ok) {
-        setNewConf({ title: "", speaker: "", scheduledStart: "", scheduledEnd: "" });
-        setShowAddConf(false);
-        await fetchAll();
-      }
+      setNewConf({ title: "", speaker: "", scheduledStart: "", scheduledEnd: "" });
+      setShowAddConf(false);
+      await fetchAll();
     } catch (err) {
       console.error(err);
     }

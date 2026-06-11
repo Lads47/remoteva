@@ -11,6 +11,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
+import { apiFetch, apiErrorMessage } from "@/lib/api-client";
 
 export default function InscriptionPage() {
   const router = useRouter();
@@ -29,24 +30,16 @@ export default function InscriptionPage() {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/auth/register", {
+      const data = await apiFetch<{ message?: string }>("/api/auth/register", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ firstName, lastName, email, password }),
+        body: { firstName, lastName, email, password },
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || "Erreur d'inscription");
-        return;
-      }
 
       setSuccess(data.message || "Compte créé avec succès.");
       // Redirection vers la page de connexion après 2 secondes
       setTimeout(() => router.push("/admin/login"), 2500);
-    } catch {
-      setError("Erreur de connexion au serveur");
+    } catch (err) {
+      setError(apiErrorMessage(err, "Erreur de connexion au serveur"));
     } finally {
       setLoading(false);
     }

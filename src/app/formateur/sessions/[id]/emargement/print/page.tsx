@@ -2,6 +2,7 @@
 
 import { Suspense, use, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { apiFetch, apiErrorMessage, isAbortError } from "@/lib/api-client";
 
 type Slot = "morning" | "afternoon";
 type Status = "present" | "absent" | null;
@@ -124,17 +125,17 @@ function PrintInner({ id }: { id: string }) {
       setLoading(false);
       return;
     }
-    fetch(`/api/formateur/sessions/${id}/attendance?token=${encodeURIComponent(token)}`)
-      .then(async (r) => {
-        if (!r.ok) {
-          const e = await r.json().catch(() => ({}));
-          throw new Error(e.error || "Accès refusé");
-        }
-        return r.json();
+    const ac = new AbortController();
+    apiFetch<Payload>(`/api/formateur/sessions/${id}/attendance?token=${encodeURIComponent(token)}`, {
+      signal: ac.signal,
+    })
+      .then((d) => setData(d))
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        setError(apiErrorMessage(err, "Accès refusé"));
       })
-      .then((d: Payload) => setData(d))
-      .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
+    return () => ac.abort();
   }, [id, token]);
 
   // Liste des jours uniques de la session

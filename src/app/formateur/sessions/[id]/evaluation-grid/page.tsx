@@ -3,6 +3,7 @@
 import { Suspense, use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { ApiError, apiFetch, apiErrorMessage, isAbortError } from "@/lib/api-client";
 
 interface Criterion {
   id: string;
@@ -44,17 +45,25 @@ function GridEditorInner({ sessionId }: { sessionId: string }) {
   }, []);
 
   const refreshGrid = useCallback(
-    async (fId: string) => {
-      const r = await fetch(`/api/formateur/formations/${fId}/exercises?token=${encodeURIComponent(token)}`);
-      if (!r.ok) {
-        setError("Accès refusé ou erreur de chargement");
-        return;
+    async (fId: string, signal?: AbortSignal) => {
+      try {
+        const d = await apiFetch<{
+          exercises?: Exercise[];
+          formation?: { code: string; nomLong: string } | null;
+          shared?: boolean;
+          otherTrainers?: string[];
+        }>(`/api/formateur/formations/${fId}/exercises?token=${encodeURIComponent(token)}`, { signal });
+        setExercises(d.exercises || []);
+        setFormation(d.formation || null);
+        setShared(Boolean(d.shared));
+        setOtherTrainers(d.otherTrainers || []);
+      } catch (err) {
+        if (err instanceof ApiError && err.status !== null) {
+          setError("Accès refusé ou erreur de chargement");
+          return;
+        }
+        throw err;
       }
-      const d = await r.json();
-      setExercises(d.exercises || []);
-      setFormation(d.formation || null);
-      setShared(Boolean(d.shared));
-      setOtherTrainers(d.otherTrainers || []);
     },
     [token]
   );
@@ -66,8 +75,11 @@ function GridEditorInner({ sessionId }: { sessionId: string }) {
       return;
     }
     // 1. Résoudre la formation via la session, 2. charger la grille
-    fetch(`/api/formateur/sessions/${sessionId}?token=${encodeURIComponent(token)}`)
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
+    const ac = new AbortController();
+    apiFetch<{ formation?: { id?: string } }>(
+      `/api/formateur/sessions/${sessionId}?token=${encodeURIComponent(token)}`,
+      { signal: ac.signal }
+    )
       .then(async (d) => {
         const fId = d?.formation?.id;
         if (!fId) {
@@ -75,10 +87,14 @@ function GridEditorInner({ sessionId }: { sessionId: string }) {
           return;
         }
         setFormationId(fId);
-        await refreshGrid(fId);
+        await refreshGrid(fId, ac.signal);
       })
-      .catch(() => setError("Accès refusé"))
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        setError("Accès refusé");
+      })
       .finally(() => setLoading(false));
+    return () => ac.abort();
   }, [sessionId, token, refreshGrid]);
 
   async function addExercise() {
@@ -86,31 +102,27 @@ function GridEditorInner({ sessionId }: { sessionId: string }) {
     if (!titre || !formationId) return;
     setAddingExercise(true);
     try {
-      const r = await fetch(`/api/formateur/formations/${formationId}/exercises?token=${encodeURIComponent(token)}`, {
+      await apiFetch(`/api/formateur/formations/${formationId}/exercises?token=${encodeURIComponent(token)}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ titre }),
+        body: { titre },
       });
-      if (!r.ok) {
-        const d = await r.json().catch(() => null);
-        flash("error", d?.error || "Impossible de créer l'exercice");
-        return;
-      }
       setNewExerciseTitle("");
       await refreshGrid(formationId);
       flash("success", "Exercice ajouté");
+    } catch (err) {
+      flash("error", apiErrorMessage(err, "Impossible de créer l'exercice"));
     } finally {
       setAddingExercise(false);
     }
   }
 
   async function updateExerciseField(exId: string, patch: Partial<Pick<Exercise, "titre" | "description" | "active">>) {
-    const r = await fetch(`/api/formateur/exercises/${exId}?token=${encodeURIComponent(token)}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
-    });
-    if (!r.ok) {
+    try {
+      await apiFetch(`/api/formateur/exercises/${exId}?token=${encodeURIComponent(token)}`, {
+        method: "PUT",
+        body: patch,
+      });
+    } catch {
       flash("error", "Échec mise à jour");
       return;
     }
@@ -120,8 +132,9 @@ function GridEditorInner({ sessionId }: { sessionId: string }) {
   async function deleteExerciseConfirmed(exId: string) {
     if (!confirm("Supprimer cet exercice et tous ses critères ? Les évaluations déjà saisies seront aussi perdues.")) return;
     if (!formationId) return;
-    const r = await fetch(`/api/formateur/exercises/${exId}?token=${encodeURIComponent(token)}`, { method: "DELETE" });
-    if (!r.ok) {
+    try {
+      await apiFetch(`/api/formateur/exercises/${exId}?token=${encodeURIComponent(token)}`, { method: "DELETE" });
+    } catch {
       flash("error", "Échec suppression");
       return;
     }
@@ -132,12 +145,12 @@ function GridEditorInner({ sessionId }: { sessionId: string }) {
   async function addCriterion(exId: string, libelle: string) {
     const l = libelle.trim();
     if (!l || !formationId) return;
-    const r = await fetch(`/api/formateur/exercises/${exId}/criteria?token=${encodeURIComponent(token)}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ libelle: l }),
-    });
-    if (!r.ok) {
+    try {
+      await apiFetch(`/api/formateur/exercises/${exId}/criteria?token=${encodeURIComponent(token)}`, {
+        method: "POST",
+        body: { libelle: l },
+      });
+    } catch {
       flash("error", "Impossible d'ajouter le critère");
       return;
     }
@@ -145,12 +158,12 @@ function GridEditorInner({ sessionId }: { sessionId: string }) {
   }
 
   async function updateCriterionLibelle(criterionId: string, libelle: string) {
-    const r = await fetch(`/api/formateur/criteria/${criterionId}?token=${encodeURIComponent(token)}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ libelle }),
-    });
-    if (!r.ok) {
+    try {
+      await apiFetch(`/api/formateur/criteria/${criterionId}?token=${encodeURIComponent(token)}`, {
+        method: "PUT",
+        body: { libelle },
+      });
+    } catch {
       flash("error", "Échec mise à jour critère");
       return;
     }
@@ -165,8 +178,9 @@ function GridEditorInner({ sessionId }: { sessionId: string }) {
   async function deleteCriterionConfirmed(criterionId: string) {
     if (!confirm("Supprimer ce critère ?")) return;
     if (!formationId) return;
-    const r = await fetch(`/api/formateur/criteria/${criterionId}?token=${encodeURIComponent(token)}`, { method: "DELETE" });
-    if (!r.ok) {
+    try {
+      await apiFetch(`/api/formateur/criteria/${criterionId}?token=${encodeURIComponent(token)}`, { method: "DELETE" });
+    } catch {
       flash("error", "Échec suppression");
       return;
     }

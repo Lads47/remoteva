@@ -3,6 +3,7 @@
 import { Suspense, use, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { ApiError, apiFetch, apiErrorMessage, isAbortError } from "@/lib/api-client";
 
 type Score = "" | "acquis" | "en_cours" | "non_acquis";
 
@@ -91,19 +92,18 @@ function EvaluationFormInner({
       setLoading(false);
       return;
     }
-    fetch(
-      `/api/formateur/sessions/${sessionId}/evaluations/${traineeId}/${exerciseId}?token=${encodeURIComponent(token)}`
+    const ac = new AbortController();
+    apiFetch<EvaluationDetail>(
+      `/api/formateur/sessions/${sessionId}/evaluations/${traineeId}/${exerciseId}?token=${encodeURIComponent(token)}`,
+      { signal: ac.signal }
     )
-      .then(async (r) => {
-        if (!r.ok) {
-          const d = await r.json().catch(() => null);
-          throw new Error(d?.error || "Erreur de chargement");
-        }
-        return r.json();
+      .then((d) => setData(d))
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        setError(apiErrorMessage(err, "Erreur de chargement"));
       })
-      .then((d: EvaluationDetail) => setData(d))
-      .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
+    return () => ac.abort();
   }, [sessionId, traineeId, exerciseId, token]);
 
   function patchCriterion(critId: string, patch: Partial<Pick<Criterion, "score" | "comment">>) {
@@ -121,12 +121,11 @@ function EvaluationFormInner({
     setSaving(true);
     if (!silent) setFeedback(null);
     try {
-      const r = await fetch(
+      const d = await apiFetch<{ evaluation?: EvaluationDetail }>(
         `/api/formateur/sessions/${sessionId}/evaluations/${traineeId}/${exerciseId}?token=${encodeURIComponent(token)}`,
         {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+          body: {
             globalNote: data.globalNote,
             observations: data.observations,
             scores: data.criteria.map((c) => ({
@@ -134,15 +133,9 @@ function EvaluationFormInner({
               score: c.score,
               comment: c.comment,
             })),
-          }),
+          },
         }
       );
-      if (!r.ok) {
-        const d = await r.json().catch(() => null);
-        if (!silent) setFeedback({ type: "error", msg: d?.error || "Échec de la sauvegarde" });
-        return;
-      }
-      const d = await r.json();
       if (d.evaluation) setData(d.evaluation);
       if (!silent) {
         setFeedback({ type: "success", msg: "Évaluation enregistrée" });
@@ -154,8 +147,14 @@ function EvaluationFormInner({
           setTimeout(() => setFeedback(null), 3000);
         }
       }
-    } catch {
-      if (!silent) setFeedback({ type: "error", msg: "Erreur réseau" });
+    } catch (err) {
+      if (!silent) {
+        if (err instanceof ApiError && err.status !== null) {
+          setFeedback({ type: "error", msg: apiErrorMessage(err, "Échec de la sauvegarde") });
+        } else {
+          setFeedback({ type: "error", msg: "Erreur réseau" });
+        }
+      }
     } finally {
       setSaving(false);
     }
@@ -168,23 +167,32 @@ function EvaluationFormInner({
     try {
       // On sauve d'abord pour que le PDF contienne les dernières modifs locales
       await save({ andReturn: false, silent: true });
-      const r = await fetch(
+      const d = await apiFetch<{ success?: boolean; error?: string } | null>(
         `/api/formateur/sessions/${sessionId}/evaluations/${traineeId}/${exerciseId}/export-pdf?token=${encodeURIComponent(token)}`,
         { method: "POST" }
       );
-      const d = await r.json().catch(() => null);
-      if (!r.ok || !d?.success) {
+      if (!d?.success) {
         setFeedback({ type: "error", msg: d?.error || "Échec de la sync Drive" });
         return;
       }
       setFeedback({ type: "success", msg: "PDF archivé dans Drive (03_EVALUATIONS)" });
       // Refresh complet pour récupérer driveFileId / driveWebUrl
-      const fresh = await fetch(
-        `/api/formateur/sessions/${sessionId}/evaluations/${traineeId}/${exerciseId}?token=${encodeURIComponent(token)}`
-      );
-      if (fresh.ok) setData(await fresh.json());
-    } catch {
-      setFeedback({ type: "error", msg: "Erreur réseau" });
+      try {
+        setData(
+          await apiFetch<EvaluationDetail>(
+            `/api/formateur/sessions/${sessionId}/evaluations/${traineeId}/${exerciseId}?token=${encodeURIComponent(token)}`
+          )
+        );
+      } catch (err) {
+        // une erreur HTTP du refresh était ignorée silencieusement (comportement existant)
+        if (!(err instanceof ApiError && err.status !== null)) throw err;
+      }
+    } catch (err) {
+      if (err instanceof ApiError && err.status !== null) {
+        setFeedback({ type: "error", msg: apiErrorMessage(err, "Échec de la sync Drive") });
+      } else {
+        setFeedback({ type: "error", msg: "Erreur réseau" });
+      }
     } finally {
       setSyncing(false);
       setTimeout(() => setFeedback(null), 6000);

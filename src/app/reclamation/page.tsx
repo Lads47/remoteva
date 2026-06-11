@@ -5,6 +5,7 @@
 // coordonnées + l'objet + la description. Engagement de traitement sous 30 j.
 
 import { useState } from "react";
+import { ApiError, apiFetch, apiErrorMessage } from "@/lib/api-client";
 
 interface FormState {
   authorName: string;
@@ -66,10 +67,9 @@ export default function PublicComplaintPage() {
 
     setSubmitting(true);
     try {
-      const res = await fetch("/api/public/reclamations", {
+      const data = await apiFetch<{ number: string }>("/api/public/reclamations", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: {
           authorName: form.authorName,
           authorCompany: form.authorCompany,
           authorRole: form.authorRole,
@@ -80,22 +80,22 @@ export default function PublicComplaintPage() {
           concernedRole: form.concernedSelf ? "" : form.concernedRole,
           subject: form.subject,
           description: form.description,
-        }),
+        },
       });
-      const data = await res.json();
-      if (!res.ok) {
-        if (Array.isArray(data.issues) && data.issues.length > 0) {
-          setError(data.issues[0].message);
-        } else {
-          setError(data.error || "Erreur serveur");
-        }
-        window.scrollTo({ top: 0, behavior: "smooth" });
-        return;
-      }
       setSuccess({ number: data.number });
       window.scrollTo({ top: 0, behavior: "smooth" });
-    } catch {
-      setError("Erreur de connexion");
+    } catch (err) {
+      // Erreurs de validation zod : le serveur renvoie un tableau issues
+      const issues =
+        err instanceof ApiError && typeof err.data === "object" && err.data !== null && "issues" in err.data
+          ? (err.data as { issues?: Array<{ message: string }> }).issues
+          : undefined;
+      if (Array.isArray(issues) && issues.length > 0) {
+        setError(issues[0].message);
+      } else {
+        setError(apiErrorMessage(err, "Erreur de connexion"));
+      }
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } finally {
       setSubmitting(false);
     }

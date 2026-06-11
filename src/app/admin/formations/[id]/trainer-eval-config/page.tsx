@@ -4,6 +4,7 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
+import { apiFetch, apiErrorMessage, isAbortError, ApiError } from "@/lib/api-client";
 import SatisfactionWysiwygEditor, {
   validateQuestions,
   type SatisfactionQuestion,
@@ -31,9 +32,9 @@ export default function FormationTrainerEvalConfigPage({
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
   useEffect(() => {
-    fetch(`/api/admin/formations/${id}/trainer-eval-config`)
-      .then((r) => r.json())
-      .then((d: ConfigData) => {
+    const ac = new AbortController();
+    apiFetch<ConfigData>(`/api/admin/formations/${id}/trainer-eval-config`, { signal: ac.signal })
+      .then((d) => {
         setData(d);
         if (d.override) {
           setQuestions(d.override);
@@ -43,8 +44,12 @@ export default function FormationTrainerEvalConfigPage({
           setUsingOverride(false);
         }
       })
-      .catch(() => setError("Erreur de chargement"))
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        setError("Erreur de chargement");
+      })
       .finally(() => setLoading(false));
+    return () => ac.abort();
   }, [id]);
 
   async function handleSave() {
@@ -57,24 +62,19 @@ export default function FormationTrainerEvalConfigPage({
     }
     setSaving(true);
     try {
-      const r = await fetch(`/api/admin/formations/${id}/trainer-eval-config`, {
+      const d = await apiFetch<{ override: SatisfactionQuestion[] }>(`/api/admin/formations/${id}/trainer-eval-config`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ questions }),
+        body: { questions },
       });
-      const d = await r.json();
-      if (!r.ok) {
-        const issuesText = Array.isArray(d.issues) ? `\n${d.issues.join("\n")}` : "";
-        setError(`${d.error || "Erreur"}${issuesText}`);
-        return;
-      }
       setUsingOverride(true);
       setQuestions(d.override);
       setData((prev) => (prev ? { ...prev, override: d.override } : prev));
       setFeedback({ type: "success", msg: "Override enregistré pour cette formation ✓" });
       setTimeout(() => setFeedback(null), 4000);
-    } catch {
-      setError("Erreur réseau");
+    } catch (err) {
+      const errData = err instanceof ApiError ? (err.data as { issues?: string[] } | null) : null;
+      const issuesText = errData && Array.isArray(errData.issues) ? `\n${errData.issues.join("\n")}` : "";
+      setError(`${apiErrorMessage(err, "Erreur réseau")}${issuesText}`);
     } finally {
       setSaving(false);
     }
@@ -86,23 +86,17 @@ export default function FormationTrainerEvalConfigPage({
     setSaving(true);
     setError("");
     try {
-      const r = await fetch(`/api/admin/formations/${id}/trainer-eval-config`, {
+      await apiFetch(`/api/admin/formations/${id}/trainer-eval-config`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ questions: null }),
+        body: { questions: null },
       });
-      const d = await r.json();
-      if (!r.ok) {
-        setError(d.error || "Erreur");
-        return;
-      }
       setUsingOverride(false);
       setQuestions(data.global);
       setData((prev) => (prev ? { ...prev, override: null } : prev));
       setFeedback({ type: "success", msg: "Override supprimé — la formation utilise maintenant le questionnaire global." });
       setTimeout(() => setFeedback(null), 4000);
-    } catch {
-      setError("Erreur réseau");
+    } catch (err) {
+      setError(apiErrorMessage(err, "Erreur réseau"));
     } finally {
       setSaving(false);
     }

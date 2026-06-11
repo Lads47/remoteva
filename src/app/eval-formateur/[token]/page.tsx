@@ -8,6 +8,7 @@
 //  - support du nouveau type likert_4 (4 boutons, échelle paire sans neutre)
 
 import { use, useEffect, useState } from "react";
+import { ApiError, apiFetch, apiErrorMessage, isAbortError } from "@/lib/api-client";
 
 type QuestionType =
   | "section_header"
@@ -78,15 +79,9 @@ export default function PublicTrainerEvalPage({ params }: { params: Promise<{ to
   const [done, setDone] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/public/trainer-eval/${encodeURIComponent(token)}`)
-      .then(async (r) => {
-        if (!r.ok) {
-          const d = await r.json().catch(() => null);
-          throw new Error(d?.error || "Lien invalide");
-        }
-        return r.json();
-      })
-      .then((d: TrainerEvalData) => {
+    const ac = new AbortController();
+    apiFetch<TrainerEvalData>(`/api/public/trainer-eval/${encodeURIComponent(token)}`, { signal: ac.signal })
+      .then((d) => {
         setData(d);
         // Pré-remplit la section identification avec les valeurs du backend
         setAnswers({
@@ -95,8 +90,12 @@ export default function PublicTrainerEvalPage({ params }: { params: Promise<{ to
           date_formation: d.prefill.date_formation,
         });
       })
-      .catch((e: Error) => setLoadError(e.message))
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        setLoadError(apiErrorMessage(err, "Lien invalide"));
+      })
       .finally(() => setLoading(false));
+    return () => ac.abort();
   }, [token]);
 
   function setAnswer(name: string, value: string) {
@@ -118,21 +117,19 @@ export default function PublicTrainerEvalPage({ params }: { params: Promise<{ to
     setError("");
     setSubmitting(true);
     try {
-      const r = await fetch(`/api/public/trainer-eval/${encodeURIComponent(token)}`, {
+      await apiFetch(`/api/public/trainer-eval/${encodeURIComponent(token)}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ answers }),
+        body: { answers },
       });
-      const d = await r.json().catch(() => null);
-      if (!r.ok) {
-        setError(d?.error || "Échec de l'envoi");
-        window.scrollTo({ top: 0, behavior: "smooth" });
-        return;
-      }
       setDone(true);
       window.scrollTo({ top: 0, behavior: "smooth" });
-    } catch {
-      setError("Erreur réseau");
+    } catch (err) {
+      if (err instanceof ApiError && err.status !== null) {
+        setError(apiErrorMessage(err, "Échec de l'envoi"));
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        setError("Erreur réseau");
+      }
     } finally {
       setSubmitting(false);
     }

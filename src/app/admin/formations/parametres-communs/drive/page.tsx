@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { apiFetch, apiErrorMessage, isAbortError } from "@/lib/api-client";
 
 interface Templates {
   convention?: string;
@@ -26,8 +27,8 @@ export default function DriveConfigPage() {
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
   useEffect(() => {
-    fetch("/api/admin/drive-config")
-      .then((r) => r.json())
+    const ac = new AbortController();
+    apiFetch<{ error?: string; templates?: Templates; attachments?: Attachments }>("/api/admin/drive-config", { signal: ac.signal })
       .then((d) => {
         if (d.error) setError(d.error);
         else {
@@ -35,30 +36,28 @@ export default function DriveConfigPage() {
           setAttachments(d.attachments ?? {});
         }
       })
-      .catch(() => setError("Erreur de chargement"))
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        setError(apiErrorMessage(err, "Erreur de chargement"));
+      })
       .finally(() => setLoading(false));
+    return () => ac.abort();
   }, []);
 
   async function handleSave() {
     setSaving(true);
     setError("");
     try {
-      const res = await fetch("/api/admin/drive-config", {
+      const data = await apiFetch<{ templates?: Templates; attachments?: Attachments }>("/api/admin/drive-config", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ templates, attachments }),
+        body: { templates, attachments },
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Erreur");
-        return;
-      }
       setTemplates(data.templates ?? {});
       setAttachments(data.attachments ?? {});
       setFeedback({ type: "success", msg: "Configuration Drive enregistrée" });
       setTimeout(() => setFeedback(null), 4000);
-    } catch {
-      setError("Erreur de connexion");
+    } catch (err) {
+      setError(apiErrorMessage(err, "Erreur de connexion"));
     } finally {
       setSaving(false);
     }

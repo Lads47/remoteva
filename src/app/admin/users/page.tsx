@@ -7,6 +7,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { ApiError, apiFetch, apiErrorMessage, isAbortError } from "@/lib/api-client";
 
 interface AdminUser {
   id: string;
@@ -39,19 +40,15 @@ export default function UsersPage() {
   const [edits, setEdits] = useState<Record<string, { universes: string[]; isSuperAdmin: boolean }>>({});
 
   useEffect(() => {
-    void fetchUsers();
+    const ac = new AbortController();
+    void fetchUsers(ac.signal);
+    return () => ac.abort();
   }, []);
 
-  const fetchUsers = async () => {
+  const fetchUsers = async (signal?: AbortSignal) => {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/users");
-      if (res.status === 403) {
-        setFeedback({ kind: "err", text: "Réservé aux super-administrateurs." });
-        setUsers([]);
-        return;
-      }
-      const data = await res.json();
+      const data = await apiFetch<{ users?: AdminUser[] }>("/api/admin/users", { signal });
       const list: AdminUser[] = data.users || [];
       setUsers(list);
       setEdits(
@@ -59,7 +56,13 @@ export default function UsersPage() {
           list.map((u) => [u.id, { universes: u.universes, isSuperAdmin: u.isSuperAdmin }])
         )
       );
-    } catch {
+    } catch (err) {
+      if (isAbortError(err)) return;
+      if (err instanceof ApiError && err.status === 403) {
+        setFeedback({ kind: "err", text: "Réservé aux super-administrateurs." });
+        setUsers([]);
+        return;
+      }
       setFeedback({ kind: "err", text: "Erreur de chargement." });
     } finally {
       setLoading(false);
@@ -87,41 +90,30 @@ export default function UsersPage() {
     setFeedback(null);
     const edit = edits[user.id] || { universes: user.universes, isSuperAdmin: user.isSuperAdmin };
     try {
-      const res = await fetch("/api/admin/users", {
+      await apiFetch("/api/admin/users", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: {
           id: user.id,
           universes: edit.universes,
           isSuperAdmin: edit.isSuperAdmin,
           status: opts.validate ? "validated" : undefined,
-        }),
+        },
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setFeedback({ kind: "err", text: data.error || "Erreur lors de la sauvegarde." });
-        return;
-      }
       setFeedback({ kind: "ok", text: opts.validate ? "Compte validé." : "Modifications enregistrées." });
       await fetchUsers();
-    } catch {
-      setFeedback({ kind: "err", text: "Erreur de connexion." });
+    } catch (err) {
+      setFeedback({ kind: "err", text: apiErrorMessage(err, "Erreur de connexion.") });
     }
   };
 
   const remove = async (user: AdminUser) => {
     if (!confirm(`Supprimer définitivement ${user.email} ?`)) return;
     try {
-      const res = await fetch(`/api/admin/users?id=${user.id}`, { method: "DELETE" });
-      const data = await res.json();
-      if (!res.ok) {
-        setFeedback({ kind: "err", text: data.error || "Erreur de suppression." });
-        return;
-      }
+      await apiFetch(`/api/admin/users?id=${user.id}`, { method: "DELETE" });
       setFeedback({ kind: "ok", text: "Compte supprimé." });
       await fetchUsers();
-    } catch {
-      setFeedback({ kind: "err", text: "Erreur de connexion." });
+    } catch (err) {
+      setFeedback({ kind: "err", text: apiErrorMessage(err, "Erreur de connexion.") });
     }
   };
 

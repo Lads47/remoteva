@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { apiFetch, apiErrorMessage } from "@/lib/api-client";
 
 // Page Mon compte - Changement de mot de passe
 export default function AccountPage() {
@@ -30,25 +31,17 @@ export default function AccountPage() {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/account/password", {
+      await apiFetch("/api/account/password", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currentPassword, newPassword }),
+        body: { currentPassword, newPassword },
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || "Erreur lors du changement de mot de passe");
-        return;
-      }
 
       setSuccess("Mot de passe modifié avec succès");
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-    } catch {
-      setError("Erreur de connexion");
+    } catch (err) {
+      setError(apiErrorMessage(err, "Erreur de connexion"));
     } finally {
       setLoading(false);
     }

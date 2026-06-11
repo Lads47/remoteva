@@ -3,6 +3,7 @@
 import { Suspense, use, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { ApiError, apiFetch, apiErrorMessage, isAbortError } from "@/lib/api-client";
 
 interface ExerciseLite {
   id: string;
@@ -115,17 +116,17 @@ function EvaluationsMatrixInner({ id }: { id: string }) {
       setLoading(false);
       return;
     }
-    fetch(`/api/formateur/sessions/${id}/evaluations?token=${encodeURIComponent(token)}`)
-      .then(async (r) => {
-        if (!r.ok) {
-          const d = await r.json().catch(() => null);
-          throw new Error(d?.error || "Erreur de chargement");
-        }
-        return r.json();
-      })
+    const ac = new AbortController();
+    apiFetch<MatrixData>(`/api/formateur/sessions/${id}/evaluations?token=${encodeURIComponent(token)}`, {
+      signal: ac.signal,
+    })
       .then(setData)
-      .catch((e: Error) => setError(e.message))
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        setError(apiErrorMessage(err, "Erreur de chargement"));
+      })
       .finally(() => setLoading(false));
+    return () => ac.abort();
   }, [id, token]);
 
   if (loading) {
@@ -369,19 +370,22 @@ function TraineeGlobalActions({
     setSyncing(true);
     setStatus(null);
     try {
-      const r = await fetch(
+      const d = await apiFetch<{ success?: boolean; error?: string; driveWebUrl?: string | null } | null>(
         `/api/formateur/sessions/${sessionId}/evaluations/${traineeId}/global-pdf?token=${encodeURIComponent(token)}`,
         { method: "POST" }
       );
-      const d = await r.json().catch(() => null);
-      if (!r.ok || !d?.success) {
+      if (!d?.success) {
         setStatus({ type: "error", msg: d?.error || "Échec de l'archivage" });
         return;
       }
       setDriveUrl(d.driveWebUrl ?? null);
       setStatus({ type: "success", msg: "Synthèse archivée dans Drive" });
-    } catch {
-      setStatus({ type: "error", msg: "Erreur réseau" });
+    } catch (err) {
+      if (err instanceof ApiError && err.status !== null) {
+        setStatus({ type: "error", msg: apiErrorMessage(err, "Échec de l'archivage") });
+      } else {
+        setStatus({ type: "error", msg: "Erreur réseau" });
+      }
     } finally {
       setSyncing(false);
       setTimeout(() => setStatus(null), 6000);

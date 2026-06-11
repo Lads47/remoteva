@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { apiFetch, apiErrorMessage, isAbortError } from "@/lib/api-client";
 
 interface Session {
   id: string;
@@ -143,40 +144,44 @@ function SessionsPageInner() {
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
   useEffect(() => {
-    Promise.all([fetchSessions(filterFormationId), fetchFormations(), fetchTrainers()]).finally(() =>
-      setLoading(false)
-    );
+    const ac = new AbortController();
+    Promise.all([
+      fetchSessions(filterFormationId, ac.signal),
+      fetchFormations(ac.signal),
+      fetchTrainers(ac.signal),
+    ]).finally(() => setLoading(false));
+    return () => ac.abort();
   }, [filterFormationId]);
 
-  async function fetchSessions(formationId?: string) {
+  async function fetchSessions(formationId?: string, signal?: AbortSignal) {
     try {
       const url = formationId
         ? `/api/admin/sessions?formationId=${formationId}`
         : "/api/admin/sessions";
-      const res = await fetch(url);
-      const data = await res.json();
+      const data = await apiFetch<{ sessions?: Session[] }>(url, { signal });
       if (Array.isArray(data.sessions)) setSessions(data.sessions);
     } catch (err) {
+      if (isAbortError(err)) return;
       console.error(err);
     }
   }
 
-  async function fetchFormations() {
+  async function fetchFormations(signal?: AbortSignal) {
     try {
-      const res = await fetch("/api/admin/formations");
-      const data = await res.json();
+      const data = await apiFetch<{ formations?: Formation[] }>("/api/admin/formations", { signal });
       if (Array.isArray(data.formations)) setFormations(data.formations);
     } catch (err) {
+      if (isAbortError(err)) return;
       console.error(err);
     }
   }
 
-  async function fetchTrainers() {
+  async function fetchTrainers(signal?: AbortSignal) {
     try {
-      const res = await fetch("/api/admin/trainers");
-      const data = await res.json();
+      const data = await apiFetch<{ trainers?: TrainerOption[] }>("/api/admin/trainers", { signal });
       if (Array.isArray(data.trainers)) setTrainers(data.trainers);
     } catch (err) {
+      if (isAbortError(err)) return;
       console.error(err);
     }
   }
@@ -241,24 +246,17 @@ function SessionsPageInner() {
             notes: payload.notes,
           }
         : payload;
-      const res = await fetch("/api/admin/sessions", {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Erreur");
-        return;
-      }
+      const data = await apiFetch<{
+        trainerNotified?: {
+          emailSent?: boolean;
+          error?: string;
+          contractGenerated?: boolean;
+          contractSkipReason?: string;
+        } | null;
+      }>("/api/admin/sessions", { method, body });
       // Si le serveur a notifié le formateur d'une assignation, on l'indique
       // dans le toast pour rassurer l'admin (sinon le mail part en silence).
-      const notif = data.trainerNotified as {
-        emailSent?: boolean;
-        error?: string;
-        contractGenerated?: boolean;
-        contractSkipReason?: string;
-      } | null | undefined;
+      const notif = data.trainerNotified;
       let trainerNote = "";
       if (notif) {
         if (notif.emailSent) {
@@ -280,7 +278,7 @@ function SessionsPageInner() {
       setTimeout(() => setFeedback(null), 5000);
     } catch (err) {
       console.error(err);
-      setError("Erreur connexion");
+      setError(apiErrorMessage(err, "Erreur connexion"));
     } finally {
       setSaving(false);
     }
@@ -312,17 +310,15 @@ function SessionsPageInner() {
     }
     if (!confirm(`Générer + envoyer le contrat de sous-traitance (${amount} € HT) à ${s.trainerNomComplet} ?`)) return;
     try {
-      const res = await fetch(`/api/admin/sessions/${s.id}/regenerate-trainer-contract`, {
+      const data = await apiFetch<{
+        contractGenerated?: boolean;
+        contractSkipReason?: string;
+        emailSent?: boolean;
+        error?: string;
+      }>(`/api/admin/sessions/${s.id}/regenerate-trainer-contract`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ trainerFeeAmount: amount }),
+        body: { trainerFeeAmount: amount },
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setFeedback({ type: "error", msg: data.error || "Erreur" });
-        setTimeout(() => setFeedback(null), 5000);
-        return;
-      }
       let msg = "Contrat ST ";
       if (data.contractGenerated) msg += "généré + mail envoyé ✓";
       else if (data.contractSkipReason) msg += `non généré : ${data.contractSkipReason}`;
@@ -333,7 +329,7 @@ function SessionsPageInner() {
       setTimeout(() => setFeedback(null), 6000);
     } catch (err) {
       console.error(err);
-      setFeedback({ type: "error", msg: "Erreur de connexion" });
+      setFeedback({ type: "error", msg: apiErrorMessage(err, "Erreur de connexion") });
       setTimeout(() => setFeedback(null), 4000);
     }
   }
@@ -344,18 +340,14 @@ function SessionsPageInner() {
       : "Supprimer cette session ?";
     if (!confirm(msg)) return;
     try {
-      const res = await fetch(`/api/admin/sessions?id=${id}`, { method: "DELETE" });
-      const data = await res.json();
-      if (!res.ok) {
-        setFeedback({ type: "error", msg: data.error || "Erreur suppression" });
-        setTimeout(() => setFeedback(null), 5000);
-        return;
-      }
+      await apiFetch(`/api/admin/sessions?id=${id}`, { method: "DELETE" });
       setFeedback({ type: "success", msg: "Session supprimée" });
       await fetchSessions(filterFormationId);
       setTimeout(() => setFeedback(null), 3000);
     } catch (err) {
       console.error(err);
+      setFeedback({ type: "error", msg: apiErrorMessage(err, "Erreur suppression") });
+      setTimeout(() => setFeedback(null), 5000);
     }
   }
 

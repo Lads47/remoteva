@@ -5,6 +5,7 @@
 // questionnaire via /admin/formations/[id]/satisfaction-config.
 
 import { useEffect, useState } from "react";
+import { apiFetch, apiErrorMessage, isAbortError, ApiError } from "@/lib/api-client";
 import SatisfactionWysiwygEditor, {
   validateQuestions,
   type SatisfactionQuestion,
@@ -24,14 +25,18 @@ export default function SatisfactionConfigPage() {
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
   useEffect(() => {
-    fetch("/api/admin/satisfaction-config")
-      .then((r) => r.json())
-      .then((d: ConfigData) => {
+    const ac = new AbortController();
+    apiFetch<ConfigData>("/api/admin/satisfaction-config", { signal: ac.signal })
+      .then((d) => {
         setData(d);
         setQuestions(d.questions);
       })
-      .catch(() => setError("Erreur de chargement"))
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        setError("Erreur de chargement");
+      })
       .finally(() => setLoading(false));
+    return () => ac.abort();
   }, []);
 
   async function handleSave() {
@@ -44,23 +49,18 @@ export default function SatisfactionConfigPage() {
     }
     setSaving(true);
     try {
-      const r = await fetch("/api/admin/satisfaction-config", {
+      const d = await apiFetch<{ questions: SatisfactionQuestion[] }>("/api/admin/satisfaction-config", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ questions }),
+        body: { questions },
       });
-      const d = await r.json();
-      if (!r.ok) {
-        const issuesText = Array.isArray(d.issues) ? `\n${d.issues.join("\n")}` : "";
-        setError(`${d.error || "Erreur"}${issuesText}`);
-        return;
-      }
       setData((prev) => (prev ? { ...prev, questions: d.questions } : prev));
       setQuestions(d.questions);
       setFeedback({ type: "success", msg: "Questionnaire enregistré ✓" });
       setTimeout(() => setFeedback(null), 4000);
-    } catch {
-      setError("Erreur réseau");
+    } catch (err) {
+      const errData = err instanceof ApiError ? (err.data as { issues?: string[] } | null) : null;
+      const issuesText = errData && Array.isArray(errData.issues) ? `\n${errData.issues.join("\n")}` : "";
+      setError(`${apiErrorMessage(err, "Erreur réseau")}${issuesText}`);
     } finally {
       setSaving(false);
     }

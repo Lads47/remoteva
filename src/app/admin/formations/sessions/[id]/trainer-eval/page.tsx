@@ -8,6 +8,7 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
+import { apiFetch, apiErrorMessage } from "@/lib/api-client";
 
 type QuestionType =
   | "section_header"
@@ -67,13 +68,9 @@ export default function TrainerEvalSessionAdminPage({ params }: { params: Promis
 
   function load() {
     setLoading(true);
-    fetch(`/api/admin/sessions/${id}/trainer-eval`)
-      .then(async (r) => {
-        if (!r.ok) throw new Error((await r.json()).error || "Erreur");
-        return r.json();
-      })
+    apiFetch<Synthesis>(`/api/admin/sessions/${id}/trainer-eval`)
       .then(setData)
-      .catch((e: Error) => setError(e.message))
+      .catch((e) => setError(apiErrorMessage(e, "Erreur")))
       .finally(() => setLoading(false));
   }
   useEffect(load, [id]);
@@ -84,13 +81,11 @@ export default function TrainerEvalSessionAdminPage({ params }: { params: Promis
     setActing(true);
     setFeedback(null);
     try {
-      const r = await fetch(`/api/admin/sessions/${id}/trainer-eval/resend`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode }),
-      });
-      const d = await r.json();
-      if (!r.ok || !d.success) {
+      const d = await apiFetch<{ success?: boolean; error?: string; email?: string; reminderNumber?: number }>(
+        `/api/admin/sessions/${id}/trainer-eval/resend`,
+        { method: "POST", body: { mode } }
+      );
+      if (!d.success) {
         setFeedback({ type: "error", msg: d.error || "Échec" });
       } else {
         setFeedback({
@@ -101,8 +96,8 @@ export default function TrainerEvalSessionAdminPage({ params }: { params: Promis
         });
         load();
       }
-    } catch {
-      setFeedback({ type: "error", msg: "Erreur réseau" });
+    } catch (err) {
+      setFeedback({ type: "error", msg: apiErrorMessage(err, "Erreur réseau") });
     } finally {
       setActing(false);
     }

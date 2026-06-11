@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { EVA_STATUSES, EVA_STATUS_LABELS, type EvaStatus } from "@/lib/appConfig-types";
+import { apiFetch, apiErrorMessage, isAbortError, ApiError } from "@/lib/api-client";
 
 interface Pipeline {
   id: number;
@@ -29,13 +30,15 @@ export default function SellsyConfigPage() {
   // Si aucun pipeline n'est encore configuré, on essaie de trouver automatiquement
   // celui nommé "Formation" parmi les pipelines retournés.
   useEffect(() => {
+    const ac = new AbortController();
     Promise.all([
-      fetch("/api/admin/sellsy-config").then((r) => r.json()),
-      fetch("/api/admin/sellsy/pipelines").then((r) => r.json()),
+      apiFetch<{ error?: string; pipelineId?: number | null; mapping?: Partial<Record<EvaStatus, number>> }>("/api/admin/sellsy-config", { signal: ac.signal }),
+      apiFetch<{ error?: string; pipelines?: Pipeline[] }>("/api/admin/sellsy/pipelines", { signal: ac.signal }),
     ])
       .then(([configData, pipelinesData]) => {
         if (configData.error) setError(configData.error);
-        if (pipelinesData.error) setError((prev) => prev || pipelinesData.error);
+        const pipelinesError = pipelinesData.error;
+        if (pipelinesError) setError((prev) => prev || pipelinesError);
 
         const fetchedPipelines = (pipelinesData.pipelines ?? []) as Pipeline[];
         setPipelines(fetchedPipelines);
@@ -48,8 +51,12 @@ export default function SellsyConfigPage() {
         setPipelineId(resolvedId);
         setMapping(configData.mapping ?? {});
       })
-      .catch(() => setError("Erreur de chargement"))
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        setError(apiErrorMessage(err, "Erreur de chargement"));
+      })
       .finally(() => setLoading(false));
+    return () => ac.abort();
   }, []);
 
   // Quand pipelineId change, charge les steps correspondants
@@ -60,8 +67,8 @@ export default function SellsyConfigPage() {
     }
     setLoadingSteps(true);
     setError("");
-    fetch(`/api/admin/sellsy/pipelines/${pipelineId}/steps`)
-      .then((r) => r.json())
+    const ac = new AbortController();
+    apiFetch<{ error?: string; steps?: Step[] }>(`/api/admin/sellsy/pipelines/${pipelineId}/steps`, { signal: ac.signal })
       .then((data) => {
         if (data.error) {
           setError(data.error);
@@ -73,28 +80,28 @@ export default function SellsyConfigPage() {
           setSteps(list);
         }
       })
-      .catch(() => setError("Erreur de chargement des étapes"))
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        // Fidèle à l'ancien comportement : une erreur HTTP vidait la liste des steps
+        if (err instanceof ApiError && err.status !== null) setSteps([]);
+        setError(apiErrorMessage(err, "Erreur de chargement des étapes"));
+      })
       .finally(() => setLoadingSteps(false));
+    return () => ac.abort();
   }, [pipelineId]);
 
   async function handleSave() {
     setSaving(true);
     setError("");
     try {
-      const res = await fetch("/api/admin/sellsy-config", {
+      await apiFetch("/api/admin/sellsy-config", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pipelineId, mapping }),
+        body: { pipelineId, mapping },
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Erreur");
-        return;
-      }
       setFeedback({ type: "success", msg: "Configuration Sellsy enregistrée" });
       setTimeout(() => setFeedback(null), 4000);
-    } catch {
-      setError("Erreur de connexion");
+    } catch (err) {
+      setError(apiErrorMessage(err, "Erreur de connexion"));
     } finally {
       setSaving(false);
     }

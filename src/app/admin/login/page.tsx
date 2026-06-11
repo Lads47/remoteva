@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
+import { apiFetch, apiErrorMessage } from "@/lib/api-client";
 
 // Page de connexion admin - Design inspiré des Ateliers du Stream
 export default function LoginPage() {
@@ -19,24 +20,16 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/auth/login", {
+      await apiFetch("/api/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: { email, password },
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || "Erreur de connexion");
-        return;
-      }
 
       // Redirection vers le hub EVA (le proxy renverra vers /admin/pending
       // si le compte n'est pas encore validé)
       router.push("/admin");
-    } catch {
-      setError("Erreur de connexion au serveur");
+    } catch (err) {
+      setError(apiErrorMessage(err, "Erreur de connexion au serveur"));
     } finally {
       setLoading(false);
     }

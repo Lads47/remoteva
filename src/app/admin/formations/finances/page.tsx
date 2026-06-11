@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { apiFetch, isAbortError } from "@/lib/api-client";
 
 interface SessionFinanceRow {
   sessionId: string;
@@ -62,28 +63,39 @@ export default function FinancesPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/admin/formations")
-      .then((r) => r.json())
+    const ac = new AbortController();
+    apiFetch<{ formations?: Formation[] }>("/api/admin/formations", { signal: ac.signal })
       .then((d) => {
         if (Array.isArray(d.formations)) setFormations(d.formations);
       })
-      .catch(console.error);
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        console.error(err);
+      });
+    return () => ac.abort();
   }, []);
 
   useEffect(() => {
     setLoading(true);
     const params = new URLSearchParams({ year: String(selectedYear) });
     if (selectedFormationId) params.set("formationId", selectedFormationId);
-    fetch(`/api/admin/formations/finances?${params.toString()}`)
-      .then((r) => r.json())
+    const ac = new AbortController();
+    apiFetch<{ overview?: FinanceOverview; yearsAvailable?: number[] }>(
+      `/api/admin/formations/finances?${params.toString()}`,
+      { signal: ac.signal }
+    )
       .then((d) => {
         if (d.overview) setOverview(d.overview);
         if (Array.isArray(d.yearsAvailable)) {
           setYearsAvailable(d.yearsAvailable.length ? d.yearsAvailable : [new Date().getFullYear()]);
         }
       })
-      .catch(console.error)
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        console.error(err);
+      })
       .finally(() => setLoading(false));
+    return () => ac.abort();
   }, [selectedYear, selectedFormationId]);
 
   return (

@@ -15,6 +15,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { apiFetch, isAbortError } from "@/lib/api-client";
 
 interface DashboardStats {
   year: number;
@@ -118,35 +119,51 @@ export default function FormationsDashboardPage() {
   const [qualiopiLinks, setQualiopiLinks] = useState<QualiopiLinks | null>(null);
 
   useEffect(() => {
-    fetch("/api/admin/formations/dashboard-stats")
-      .then((r) => r.json())
+    const ac = new AbortController();
+    apiFetch<DashboardStats>("/api/admin/formations/dashboard-stats", { signal: ac.signal })
       .then((d) => setStats(d))
-      .catch(() => setStats(null))
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        setStats(null);
+      })
       .finally(() => setLoading(false));
+    return () => ac.abort();
   }, []);
 
   useEffect(() => {
+    const ac = new AbortController();
     setQualiopiLoading(true);
-    fetch(`/api/admin/formations/qualiopi-stats?year=${selectedYear}`)
-      .then((r) => r.json())
+    apiFetch<QualiopiStats>(`/api/admin/formations/qualiopi-stats?year=${selectedYear}`, { signal: ac.signal })
       .then((d) => setQualiopi(d))
-      .catch(() => setQualiopi(null))
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        setQualiopi(null);
+      })
       .finally(() => setQualiopiLoading(false));
+    return () => ac.abort();
   }, [selectedYear]);
 
   useEffect(() => {
-    fetch("/api/admin/formations/qualiopi-sheet-info")
-      .then((r) => r.json())
+    const ac = new AbortController();
+    apiFetch<QualiopiSheetInfo>("/api/admin/formations/qualiopi-sheet-info", { signal: ac.signal })
       .then((d) => setSheetInfo(d))
-      .catch(() => setSheetInfo(null));
-    fetch("/api/admin/formations/bpf-sheet-info")
-      .then((r) => r.json())
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        setSheetInfo(null);
+      });
+    apiFetch<BpfSheetInfo>("/api/admin/formations/bpf-sheet-info", { signal: ac.signal })
       .then((d) => setBpfSheetInfo(d))
-      .catch(() => setBpfSheetInfo(null));
-    fetch("/api/admin/qualiopi-links")
-      .then((r) => r.json())
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        setBpfSheetInfo(null);
+      });
+    apiFetch<{ veille?: string; partenaires?: string }>("/api/admin/qualiopi-links", { signal: ac.signal })
       .then((d) => setQualiopiLinks({ veille: d.veille ?? "", partenaires: d.partenaires ?? "" }))
-      .catch(() => setQualiopiLinks(null));
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        setQualiopiLinks(null);
+      });
+    return () => ac.abort();
   }, []);
 
   return (

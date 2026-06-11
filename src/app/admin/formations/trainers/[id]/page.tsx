@@ -2,6 +2,7 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
+import { apiFetch, apiErrorMessage, isAbortError } from "@/lib/api-client";
 
 interface TrainerInfo {
   id: string;
@@ -80,19 +81,22 @@ export default function TrainerDetailPage({
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/admin/trainers/${id}/sessions`)
-      .then((r) => r.json())
+    const ac = new AbortController();
+    apiFetch<{ trainer: TrainerInfo; sessions?: TrainerSession[]; summary: Summary | null }>(
+      `/api/admin/trainers/${id}/sessions`,
+      { signal: ac.signal }
+    )
       .then((d) => {
-        if (d.error) {
-          setError(d.error);
-          return;
-        }
         setTrainer(d.trainer);
         setSessions(d.sessions || []);
         setSummary(d.summary);
       })
-      .catch((e) => setError(String(e)))
+      .catch((e) => {
+        if (isAbortError(e)) return;
+        setError(apiErrorMessage(e, "Erreur"));
+      })
       .finally(() => setLoading(false));
+    return () => ac.abort();
   }, [id]);
 
   if (loading) {

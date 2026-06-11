@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import type { PrerequisField } from "@/lib/formation-prerequis";
 import { EVA_STATUS_COLORS, EVA_STATUS_LABELS, EVA_STATUSES, type EvaStatus } from "@/lib/appConfig-types";
+import { apiFetch, apiErrorMessage, isAbortError } from "@/lib/api-client";
 
 interface Trainer {
   id: string;
@@ -84,14 +85,14 @@ function FormateurSessionInner({ id }: { id: string }) {
       setLoading(false);
       return;
     }
-    fetch(`/api/formateur/sessions/${id}?token=${encodeURIComponent(token)}`)
-      .then(async (res) => {
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.error || "Session introuvable");
-        }
-        return res.json();
-      })
+    const ac = new AbortController();
+    apiFetch<{
+      trainer: Trainer;
+      session: Session;
+      formation: Formation;
+      trainees?: Trainee[];
+      prerequisSchema?: PrerequisField[];
+    }>(`/api/formateur/sessions/${id}?token=${encodeURIComponent(token)}`, { signal: ac.signal })
       .then((data) => {
         setTrainer(data.trainer);
         setSession(data.session);
@@ -99,8 +100,12 @@ function FormateurSessionInner({ id }: { id: string }) {
         setTrainees(Array.isArray(data.trainees) ? data.trainees : []);
         setPrerequisSchema(Array.isArray(data.prerequisSchema) ? data.prerequisSchema : []);
       })
-      .catch((err: Error) => setError(err.message))
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        setError(apiErrorMessage(err, "Session introuvable"));
+      })
       .finally(() => setLoading(false));
+    return () => ac.abort();
   }, [id, token]);
 
   if (loading) {

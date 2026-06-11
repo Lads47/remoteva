@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { apiFetch, apiErrorMessage, isAbortError } from "@/lib/api-client";
 
 interface FlowProject {
   id: string;
@@ -75,19 +76,22 @@ export default function FlowPage() {
   const [error, setError] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
 
-  useEffect(() => { fetchAll(); }, []);
+  useEffect(() => {
+    const ac = new AbortController();
+    fetchAll(ac.signal);
+    return () => ac.abort();
+  }, []);
 
-  async function fetchAll() {
+  async function fetchAll(signal?: AbortSignal) {
     try {
-      const [projRes, dirRes] = await Promise.all([
-        fetch("/api/admin/flow"),
-        fetch("/api/admin/directors"),
+      const [projData, dirData] = await Promise.all([
+        apiFetch<{ projects?: FlowProject[] }>("/api/admin/flow", { signal }),
+        apiFetch<{ directors?: Director[] }>("/api/admin/directors", { signal }),
       ]);
-      const projData = await projRes.json();
-      const dirData = await dirRes.json();
       if (Array.isArray(projData.projects)) setProjects(projData.projects);
       if (Array.isArray(dirData.directors)) setDirectors(dirData.directors);
     } catch (err) {
+      if (isAbortError(err)) return;
       console.error("Erreur chargement:", err);
     } finally {
       setLoading(false);
@@ -119,22 +123,13 @@ export default function FlowPage() {
         conferences: validConfs.length > 0 ? validConfs : undefined,
       };
 
-      const res = await fetch("/api/admin/flow", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Erreur");
-        return;
-      }
+      await apiFetch("/api/admin/flow", { method: "POST", body });
       setForm(EMPTY_FORM);
       setShowForm(false);
       await fetchAll();
     } catch (err) {
       console.error(err);
-      setError("Erreur connexion");
+      setError(apiErrorMessage(err, "Erreur connexion"));
     } finally {
       setSaving(false);
     }
@@ -143,8 +138,8 @@ export default function FlowPage() {
   async function handleDelete(p: FlowProject) {
     if (!confirm(`Supprimer l'événement "${p.title}" (${p.eventId}) ?\n\nLes conférences associées seront aussi supprimées.`)) return;
     try {
-      const res = await fetch(`/api/admin/flow?id=${p.id}`, { method: "DELETE" });
-      if (res.ok) await fetchAll();
+      await apiFetch(`/api/admin/flow?id=${p.id}`, { method: "DELETE" });
+      await fetchAll();
     } catch (err) {
       console.error(err);
     }

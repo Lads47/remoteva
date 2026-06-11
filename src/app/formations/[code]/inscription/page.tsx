@@ -2,6 +2,7 @@
 
 import { use, useEffect, useState } from "react";
 import type { PrerequisField } from "@/lib/formation-prerequis";
+import { ApiError, apiFetch, apiErrorMessage, isAbortError } from "@/lib/api-client";
 
 interface PublicSession {
   id: string;
@@ -143,14 +144,11 @@ export default function PublicInscriptionPage({ params }: { params: Promise<{ co
   const [prerequisSchema, setPrerequisSchema] = useState<PrerequisField[]>([]);
 
   useEffect(() => {
-    fetch(`/api/public/formations/${encodeURIComponent(code)}`)
-      .then(async (res) => {
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.error || "Formation introuvable");
-        }
-        return res.json();
-      })
+    const ac = new AbortController();
+    apiFetch<{ formation: PublicFormation; sessions: PublicSession[]; prerequisSchema?: PrerequisField[] }>(
+      `/api/public/formations/${encodeURIComponent(code)}`,
+      { signal: ac.signal }
+    )
       .then((data) => {
         setFormation(data.formation);
         setSessions(data.sessions);
@@ -165,8 +163,12 @@ export default function PublicInscriptionPage({ params }: { params: Promise<{ co
           setForm((prev) => ({ ...prev, sessionId: chosen.id }));
         }
       })
-      .catch((err: Error) => setLoadError(err.message))
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        setLoadError(apiErrorMessage(err, "Formation introuvable"));
+      })
       .finally(() => setLoading(false));
+    return () => ac.abort();
   }, [code, preselectSessionId]);
 
   function setPrerequis(name: string, value: PrerequisValue) {
@@ -214,31 +216,30 @@ export default function PublicInscriptionPage({ params }: { params: Promise<{ co
     setFieldErrors({});
     setSubmitting(true);
     try {
-      const res = await fetch("/api/public/inscriptions", {
+      const data = await apiFetch<{ opcoDetecte: string | null }>("/api/public/inscriptions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: form,
       });
-      const data = await res.json();
-      if (!res.ok) {
-        if (Array.isArray(data.issues)) {
-          const errs: Record<string, string> = {};
-          for (const issue of data.issues) {
-            const path = (issue.path || []).join(".");
-            if (path) errs[path] = issue.message;
-          }
-          setFieldErrors(errs);
-          setError("Merci de corriger les champs en rouge");
-        } else {
-          setError(data.error || "Erreur serveur");
-        }
-        window.scrollTo({ top: 0, behavior: "smooth" });
-        return;
-      }
       setSuccess({ opcoDetecte: data.opcoDetecte });
       window.scrollTo({ top: 0, behavior: "smooth" });
-    } catch {
-      setError("Erreur de connexion");
+    } catch (err) {
+      // Erreurs de validation zod : le serveur renvoie un tableau issues
+      const issues =
+        err instanceof ApiError && typeof err.data === "object" && err.data !== null && "issues" in err.data
+          ? (err.data as { issues?: Array<{ path?: string[]; message: string }> }).issues
+          : undefined;
+      if (Array.isArray(issues)) {
+        const errs: Record<string, string> = {};
+        for (const issue of issues) {
+          const path = (issue.path || []).join(".");
+          if (path) errs[path] = issue.message;
+        }
+        setFieldErrors(errs);
+        setError("Merci de corriger les champs en rouge");
+      } else {
+        setError(apiErrorMessage(err, "Erreur de connexion"));
+      }
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } finally {
       setSubmitting(false);
     }

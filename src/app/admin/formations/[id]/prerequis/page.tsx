@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import type { PrerequisField } from "@/lib/formation-prerequis";
+import { apiFetch, apiErrorMessage, isAbortError, ApiError } from "@/lib/api-client";
 
 interface FormationLite {
   id: string;
@@ -48,8 +49,9 @@ export default function PrerequisEditorPage({ params }: { params: Promise<{ id: 
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
   useEffect(() => {
+    const ac = new AbortController();
     Promise.all([
-      fetch(`/api/admin/formations`).then((r) => r.json()),
+      apiFetch<{ formations?: FormationLite[] }>(`/api/admin/formations`, { signal: ac.signal }),
       // L'API publique résout le schéma (configForm si valide, sinon fallback hardcoded).
       // On l'utilise pour pré-remplir l'éditeur quand le configForm est vide,
       // ce qui permet à l'admin de partir du défaut puis de l'éditer.
@@ -61,17 +63,28 @@ export default function PrerequisEditorPage({ params }: { params: Promise<{ id: 
           return;
         }
         setFormation(found);
-        return fetch(`/api/public/formations/${encodeURIComponent(found.code)}`).then(async (r) => {
-          if (!r.ok) return;
-          const pub = await r.json();
-          const hasCustom =
-            found.configForm && found.configForm.trim() !== "" && found.configForm.trim() !== "{}";
-          setFields(Array.isArray(pub.prerequisSchema) ? pub.prerequisSchema : []);
-          setUsingDefault(!hasCustom);
-        });
+        return apiFetch<{ prerequisSchema?: PrerequisField[] }>(
+          `/api/public/formations/${encodeURIComponent(found.code)}`,
+          { signal: ac.signal }
+        )
+          .then((pub) => {
+            const hasCustom =
+              found.configForm && found.configForm.trim() !== "" && found.configForm.trim() !== "{}";
+            setFields(Array.isArray(pub.prerequisSchema) ? pub.prerequisSchema : []);
+            setUsingDefault(!hasCustom);
+          })
+          .catch((err) => {
+            // Fidèle à l'ancien `if (!r.ok) return;` : une erreur HTTP ici est ignorée
+            if (err instanceof ApiError && err.status !== null) return;
+            throw err;
+          });
       })
-      .catch(() => setError("Erreur de chargement"))
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        setError("Erreur de chargement");
+      })
       .finally(() => setLoading(false));
+    return () => ac.abort();
   }, [id]);
 
   function updateField(index: number, patch: Partial<PrerequisField>) {
@@ -135,21 +148,15 @@ export default function PrerequisEditorPage({ params }: { params: Promise<{ id: 
     setSaving(true);
     try {
       const configForm = JSON.stringify({ prerequis: fields });
-      const res = await fetch("/api/admin/formations", {
+      await apiFetch("/api/admin/formations", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: formation.id, configForm }),
+        body: { id: formation.id, configForm },
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setFeedback({ type: "error", msg: data.error || "Erreur" });
-        return;
-      }
       setFeedback({ type: "success", msg: "Pré-requis enregistrés" });
       setUsingDefault(false);
       setTimeout(() => setFeedback(null), 4000);
-    } catch {
-      setFeedback({ type: "error", msg: "Erreur de connexion" });
+    } catch (err) {
+      setFeedback({ type: "error", msg: apiErrorMessage(err, "Erreur de connexion") });
     } finally {
       setSaving(false);
     }
@@ -160,24 +167,20 @@ export default function PrerequisEditorPage({ params }: { params: Promise<{ id: 
     if (!confirm("Réinitialiser au schéma par défaut de cette formation ? Les questions personnalisées seront perdues.")) return;
     setSaving(true);
     try {
-      const res = await fetch("/api/admin/formations", {
+      await apiFetch("/api/admin/formations", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: formation.id, configForm: "{}" }),
+        body: { id: formation.id, configForm: "{}" },
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setFeedback({ type: "error", msg: data.error || "Erreur" });
-        return;
-      }
       // Recharger le schéma par défaut depuis l'API publique
-      const pub = await fetch(`/api/public/formations/${encodeURIComponent(formation.code)}`).then((r) => r.json());
+      const pub = await apiFetch<{ prerequisSchema?: PrerequisField[] }>(
+        `/api/public/formations/${encodeURIComponent(formation.code)}`
+      );
       setFields(Array.isArray(pub.prerequisSchema) ? pub.prerequisSchema : []);
       setUsingDefault(true);
       setFeedback({ type: "success", msg: "Schéma par défaut restauré" });
       setTimeout(() => setFeedback(null), 4000);
-    } catch {
-      setFeedback({ type: "error", msg: "Erreur de connexion" });
+    } catch (err) {
+      setFeedback({ type: "error", msg: apiErrorMessage(err, "Erreur de connexion") });
     } finally {
       setSaving(false);
     }

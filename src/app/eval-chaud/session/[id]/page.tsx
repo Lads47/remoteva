@@ -5,6 +5,7 @@
 // header centré, sections en cards blanches numérotées, composants RadioCard / YesNoOption / Field.
 
 import { use, useEffect, useState } from "react";
+import { ApiError, apiFetch, apiErrorMessage, isAbortError } from "@/lib/api-client";
 
 type QuestionType =
   | "section_header"
@@ -69,17 +70,15 @@ export default function PublicSurveyPage({ params }: { params: Promise<{ id: str
   const [done, setDone] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/public/satisfaction/session/${id}`)
-      .then(async (r) => {
-        if (!r.ok) {
-          const d = await r.json().catch(() => null);
-          throw new Error(d?.error || "Session introuvable");
-        }
-        return r.json();
+    const ac = new AbortController();
+    apiFetch<SurveyData>(`/api/public/satisfaction/session/${id}`, { signal: ac.signal })
+      .then((d) => setSurvey(d))
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        setLoadError(apiErrorMessage(err, "Session introuvable"));
       })
-      .then((d: SurveyData) => setSurvey(d))
-      .catch((e: Error) => setLoadError(e.message))
       .finally(() => setLoading(false));
+    return () => ac.abort();
   }, [id]);
 
   function setAnswer(name: string, value: string) {
@@ -100,21 +99,19 @@ export default function PublicSurveyPage({ params }: { params: Promise<{ id: str
     setError("");
     setSubmitting(true);
     try {
-      const r = await fetch(`/api/public/satisfaction/session/${id}`, {
+      await apiFetch(`/api/public/satisfaction/session/${id}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ answers }),
+        body: { answers },
       });
-      const d = await r.json().catch(() => null);
-      if (!r.ok) {
-        setError(d?.error || "Échec de l'envoi");
-        window.scrollTo({ top: 0, behavior: "smooth" });
-        return;
-      }
       setDone(true);
       window.scrollTo({ top: 0, behavior: "smooth" });
-    } catch {
-      setError("Erreur réseau");
+    } catch (err) {
+      if (err instanceof ApiError && err.status !== null) {
+        setError(apiErrorMessage(err, "Échec de l'envoi"));
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        setError("Erreur réseau");
+      }
     } finally {
       setSubmitting(false);
     }

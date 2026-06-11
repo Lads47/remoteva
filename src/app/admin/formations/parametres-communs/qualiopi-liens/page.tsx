@@ -8,6 +8,7 @@
 // Affichés en lecture seule sur le dashboard /admin/formations.
 
 import { useEffect, useState } from "react";
+import { apiFetch, apiErrorMessage } from "@/lib/api-client";
 
 export default function QualiopiLiensPage() {
   const [veille, setVeille] = useState("");
@@ -17,14 +18,15 @@ export default function QualiopiLiensPage() {
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
   useEffect(() => {
-    fetch("/api/admin/qualiopi-links")
-      .then((r) => r.json())
+    const ac = new AbortController();
+    apiFetch<{ veille?: string; partenaires?: string }>("/api/admin/qualiopi-links", { signal: ac.signal })
       .then((d) => {
         setVeille(d.veille ?? "");
         setPartenaires(d.partenaires ?? "");
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+    return () => ac.abort();
   }, []);
 
   async function handleSave(e: React.FormEvent) {
@@ -32,20 +34,14 @@ export default function QualiopiLiensPage() {
     setSaving(true);
     setFeedback(null);
     try {
-      const res = await fetch("/api/admin/qualiopi-links", {
+      await apiFetch("/api/admin/qualiopi-links", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ veille, partenaires }),
+        body: { veille, partenaires },
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setFeedback({ type: "error", msg: data.error || "Erreur" });
-        return;
-      }
       setFeedback({ type: "success", msg: "Liens enregistrés ✓" });
       setTimeout(() => setFeedback(null), 4000);
-    } catch {
-      setFeedback({ type: "error", msg: "Erreur de connexion" });
+    } catch (err) {
+      setFeedback({ type: "error", msg: apiErrorMessage(err, "Erreur de connexion") });
     } finally {
       setSaving(false);
     }

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import { ApiError, apiFetch, apiErrorMessage } from "@/lib/api-client";
 
 interface Director {
   id: string;
@@ -47,31 +48,30 @@ function PrestaContent() {
   async function fetchData() {
     try {
       // Fetch parallèle : me + events
-      const [meRes, evRes] = await Promise.all([
-        fetch(`/api/presta/me?token=${encodeURIComponent(token)}`),
-        fetch(`/api/presta/events?token=${encodeURIComponent(token)}`),
+      const [meData, evData] = await Promise.all([
+        apiFetch<{ director?: Director; availableDates?: string[] }>(
+          `/api/presta/me?token=${encodeURIComponent(token)}`
+        ),
+        apiFetch<{ events?: Array<{ id: string; eventId: string; title: string; date: string; directorId: string | null }> }>(
+          `/api/presta/events?token=${encodeURIComponent(token)}`
+        ),
       ]);
 
-      if (meRes.status === 401 || evRes.status === 401) {
-        setError("Lien invalide ou expiré. Contacte les Ateliers du Stream pour recevoir un nouveau lien.");
-        setLoading(false);
-        return;
-      }
-
-      const meData = await meRes.json();
       if (meData.director) {
         setDirector(meData.director);
-        setAvailableDates(new Set((meData.availableDates as string[]).map((d) => isoDateKey(new Date(d)))));
+        setAvailableDates(new Set((meData.availableDates ?? []).map((d) => isoDateKey(new Date(d)))));
       }
 
-      const evData = await evRes.json();
       if (Array.isArray(evData.events)) {
         setEvents(evData.events);
-        setEventDates(new Set((evData.events as Array<{ date: string }>).map((e) => isoDateKey(new Date(e.date)))));
+        setEventDates(new Set(evData.events.map((e) => isoDateKey(new Date(e.date)))));
       }
     } catch (err) {
-      console.error(err);
-      setError("Erreur de connexion. Vérifie ta connexion internet.");
+      if (err instanceof ApiError && err.status === 401) {
+        setError("Lien invalide ou expiré. Contacte les Ateliers du Stream pour recevoir un nouveau lien.");
+      } else {
+        setError(apiErrorMessage(err, "Erreur de connexion. Vérifie ta connexion internet."));
+      }
     } finally {
       setLoading(false);
     }
@@ -107,21 +107,14 @@ function PrestaContent() {
 
     setSavingDate(key);
     try {
-      const res = await fetch("/api/presta/availability", {
+      const data = await apiFetch<{ availableDates: string[]; created?: boolean }>("/api/presta/availability", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, date: dateUTC.toISOString() }),
+        body: { token, date: dateUTC.toISOString() },
       });
-      const data = await res.json();
-      if (!res.ok) {
-        showFeedback(data.error || "Erreur, réessaie");
-        return;
-      }
-      setAvailableDates(new Set((data.availableDates as string[]).map((d) => isoDateKey(new Date(d)))));
+      setAvailableDates(new Set(data.availableDates.map((d) => isoDateKey(new Date(d)))));
       showFeedback(data.created ? "✓ Disponibilité ajoutée" : "Disponibilité retirée");
     } catch (err) {
-      console.error(err);
-      showFeedback("Erreur de connexion");
+      showFeedback(apiErrorMessage(err, "Erreur, réessaie"));
     } finally {
       setSavingDate(null);
     }

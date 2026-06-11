@@ -3,6 +3,7 @@
 import { Suspense, use, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { ApiError, apiFetch, apiErrorMessage, isAbortError } from "@/lib/api-client";
 
 type Slot = "morning" | "afternoon";
 type Status = "present" | "absent" | null;
@@ -67,11 +68,12 @@ function EmargementInner({ id }: { id: string }) {
   const [uploading, setUploading] = useState(false);
   const [uploadDate, setUploadDate] = useState<string>("");
 
-  async function refreshFiles() {
+  async function refreshFiles(signal?: AbortSignal) {
     try {
-      const r = await fetch(`/api/formateur/sessions/${id}/attendance/files?token=${encodeURIComponent(token)}`);
-      if (!r.ok) return;
-      const d = await r.json();
+      const d = await apiFetch<{ files?: SignedFile[] }>(
+        `/api/formateur/sessions/${id}/attendance/files?token=${encodeURIComponent(token)}`,
+        { signal }
+      );
       setFiles(Array.isArray(d.files) ? d.files : []);
     } catch {}
   }
@@ -82,21 +84,22 @@ function EmargementInner({ id }: { id: string }) {
       setLoading(false);
       return;
     }
-    fetch(`/api/formateur/sessions/${id}/attendance?token=${encodeURIComponent(token)}`)
-      .then(async (r) => {
-        if (!r.ok) {
-          const data = await r.json().catch(() => ({}));
-          throw new Error(data.error || "Accès refusé");
-        }
-        return r.json();
-      })
+    const ac = new AbortController();
+    apiFetch<{ grid: Grid; session: { code: string; dateDebut: string; dateFin: string } }>(
+      `/api/formateur/sessions/${id}/attendance?token=${encodeURIComponent(token)}`,
+      { signal: ac.signal }
+    )
       .then((data) => {
         setGrid(data.grid);
         setSessionMeta(data.session);
-        return refreshFiles();
+        return refreshFiles(ac.signal);
       })
-      .catch((err: Error) => setError(err.message))
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        setError(apiErrorMessage(err, "Accès refusé"));
+      })
       .finally(() => setLoading(false));
+    return () => ac.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, token]);
 
@@ -137,23 +140,22 @@ function EmargementInner({ id }: { id: string }) {
       const formData = new FormData();
       formData.append("file", file);
       if (uploadDate) formData.append("date", uploadDate);
-      const res = await fetch(`/api/formateur/sessions/${id}/attendance/files?token=${encodeURIComponent(token)}`, {
+      await apiFetch(`/api/formateur/sessions/${id}/attendance/files?token=${encodeURIComponent(token)}`, {
         method: "POST",
         body: formData,
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setFeedback({ type: "error", msg: data.error || "Échec de l'upload" });
-        setTimeout(() => setFeedback(null), 6000);
-        return;
-      }
       setFeedback({ type: "success", msg: `Fichier "${file.name}" déposé` });
       setTimeout(() => setFeedback(null), 4000);
       setUploadDate("");
       await refreshFiles();
-    } catch {
-      setFeedback({ type: "error", msg: "Erreur de connexion" });
-      setTimeout(() => setFeedback(null), 5000);
+    } catch (err) {
+      if (err instanceof ApiError && err.status !== null) {
+        setFeedback({ type: "error", msg: apiErrorMessage(err, "Échec de l'upload") });
+        setTimeout(() => setFeedback(null), 6000);
+      } else {
+        setFeedback({ type: "error", msg: "Erreur de connexion" });
+        setTimeout(() => setFeedback(null), 5000);
+      }
     } finally {
       setUploading(false);
       // reset input value pour permettre de réuploader le même fichier
@@ -163,11 +165,11 @@ function EmargementInner({ id }: { id: string }) {
 
   async function handleResyncDrive(fileId: string) {
     try {
-      const res = await fetch(`/api/formateur/sessions/${id}/attendance/files/${fileId}/resync-drive?token=${encodeURIComponent(token)}`, {
-        method: "POST",
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
+      const data = await apiFetch<{ success?: boolean; error?: string }>(
+        `/api/formateur/sessions/${id}/attendance/files/${fileId}/resync-drive?token=${encodeURIComponent(token)}`,
+        { method: "POST" }
+      );
+      if (!data.success) {
         setFeedback({ type: "error", msg: data.error || "Échec re-sync Drive" });
         setTimeout(() => setFeedback(null), 6000);
         await refreshFiles();
@@ -176,7 +178,13 @@ function EmargementInner({ id }: { id: string }) {
       setFeedback({ type: "success", msg: "Fichier synchronisé sur Drive ✓" });
       setTimeout(() => setFeedback(null), 4000);
       await refreshFiles();
-    } catch {
+    } catch (err) {
+      if (err instanceof ApiError && err.status !== null) {
+        setFeedback({ type: "error", msg: apiErrorMessage(err, "Échec re-sync Drive") });
+        setTimeout(() => setFeedback(null), 6000);
+        await refreshFiles();
+        return;
+      }
       setFeedback({ type: "error", msg: "Erreur de connexion" });
       setTimeout(() => setFeedback(null), 5000);
     }
@@ -185,17 +193,13 @@ function EmargementInner({ id }: { id: string }) {
   async function handleDeleteFile(fileId: string, filename: string) {
     if (!confirm(`Supprimer définitivement le fichier "${filename}" ?`)) return;
     try {
-      const res = await fetch(`/api/formateur/sessions/${id}/attendance/files/${fileId}?token=${encodeURIComponent(token)}`, {
+      await apiFetch(`/api/formateur/sessions/${id}/attendance/files/${fileId}?token=${encodeURIComponent(token)}`, {
         method: "DELETE",
       });
-      if (!res.ok) {
-        setFeedback({ type: "error", msg: "Échec de la suppression" });
-        setTimeout(() => setFeedback(null), 5000);
-        return;
-      }
       await refreshFiles();
-    } catch {
-      setFeedback({ type: "error", msg: "Erreur de connexion" });
+    } catch (err) {
+      const isHttpError = err instanceof ApiError && err.status !== null;
+      setFeedback({ type: "error", msg: isHttpError ? "Échec de la suppression" : "Erreur de connexion" });
       setTimeout(() => setFeedback(null), 5000);
     }
   }
@@ -208,22 +212,22 @@ function EmargementInner({ id }: { id: string }) {
         const [traineeId, date, slot] = key.split("_");
         return { traineeId, date, slot: slot as Slot, status };
       });
-      const res = await fetch(`/api/formateur/sessions/${id}/attendance?token=${encodeURIComponent(token)}`, {
+      const data = await apiFetch<{
+        updated: number;
+        deleted: number;
+        transitionedToEnFormation?: unknown[];
+      }>(`/api/formateur/sessions/${id}/attendance?token=${encodeURIComponent(token)}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ updates }),
+        body: { updates },
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setFeedback({ type: "error", msg: data.error || "Erreur" });
-        setTimeout(() => setFeedback(null), 5000);
-        return;
-      }
       // Recharger la grille pour avoir les valeurs serveur
-      const refresh = await fetch(`/api/formateur/sessions/${id}/attendance?token=${encodeURIComponent(token)}`);
-      if (refresh.ok) {
-        const refreshed = await refresh.json();
+      try {
+        const refreshed = await apiFetch<{ grid: Grid }>(
+          `/api/formateur/sessions/${id}/attendance?token=${encodeURIComponent(token)}`
+        );
         setGrid(refreshed.grid);
+      } catch {
+        // rechargement best-effort : on garde la grille actuelle
       }
       setPending({});
       setDirty(false);
@@ -237,8 +241,8 @@ function EmargementInner({ id }: { id: string }) {
         : "";
       setFeedback({ type: "success", msg: `Enregistré (${data.updated} maj, ${data.deleted} suppr.)${transitionNote}` });
       setTimeout(() => setFeedback(null), 5000);
-    } catch {
-      setFeedback({ type: "error", msg: "Erreur de connexion" });
+    } catch (err) {
+      setFeedback({ type: "error", msg: apiErrorMessage(err, "Erreur de connexion") });
       setTimeout(() => setFeedback(null), 5000);
     } finally {
       setSaving(false);

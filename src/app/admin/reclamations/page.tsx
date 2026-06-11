@@ -5,6 +5,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { apiFetch, apiErrorMessage, isAbortError } from "@/lib/api-client";
 
 type ComplaintStatus = "new" | "in_progress" | "resolved" | "closed";
 
@@ -62,24 +63,27 @@ export default function ReclamationsListPage() {
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<ComplaintStatus | "all">("all");
 
-  function load() {
+  function load(signal?: AbortSignal) {
     setLoading(true);
     const url = filter === "all"
       ? "/api/admin/reclamations"
       : `/api/admin/reclamations?status=${filter}`;
-    fetch(url)
-      .then(async (r) => {
-        if (!r.ok) throw new Error((await r.json()).error || "Erreur");
-        return r.json();
-      })
+    apiFetch<{ complaints: Complaint[]; stats: Stats }>(url, { signal })
       .then((d) => {
         setComplaints(d.complaints);
         setStats(d.stats);
       })
-      .catch((e: Error) => setError(e.message))
+      .catch((e) => {
+        if (isAbortError(e)) return;
+        setError(apiErrorMessage(e, "Erreur"));
+      })
       .finally(() => setLoading(false));
   }
-  useEffect(load, [filter]);
+  useEffect(() => {
+    const ac = new AbortController();
+    load(ac.signal);
+    return () => ac.abort();
+  }, [filter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading && !stats) {
     return <div className="text-center py-12 font-jetbrains text-sm" style={{ color: "#727485" }}>Chargement...</div>;

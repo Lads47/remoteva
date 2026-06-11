@@ -7,6 +7,7 @@ import {
   EVA_STATUS_COLORS,
   type EvaStatus,
 } from "@/lib/appConfig-types";
+import { apiFetch, apiErrorMessage } from "@/lib/api-client";
 
 interface Props {
   traineeId: string;
@@ -56,16 +57,14 @@ export default function TraineeStatusDropdown({
 
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/trainees/${traineeId}/status`, {
+      const data = await apiFetch<{
+        sellsySynced?: boolean;
+        sellsyError?: string | null;
+        endOfTrainingTriggered?: { emailSent?: boolean; error?: string; skipped?: boolean } | null;
+      }>(`/api/admin/trainees/${traineeId}/status`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
+        body: { status: newStatus },
       });
-      const data = await res.json();
-      if (!res.ok) {
-        onFeedback?.({ type: "error", text: data.error || "Erreur" });
-        return;
-      }
       const sellsyNote = data.sellsySynced
         ? " · Sellsy synchronisé ✓"
         : data.sellsyError
@@ -73,10 +72,7 @@ export default function TraineeStatusDropdown({
         : "";
       // Auto-trigger fin de formation (statut → "termine") : feedback dédié
       let endOfTrainingNote = "";
-      const eot = data.endOfTrainingTriggered as
-        | { emailSent?: boolean; error?: string; skipped?: boolean }
-        | null
-        | undefined;
+      const eot = data.endOfTrainingTriggered;
       if (eot) {
         if (eot.skipped) endOfTrainingNote = " · Documents fin de formation déjà envoyés (skip)";
         else if (eot.emailSent) endOfTrainingNote = " · Certificat + attestation envoyés par mail ✓";
@@ -91,8 +87,8 @@ export default function TraineeStatusDropdown({
         sellsySynced: !!data.sellsySynced,
         sellsyError: data.sellsyError ?? null,
       });
-    } catch {
-      onFeedback?.({ type: "error", text: "Erreur de connexion" });
+    } catch (err) {
+      onFeedback?.({ type: "error", text: apiErrorMessage(err, "Erreur de connexion") });
     } finally {
       setLoading(false);
     }

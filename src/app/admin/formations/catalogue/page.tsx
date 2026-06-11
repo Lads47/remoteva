@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { apiFetch, apiErrorMessage, isAbortError } from "@/lib/api-client";
 
 interface Formation {
   id: string;
@@ -80,15 +81,17 @@ export default function FormationsPage() {
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   useEffect(() => {
-    fetchFormations();
+    const ac = new AbortController();
+    fetchFormations(ac.signal);
+    return () => ac.abort();
   }, []);
 
-  async function fetchFormations() {
+  async function fetchFormations(signal?: AbortSignal) {
     try {
-      const res = await fetch("/api/admin/formations");
-      const data = await res.json();
+      const data = await apiFetch<{ formations?: Formation[] }>("/api/admin/formations", { signal });
       if (Array.isArray(data.formations)) setFormations(data.formations);
     } catch (err) {
+      if (isAbortError(err)) return;
       console.error(err);
     } finally {
       setLoading(false);
@@ -149,16 +152,7 @@ export default function FormationsPage() {
       const payload = fromFormState(form);
       const method = editingId ? "PUT" : "POST";
       const body = editingId ? { id: editingId, ...payload } : payload;
-      const res = await fetch("/api/admin/formations", {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Erreur");
-        return;
-      }
+      await apiFetch("/api/admin/formations", { method, body });
       setFeedback({ type: "success", msg: editingId ? "Formation mise à jour" : "Formation créée" });
       setForm(EMPTY_FORM);
       setEditingId(null);
@@ -167,7 +161,7 @@ export default function FormationsPage() {
       setTimeout(() => setFeedback(null), 4000);
     } catch (err) {
       console.error(err);
-      setError("Erreur connexion");
+      setError(apiErrorMessage(err, "Erreur connexion"));
     } finally {
       setSaving(false);
     }
@@ -183,18 +177,14 @@ export default function FormationsPage() {
   async function handleDelete(id: string) {
     if (!confirm("Supprimer cette formation ? (Impossible si des sessions existent)")) return;
     try {
-      const res = await fetch(`/api/admin/formations?id=${id}`, { method: "DELETE" });
-      const data = await res.json();
-      if (!res.ok) {
-        setFeedback({ type: "error", msg: data.error || "Erreur suppression" });
-        setTimeout(() => setFeedback(null), 5000);
-        return;
-      }
+      await apiFetch(`/api/admin/formations?id=${id}`, { method: "DELETE" });
       setFeedback({ type: "success", msg: "Formation supprimée" });
       await fetchFormations();
       setTimeout(() => setFeedback(null), 3000);
     } catch (err) {
       console.error(err);
+      setFeedback({ type: "error", msg: apiErrorMessage(err, "Erreur suppression") });
+      setTimeout(() => setFeedback(null), 5000);
     }
   }
 
@@ -208,17 +198,7 @@ export default function FormationsPage() {
     const action = f.active ? "archiver" : "réactiver";
     if (!confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} la formation « ${f.nomLong} » ?`)) return;
     try {
-      const res = await fetch("/api/admin/formations", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: f.id, active: !f.active }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setFeedback({ type: "error", msg: data.error || "Erreur" });
-        setTimeout(() => setFeedback(null), 5000);
-        return;
-      }
+      await apiFetch("/api/admin/formations", { method: "PUT", body: { id: f.id, active: !f.active } });
       setFeedback({
         type: "success",
         msg: f.active ? "Formation archivée" : "Formation réactivée",
@@ -227,6 +207,8 @@ export default function FormationsPage() {
       setTimeout(() => setFeedback(null), 3000);
     } catch (err) {
       console.error(err);
+      setFeedback({ type: "error", msg: apiErrorMessage(err, "Erreur") });
+      setTimeout(() => setFeedback(null), 5000);
     }
   }
 

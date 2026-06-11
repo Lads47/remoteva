@@ -8,6 +8,7 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
+import { apiFetch, isAbortError } from "@/lib/api-client";
 
 interface Exercise {
   id: string;
@@ -30,9 +31,10 @@ export default function EvaluationGridPrintPage({ params }: { params: Promise<{ 
   const [error, setError] = useState("");
 
   useEffect(() => {
+    const ac = new AbortController();
     Promise.all([
-      fetch(`/api/admin/formations`).then((r) => r.json()),
-      fetch(`/api/admin/formations/${id}/exercises`).then((r) => r.json()),
+      apiFetch<{ formations?: FormationLite[] }>(`/api/admin/formations`, { signal: ac.signal }),
+      apiFetch<{ exercises?: Exercise[] }>(`/api/admin/formations/${id}/exercises`, { signal: ac.signal }),
     ])
       .then(([fs, ex]) => {
         const found = (fs.formations || []).find((f: FormationLite) => f.id === id);
@@ -40,8 +42,12 @@ export default function EvaluationGridPrintPage({ params }: { params: Promise<{ 
         setFormation(found);
         setExercises((ex.exercises || []).filter((e: Exercise) => e.active));
       })
-      .catch(() => setError("Erreur de chargement"))
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        setError("Erreur de chargement");
+      })
       .finally(() => setLoading(false));
+    return () => ac.abort();
   }, [id]);
 
   if (loading) return <div className="p-12 text-center font-jetbrains text-sm" style={{ color: "#727485" }}>Chargement...</div>;

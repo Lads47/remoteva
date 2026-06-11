@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { AccessLinkInfo, NewsletterConfig, Conference } from "@/lib/services";
+import { apiFetch, apiErrorMessage } from "@/lib/api-client";
 
 interface Props {
   link: AccessLinkInfo;
@@ -99,21 +100,18 @@ export default function NewsletterService({ link }: Props) {
 
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`/api/events/${slug}/sync`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.conferences) {
-            // Vérifier s'il y a de nouvelles données
-            const hasNewData = data.conferences.some(
-              (c: { id: number; has_summary_ia: boolean }) => {
-                const current = conferences.find((cc) => cc.id === c.id);
-                return current && !current.summary_ia && c.has_summary_ia;
-              }
-            );
-            if (hasNewData) {
-              // Recharger la page pour avoir les données fraîches
-              window.location.reload();
-            }
+        const data = await apiFetch<{ conferences?: { id: number; has_summary_ia: boolean }[] }>(
+          `/api/events/${slug}/sync`
+        );
+        if (data.conferences) {
+          // Vérifier s'il y a de nouvelles données
+          const hasNewData = data.conferences.some((c) => {
+            const current = conferences.find((cc) => cc.id === c.id);
+            return current && !current.summary_ia && c.has_summary_ia;
+          });
+          if (hasNewData) {
+            // Recharger la page pour avoir les données fraîches
+            window.location.reload();
           }
         }
       } catch {
@@ -139,23 +137,19 @@ export default function NewsletterService({ link }: Props) {
 
     try {
       // 1. Valider le texte via l'API newsletter
-      const response = await fetch("/api/services/newsletter", {
+      const result = await apiFetch<{
+        all_validated?: boolean;
+        validated_count: number;
+        total_count: number;
+      }>("/api/services/newsletter", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: {
           slug,
           action: "validate_conference",
           conference_id: conferenceId,
           summary: text,
-        }),
+        },
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Erreur lors de la sauvegarde");
-      }
-
-      const result = await response.json();
 
       // 2. Upload de la photo si sélectionnée
       const fileInput = fileInputRefs.current[conferenceId];
@@ -165,14 +159,10 @@ export default function NewsletterService({ link }: Props) {
         formData.append("slug", slug);
         formData.append("conference_id", String(conferenceId));
 
-        const photoResponse = await fetch("/api/services/newsletter/upload-photo", {
+        await apiFetch("/api/services/newsletter/upload-photo", {
           method: "POST",
           body: formData,
         });
-
-        if (!photoResponse.ok) {
-          throw new Error("Erreur lors de l'upload de l'image");
-        }
 
         // Reset le file input
         fileInput.value = "";
@@ -202,7 +192,7 @@ export default function NewsletterService({ link }: Props) {
         );
       }
     } catch (error) {
-      alert("Erreur : " + (error as Error).message);
+      alert("Erreur : " + apiErrorMessage(error, "Erreur lors de la sauvegarde"));
     } finally {
       setSavingId(null);
     }
@@ -212,18 +202,15 @@ export default function NewsletterService({ link }: Props) {
   const saveSpeakerMapping = async (conferenceId: number) => {
     setSavingMapping(conferenceId);
     try {
-      const response = await fetch("/api/services/newsletter", {
+      await apiFetch("/api/services/newsletter", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: {
           slug,
           action: "save_speaker_mapping",
           conference_id: conferenceId,
           speaker_mapping_override: speakerMappings[conferenceId] || {},
-        }),
+        },
       });
-
-      if (!response.ok) throw new Error("Erreur sauvegarde mapping");
 
       // Feedback visuel
       setMappingSaved(conferenceId);
@@ -238,7 +225,7 @@ export default function NewsletterService({ link }: Props) {
         )
       );
     } catch (error) {
-      alert("Erreur : " + (error as Error).message);
+      alert("Erreur : " + apiErrorMessage(error, "Erreur sauvegarde mapping"));
     } finally {
       setSavingMapping(null);
     }
@@ -248,17 +235,12 @@ export default function NewsletterService({ link }: Props) {
   const loadTemplates = async () => {
     setLoadingTemplates(true);
     try {
-      const response = await fetch("/api/services/newsletter", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slug, action: "list_templates" }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.templates.length > 0) {
-          setTemplates(data.templates);
-        }
+      const data = await apiFetch<{ success?: boolean; templates?: Template[] }>(
+        "/api/services/newsletter",
+        { method: "POST", body: { slug, action: "list_templates" } }
+      );
+      if (data.success && data.templates && data.templates.length > 0) {
+        setTemplates(data.templates);
       }
     } catch {
       // Templates non disponibles, on garde le défaut
@@ -283,19 +265,20 @@ export default function NewsletterService({ link }: Props) {
     setNewsletterStatus({ type: "info", message: "Génération en cours..." });
 
     try {
-      const response = await fetch("/api/services/newsletter", {
+      const result = await apiFetch<{
+        success?: boolean;
+        error?: string;
+        conferences_count?: number;
+      }>("/api/services/newsletter", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: {
           slug,
           action: "generate",
           email: newsletterEmail,
           template_name: selectedTemplate,
           custom_text: selectedTemplate.includes("custom") ? customText : undefined,
-        }),
+        },
       });
-
-      const result = await response.json();
 
       if (result.success) {
         setNewsletterStatus({
@@ -315,10 +298,10 @@ export default function NewsletterService({ link }: Props) {
         });
         setGenerating(false);
       }
-    } catch {
+    } catch (err) {
       setNewsletterStatus({
         type: "danger",
-        message: "Erreur de connexion au serveur",
+        message: apiErrorMessage(err, "Erreur de connexion au serveur"),
       });
       setGenerating(false);
     }

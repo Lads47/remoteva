@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { apiFetch, apiErrorMessage } from "@/lib/api-client";
 
 interface Trainer {
   id: string;
@@ -75,8 +76,7 @@ export default function TrainersPage() {
 
   async function fetchTrainers() {
     try {
-      const res = await fetch("/api/admin/trainers");
-      const data = await res.json();
+      const data = await apiFetch<{ trainers?: Trainer[] }>("/api/admin/trainers");
       if (Array.isArray(data.trainers)) setTrainers(data.trainers);
     } catch (err) {
       console.error(err);
@@ -92,16 +92,10 @@ export default function TrainersPage() {
     try {
       const method = editingId ? "PUT" : "POST";
       const body = editingId ? { id: editingId, ...form } : form;
-      const res = await fetch("/api/admin/trainers", {
+      const data = await apiFetch<{ emailSent?: boolean; emailError?: string }>("/api/admin/trainers", {
         method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body,
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Erreur");
-        return;
-      }
       if (!editingId) {
         if (data.emailSent) {
           setFeedback({ type: "success", msg: `Magic link envoyé à ${form.email}` });
@@ -120,8 +114,7 @@ export default function TrainersPage() {
       await fetchTrainers();
       setTimeout(() => setFeedback(null), 5000);
     } catch (err) {
-      console.error(err);
-      setError("Erreur connexion");
+      setError(apiErrorMessage(err, "Erreur connexion"));
     } finally {
       setSaving(false);
     }
@@ -150,12 +143,10 @@ export default function TrainersPage() {
 
   async function handleToggleActive(t: Trainer) {
     try {
-      const res = await fetch("/api/admin/trainers", {
+      await apiFetch("/api/admin/trainers", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: t.id, active: !t.active }),
+        body: { id: t.id, active: !t.active },
       });
-      if (!res.ok) return;
       await fetchTrainers();
     } catch (err) {
       console.error(err);
@@ -167,13 +158,10 @@ export default function TrainersPage() {
       return;
     }
     try {
-      const res = await fetch(`/api/admin/trainers/${t.id}/regenerate-token`, { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) {
-        setFeedback({ type: "error", msg: data.error || "Erreur" });
-        setTimeout(() => setFeedback(null), 5000);
-        return;
-      }
+      const data = await apiFetch<{ emailSent?: boolean; emailError?: string }>(
+        `/api/admin/trainers/${t.id}/regenerate-token`,
+        { method: "POST" }
+      );
       setFeedback({
         type: data.emailSent ? "success" : "warning",
         msg: data.emailSent
@@ -182,8 +170,9 @@ export default function TrainersPage() {
       });
       await fetchTrainers();
       setTimeout(() => setFeedback(null), 5000);
-    } catch {
-      setFeedback({ type: "error", msg: "Erreur de connexion" });
+    } catch (err) {
+      setFeedback({ type: "error", msg: apiErrorMessage(err, "Erreur de connexion") });
+      setTimeout(() => setFeedback(null), 5000);
     }
   }
 
@@ -196,18 +185,13 @@ export default function TrainersPage() {
       if (!confirm(`Supprimer définitivement ${t.prenom} ${t.nom} ?`)) return;
     }
     try {
-      const res = await fetch(`/api/admin/trainers?id=${t.id}`, { method: "DELETE" });
-      const data = await res.json();
-      if (!res.ok) {
-        setFeedback({ type: "error", msg: data.error || "Erreur" });
-        setTimeout(() => setFeedback(null), 5000);
-        return;
-      }
+      await apiFetch(`/api/admin/trainers?id=${t.id}`, { method: "DELETE" });
       setFeedback({ type: "success", msg: "Formateur supprimé" });
       await fetchTrainers();
       setTimeout(() => setFeedback(null), 3000);
-    } catch {
-      setFeedback({ type: "error", msg: "Erreur de connexion" });
+    } catch (err) {
+      setFeedback({ type: "error", msg: apiErrorMessage(err, "Erreur de connexion") });
+      setTimeout(() => setFeedback(null), 5000);
     }
   }
 

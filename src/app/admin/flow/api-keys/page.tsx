@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { apiFetch, apiErrorMessage, isAbortError } from "@/lib/api-client";
 
 interface ApiKey {
   id: string;
@@ -23,14 +24,18 @@ export default function ApiKeysPage() {
   const [revealedPlaintext, setRevealedPlaintext] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  useEffect(() => { fetchKeys(); }, []);
+  useEffect(() => {
+    const ac = new AbortController();
+    fetchKeys(ac.signal);
+    return () => ac.abort();
+  }, []);
 
-  async function fetchKeys() {
+  async function fetchKeys(signal?: AbortSignal) {
     try {
-      const res = await fetch("/api/admin/api-keys");
-      const data = await res.json();
+      const data = await apiFetch<{ apiKeys?: ApiKey[] }>("/api/admin/api-keys", { signal });
       if (Array.isArray(data.apiKeys)) setKeys(data.apiKeys);
     } catch (err) {
+      if (isAbortError(err)) return;
       console.error(err);
     } finally {
       setLoading(false);
@@ -45,16 +50,10 @@ export default function ApiKeysPage() {
       const body: Record<string, unknown> = { name: newKeyName };
       if (newKeyExpires) body.expiresAt = new Date(newKeyExpires).toISOString();
 
-      const res = await fetch("/api/admin/api-keys", {
+      const data = await apiFetch<{ plaintext: string }>("/api/admin/api-keys", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body,
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Erreur");
-        return;
-      }
       // Reveal plaintext UNE SEULE FOIS
       setRevealedPlaintext(data.plaintext);
       setNewKeyName("");
@@ -63,7 +62,7 @@ export default function ApiKeysPage() {
       await fetchKeys();
     } catch (err) {
       console.error(err);
-      setError("Erreur connexion");
+      setError(apiErrorMessage(err, "Erreur connexion"));
     } finally {
       setCreating(false);
     }
@@ -72,8 +71,8 @@ export default function ApiKeysPage() {
   async function handleRevoke(id: string, name: string) {
     if (!confirm(`Révoquer la clé "${name}" ? Les machines qui l'utilisent perdront immédiatement l'accès.`)) return;
     try {
-      const res = await fetch(`/api/admin/api-keys?id=${id}`, { method: "DELETE" });
-      if (res.ok) await fetchKeys();
+      await apiFetch(`/api/admin/api-keys?id=${id}`, { method: "DELETE" });
+      await fetchKeys();
     } catch (err) {
       console.error(err);
     }

@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { apiFetch, apiErrorMessage, isAbortError } from "@/lib/api-client";
 
 interface TraineeDetail {
   id: string;
@@ -53,17 +54,15 @@ export default function TraineeEditPage({ params }: { params: Promise<{ id: stri
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
   useEffect(() => {
-    fetch(`/api/admin/trainees/${id}`)
-      .then(async (res) => {
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.error || "Stagiaire introuvable");
-        }
-        return res.json();
-      })
+    const ac = new AbortController();
+    apiFetch<{ trainee: TraineeDetail }>(`/api/admin/trainees/${id}`, { signal: ac.signal })
       .then((data) => setTrainee(data.trainee))
-      .catch((err: Error) => setError(err.message))
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        setError(apiErrorMessage(err, "Stagiaire introuvable"));
+      })
       .finally(() => setLoading(false));
+    return () => ac.abort();
   }, [id]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -89,20 +88,11 @@ export default function TraineeEditPage({ params }: { params: Promise<{ id: stri
         besoinsAdaptation: trainee.besoinsAdaptation,
         attentes: trainee.attentes,
       };
-      const res = await fetch(`/api/admin/trainees/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Erreur");
-        return;
-      }
+      await apiFetch(`/api/admin/trainees/${id}`, { method: "PUT", body: payload });
       setFeedback({ type: "success", msg: "Fiche mise à jour" });
       setTimeout(() => router.push(`/admin/formations/trainees/${id}`), 800);
-    } catch {
-      setError("Erreur de connexion");
+    } catch (err) {
+      setError(apiErrorMessage(err, "Erreur de connexion"));
     } finally {
       setSaving(false);
     }

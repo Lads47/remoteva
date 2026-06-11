@@ -6,6 +6,7 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
+import { apiFetch, apiErrorMessage, isAbortError } from "@/lib/api-client";
 
 type ComplaintStatus = "new" | "in_progress" | "resolved" | "closed";
 
@@ -72,15 +73,11 @@ export default function ReclamationDetailPage({ params }: { params: Promise<{ id
   const [adminNotes, setAdminNotes] = useState("");
   const [resolvedBy, setResolvedBy] = useState("");
 
-  function load() {
+  function load(signal?: AbortSignal) {
     setLoading(true);
-    fetch(`/api/admin/reclamations/${id}`)
-      .then(async (r) => {
-        if (!r.ok) throw new Error((await r.json()).error || "Erreur");
-        return r.json();
-      })
+    apiFetch<{ complaint: Complaint }>(`/api/admin/reclamations/${id}`, { signal })
       .then((d) => {
-        const complaint = d.complaint as Complaint;
+        const complaint = d.complaint;
         setC(complaint);
         setStatus(complaint.status);
         setResponseType(complaint.responseType);
@@ -89,38 +86,39 @@ export default function ReclamationDetailPage({ params }: { params: Promise<{ id
         setAdminNotes(complaint.adminNotes);
         setResolvedBy(complaint.resolvedBy);
       })
-      .catch((e: Error) => setError(e.message))
+      .catch((e) => {
+        if (isAbortError(e)) return;
+        setError(apiErrorMessage(e, "Erreur"));
+      })
       .finally(() => setLoading(false));
   }
-  useEffect(load, [id]);
+  useEffect(() => {
+    const ac = new AbortController();
+    load(ac.signal);
+    return () => ac.abort();
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSave() {
     if (saving) return;
     setSaving(true);
     setFeedback(null);
     try {
-      const r = await fetch(`/api/admin/reclamations/${id}`, {
+      const d = await apiFetch<{ complaint: Complaint }>(`/api/admin/reclamations/${id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: {
           status,
           responseType,
           responseContent,
           actionCorrective,
           adminNotes,
           resolvedBy,
-        }),
+        },
       });
-      const d = await r.json();
-      if (!r.ok) {
-        setFeedback({ type: "error", msg: d.error || "Erreur" });
-        return;
-      }
       setC(d.complaint);
       setFeedback({ type: "success", msg: "Modifications enregistrées ✓" });
       setTimeout(() => setFeedback(null), 4000);
-    } catch {
-      setFeedback({ type: "error", msg: "Erreur réseau" });
+    } catch (err) {
+      setFeedback({ type: "error", msg: apiErrorMessage(err, "Erreur réseau") });
     } finally {
       setSaving(false);
     }
@@ -137,14 +135,15 @@ export default function ReclamationDetailPage({ params }: { params: Promise<{ id
     setFeedback(null);
     try {
       // Sauvegarde d'abord les modifs locales (au cas où l'admin a édité sans cliquer Enregistrer)
-      await fetch(`/api/admin/reclamations/${id}`, {
+      await apiFetch(`/api/admin/reclamations/${id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ responseType, responseContent, actionCorrective, adminNotes, resolvedBy }),
+        body: { responseType, responseContent, actionCorrective, adminNotes, resolvedBy },
       });
-      const r = await fetch(`/api/admin/reclamations/${id}/send-response`, { method: "POST" });
-      const d = await r.json();
-      if (!r.ok || !d.success) {
+      const d = await apiFetch<{ success?: boolean; error?: string; complaint?: Complaint }>(
+        `/api/admin/reclamations/${id}/send-response`,
+        { method: "POST" }
+      );
+      if (!d.success || !d.complaint) {
         setFeedback({ type: "error", msg: d.error || "Échec d'envoi" });
         return;
       }
@@ -152,8 +151,8 @@ export default function ReclamationDetailPage({ params }: { params: Promise<{ id
       setStatus(d.complaint.status);
       setFeedback({ type: "success", msg: `Réponse envoyée à ${c?.authorEmail} ✓` });
       setTimeout(() => setFeedback(null), 5000);
-    } catch {
-      setFeedback({ type: "error", msg: "Erreur réseau" });
+    } catch (err) {
+      setFeedback({ type: "error", msg: apiErrorMessage(err, "Erreur réseau") });
     } finally {
       setSending(false);
     }

@@ -9,6 +9,7 @@
 // son interface (qui elle est protégée par magic token).
 
 import { use, useEffect, useState } from "react";
+import { apiFetch, apiErrorMessage, isAbortError } from "@/lib/api-client";
 
 interface SurveyMeta {
   session: { id: string; code: string; dateDebut: string; dateFin: string };
@@ -27,16 +28,14 @@ export default function PresentationPage({ params }: { params: Promise<{ id: str
 
   useEffect(() => {
     setSurveyUrl(`${window.location.origin}/eval-chaud/session/${id}`);
-    fetch(`/api/public/satisfaction/session/${id}`)
-      .then(async (r) => {
-        if (!r.ok) {
-          const d = await r.json().catch(() => null);
-          throw new Error(d?.error || "Session introuvable");
-        }
-        return r.json();
-      })
-      .then((d: SurveyMeta) => setMeta(d))
-      .catch((e: Error) => setError(e.message));
+    const ac = new AbortController();
+    apiFetch<SurveyMeta>(`/api/public/satisfaction/session/${id}`, { signal: ac.signal })
+      .then((d) => setMeta(d))
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        setError(apiErrorMessage(err, "Session introuvable"));
+      });
+    return () => ac.abort();
   }, [id]);
 
   if (error) {

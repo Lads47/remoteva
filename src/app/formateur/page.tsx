@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { apiFetch, apiErrorMessage, isAbortError } from "@/lib/api-client";
 
 interface Trainer {
   id: string;
@@ -53,20 +54,21 @@ function FormateurHomeInner() {
       setLoading(false);
       return;
     }
-    fetch(`/api/formateur/me?token=${encodeURIComponent(token)}`)
-      .then(async (res) => {
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.error || "Accès refusé");
-        }
-        return res.json();
-      })
+    const ac = new AbortController();
+    apiFetch<{ trainer: Trainer; sessions?: TrainerSession[] }>(
+      `/api/formateur/me?token=${encodeURIComponent(token)}`,
+      { signal: ac.signal }
+    )
       .then((data) => {
         setTrainer(data.trainer);
         setSessions(Array.isArray(data.sessions) ? data.sessions : []);
       })
-      .catch((err: Error) => setError(err.message))
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        setError(apiErrorMessage(err, "Accès refusé"));
+      })
       .finally(() => setLoading(false));
+    return () => ac.abort();
   }, [token]);
 
   if (loading) {

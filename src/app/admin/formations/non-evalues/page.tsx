@@ -15,6 +15,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { apiFetch, isAbortError } from "@/lib/api-client";
 
 interface NonEvalueeTrainee {
   id: string;
@@ -49,11 +50,15 @@ export default function NonEvaluesPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/admin/formations/non-evalues")
-      .then((r) => r.json())
+    const ac = new AbortController();
+    apiFetch<{ trainees?: NonEvalueeTrainee[] }>("/api/admin/formations/non-evalues", { signal: ac.signal })
       .then((d) => setList(Array.isArray(d.trainees) ? d.trainees : []))
-      .catch(() => setList([]))
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        setList([]);
+      })
       .finally(() => setLoading(false));
+    return () => ac.abort();
   }, []);
 
   return (

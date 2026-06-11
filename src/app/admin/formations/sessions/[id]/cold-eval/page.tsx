@@ -6,6 +6,7 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
+import { apiFetch, apiErrorMessage, isAbortError } from "@/lib/api-client";
 
 interface Question {
   name: string;
@@ -60,18 +61,21 @@ export default function ColdEvalSessionAdminPage({ params }: { params: Promise<{
   const [archiving, setArchiving] = useState(false);
   const [pdfFeedback, setPdfFeedback] = useState<{ type: "success" | "error"; msg: string; url?: string } | null>(null);
 
-  function load() {
+  function load(signal?: AbortSignal) {
     setLoading(true);
-    fetch(`/api/admin/sessions/${id}/cold-eval`)
-      .then(async (r) => {
-        if (!r.ok) throw new Error((await r.json()).error || "Erreur");
-        return r.json();
-      })
+    apiFetch<Synthesis>(`/api/admin/sessions/${id}/cold-eval`, { signal })
       .then(setData)
-      .catch((e: Error) => setError(e.message))
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        setError(apiErrorMessage(err, "Erreur"));
+      })
       .finally(() => setLoading(false));
   }
-  useEffect(load, [id]);
+  useEffect(() => {
+    const ac = new AbortController();
+    load(ac.signal);
+    return () => ac.abort();
+  }, [id]);
 
   async function sendInitial(traineeId?: string) {
     if (!confirm(traineeId
@@ -81,20 +85,14 @@ export default function ColdEvalSessionAdminPage({ params }: { params: Promise<{
     setActing(traineeId || "all");
     setFeedback(null);
     try {
-      const r = await fetch(`/api/admin/sessions/${id}/cold-eval/resend`, {
+      const d = await apiFetch<{ sent: number; total: number }>(`/api/admin/sessions/${id}/cold-eval/resend`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "send_initial", traineeId: traineeId ?? null }),
+        body: { mode: "send_initial", traineeId: traineeId ?? null },
       });
-      const d = await r.json();
-      if (!r.ok) {
-        setFeedback({ type: "error", msg: d.error || "Échec" });
-      } else {
-        setFeedback({ type: "success", msg: `✓ ${d.sent}/${d.total} mail(s) envoyé(s)` });
-        load();
-      }
-    } catch {
-      setFeedback({ type: "error", msg: "Erreur réseau" });
+      setFeedback({ type: "success", msg: `✓ ${d.sent}/${d.total} mail(s) envoyé(s)` });
+      load();
+    } catch (err) {
+      setFeedback({ type: "error", msg: apiErrorMessage(err, "Erreur réseau") });
     } finally {
       setActing(null);
     }
@@ -105,19 +103,14 @@ export default function ColdEvalSessionAdminPage({ params }: { params: Promise<{
     setArchiving(true);
     setPdfFeedback(null);
     try {
-      const r = await fetch(`/api/admin/sessions/${id}/cold-eval`, { method: "POST" });
-      const d = await r.json();
-      if (!r.ok) {
-        setPdfFeedback({ type: "error", msg: d.error || "Échec" });
-        return;
-      }
+      const d = await apiFetch<{ driveWebUrl?: string }>(`/api/admin/sessions/${id}/cold-eval`, { method: "POST" });
       setPdfFeedback({
         type: "success",
         msg: "PDF archivé dans Drive (03_EVALUATIONS)",
         url: d.driveWebUrl,
       });
-    } catch {
-      setPdfFeedback({ type: "error", msg: "Erreur réseau" });
+    } catch (err) {
+      setPdfFeedback({ type: "error", msg: apiErrorMessage(err, "Erreur réseau") });
     } finally {
       setArchiving(false);
     }
@@ -128,20 +121,18 @@ export default function ColdEvalSessionAdminPage({ params }: { params: Promise<{
     setActing(traineeId);
     setFeedback(null);
     try {
-      const r = await fetch(`/api/admin/sessions/${id}/cold-eval/resend`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "send_reminder", traineeId }),
-      });
-      const d = await r.json();
-      if (!r.ok || !d.success) {
+      const d = await apiFetch<{ success?: boolean; error?: string; reminderNumber?: number; email?: string }>(
+        `/api/admin/sessions/${id}/cold-eval/resend`,
+        { method: "POST", body: { mode: "send_reminder", traineeId } }
+      );
+      if (!d.success) {
         setFeedback({ type: "error", msg: d.error || "Échec" });
       } else {
         setFeedback({ type: "success", msg: `✓ Relance ${d.reminderNumber} envoyée à ${d.email}` });
         load();
       }
-    } catch {
-      setFeedback({ type: "error", msg: "Erreur réseau" });
+    } catch (err) {
+      setFeedback({ type: "error", msg: apiErrorMessage(err, "Erreur réseau") });
     } finally {
       setActing(null);
     }

@@ -14,6 +14,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { apiFetch, apiErrorMessage, isAbortError } from "@/lib/api-client";
 
 interface AccessLink {
   id: string;
@@ -50,17 +51,19 @@ export default function AccessLinksManager({ serviceType, title, subtitle }: Pro
   });
 
   useEffect(() => {
-    fetchLinks();
+    const ac = new AbortController();
+    fetchLinks(ac.signal);
+    return () => ac.abort();
   }, []);
 
-  const fetchLinks = async () => {
+  const fetchLinks = async (signal?: AbortSignal) => {
     try {
-      const res = await fetch("/api/admin/links");
-      const data = await res.json();
+      const data = await apiFetch<{ links?: AccessLink[] }>("/api/admin/links", { signal });
       if (data.links) {
         setLinks(data.links);
       }
     } catch (error) {
+      if (isAbortError(error)) return;
       console.error("Erreur chargement liens:", error);
     } finally {
       setLoading(false);
@@ -100,24 +103,13 @@ export default function AccessLinksManager({ serviceType, title, subtitle }: Pro
         ? { id: editingLink.id, serviceType, ...formData }
         : { serviceType, ...formData };
 
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setFormError(data.error || "Erreur lors de l'enregistrement");
-        return;
-      }
+      await apiFetch(url, { method, body });
 
       await fetchLinks();
       setShowForm(false);
       resetForm();
-    } catch {
-      setFormError("Erreur de connexion");
+    } catch (err) {
+      setFormError(apiErrorMessage(err, "Erreur de connexion"));
     }
   };
 
@@ -125,7 +117,7 @@ export default function AccessLinksManager({ serviceType, title, subtitle }: Pro
     if (!confirm("Supprimer ce lien ?")) return;
 
     try {
-      await fetch(`/api/admin/links?id=${id}`, { method: "DELETE" });
+      await apiFetch(`/api/admin/links?id=${id}`, { method: "DELETE" });
       await fetchLinks();
     } catch (error) {
       console.error("Erreur suppression:", error);
@@ -134,10 +126,9 @@ export default function AccessLinksManager({ serviceType, title, subtitle }: Pro
 
   const handleToggleActive = async (link: AccessLink) => {
     try {
-      await fetch("/api/admin/links", {
+      await apiFetch("/api/admin/links", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: link.id, isActive: !link.isActive }),
+        body: { id: link.id, isActive: !link.isActive },
       });
       await fetchLinks();
     } catch (error) {

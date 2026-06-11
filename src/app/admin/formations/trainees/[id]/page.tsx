@@ -4,6 +4,7 @@ import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { PrerequisField } from "@/lib/formation-prerequis";
 import TraineeStatusDropdown from "@/components/TraineeStatusDropdown";
+import { apiFetch, apiErrorMessage, isAbortError } from "@/lib/api-client";
 
 interface TraineeEvent {
   id: string;
@@ -120,28 +121,32 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
   const [docFeedback, setDocFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
   async function refresh() {
-    const res = await fetch(`/api/admin/trainees/${id}`);
-    if (!res.ok) return;
-    const data = await res.json();
-    setTrainee(data.trainee);
-    setPrerequisSchema(Array.isArray(data.prerequisSchema) ? data.prerequisSchema : []);
+    try {
+      const data = await apiFetch<{ trainee: TraineeDetail; prerequisSchema?: PrerequisField[] }>(
+        `/api/admin/trainees/${id}`
+      );
+      setTrainee(data.trainee);
+      setPrerequisSchema(Array.isArray(data.prerequisSchema) ? data.prerequisSchema : []);
+    } catch {
+      // Rafraîchissement silencieux : on garde les données déjà affichées
+    }
   }
 
   useEffect(() => {
-    fetch(`/api/admin/trainees/${id}`)
-      .then(async (res) => {
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.error || "Stagiaire introuvable");
-        }
-        return res.json();
-      })
+    const ac = new AbortController();
+    apiFetch<{ trainee: TraineeDetail; prerequisSchema?: PrerequisField[] }>(`/api/admin/trainees/${id}`, {
+      signal: ac.signal,
+    })
       .then((data) => {
         setTrainee(data.trainee);
         setPrerequisSchema(Array.isArray(data.prerequisSchema) ? data.prerequisSchema : []);
       })
-      .catch((err: Error) => setError(err.message))
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        setError(apiErrorMessage(err, "Stagiaire introuvable"));
+      })
       .finally(() => setLoading(false));
+    return () => ac.abort();
   }, [id]);
 
   async function handleGenerateDoc(type: "convention" | "contrat" | "convocation" | "certificat" | "attestation") {
@@ -149,13 +154,11 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
     setGenerating(type);
     setDocFeedback(null);
     try {
-      const res = await fetch(`/api/admin/trainees/${id}/generate-document`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
+      const data = await apiFetch<{ success?: boolean; error?: string; fileName?: string }>(
+        `/api/admin/trainees/${id}/generate-document`,
+        { method: "POST", body: { type } }
+      );
+      if (!data.success) {
         setDocFeedback({ type: "error", msg: data.error || "Échec de la génération" });
         return;
       }
@@ -164,8 +167,8 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
         msg: `${data.fileName} généré ✓`,
       });
       await refresh();
-    } catch {
-      setDocFeedback({ type: "error", msg: "Erreur réseau" });
+    } catch (err) {
+      setDocFeedback({ type: "error", msg: apiErrorMessage(err, "Erreur réseau") });
     } finally {
       setGenerating(null);
       setTimeout(() => setDocFeedback(null), 8000);
@@ -178,9 +181,11 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
     setGenerating("end_of_training");
     setDocFeedback(null);
     try {
-      const res = await fetch(`/api/admin/trainees/${id}/send-end-of-training`, { method: "POST" });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
+      const data = await apiFetch<{ success?: boolean; error?: string; emailSent?: boolean }>(
+        `/api/admin/trainees/${id}/send-end-of-training`,
+        { method: "POST" }
+      );
+      if (!data.success) {
         setDocFeedback({ type: "error", msg: data.error || "Échec" });
         return;
       }
@@ -191,8 +196,8 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
           : "Documents générés mais l'envoi du mail a échoué — vérifie les logs.",
       });
       await refresh();
-    } catch {
-      setDocFeedback({ type: "error", msg: "Erreur réseau" });
+    } catch (err) {
+      setDocFeedback({ type: "error", msg: apiErrorMessage(err, "Erreur réseau") });
     } finally {
       setGenerating(null);
       setTimeout(() => setDocFeedback(null), 8000);
@@ -202,19 +207,13 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
   async function handleUpdateObjectifs(value: string) {
     if (!trainee) return;
     try {
-      const res = await fetch(`/api/admin/trainees/${id}/objectifs-atteints`, {
+      await apiFetch(`/api/admin/trainees/${id}/objectifs-atteints`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ value }),
+        body: { value },
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setDocFeedback({ type: "error", msg: data.error || "Échec" });
-        return;
-      }
       await refresh();
-    } catch {
-      setDocFeedback({ type: "error", msg: "Erreur réseau" });
+    } catch (err) {
+      setDocFeedback({ type: "error", msg: apiErrorMessage(err, "Échec") });
     }
   }
 
@@ -226,12 +225,9 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
     setActionLoading(true);
     setActionFeedback(null);
     try {
-      const res = await fetch(`/api/admin/trainees/${id}/send-devis`, { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) {
-        setActionFeedback({ type: "error", msg: data.error || "Erreur" });
-        return;
-      }
+      const data = await apiFetch<{ emailSent?: boolean }>(`/api/admin/trainees/${id}/send-devis`, {
+        method: "POST",
+      });
       setActionFeedback({
         type: "success",
         msg: data.emailSent
@@ -239,8 +235,8 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
           : "Devis créé dans Sellsy, mais l'envoi du mail a échoué — vérifie les logs.",
       });
       await refresh();
-    } catch {
-      setActionFeedback({ type: "error", msg: "Erreur de connexion" });
+    } catch (err) {
+      setActionFeedback({ type: "error", msg: apiErrorMessage(err, "Erreur de connexion") });
     } finally {
       setActionLoading(false);
     }
@@ -256,12 +252,9 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
     setActionLoading(true);
     setActionFeedback(null);
     try {
-      const res = await fetch(`/api/admin/trainees/${id}/send-convocation`, { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) {
-        setActionFeedback({ type: "error", msg: data.error || "Erreur" });
-        return;
-      }
+      const data = await apiFetch<{ emailSent?: boolean }>(`/api/admin/trainees/${id}/send-convocation`, {
+        method: "POST",
+      });
       setActionFeedback({
         type: "success",
         msg: data.emailSent
@@ -269,8 +262,8 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
           : "Convocation générée mais l'envoi du mail a échoué — vérifie les logs.",
       });
       await refresh();
-    } catch {
-      setActionFeedback({ type: "error", msg: "Erreur de connexion" });
+    } catch (err) {
+      setActionFeedback({ type: "error", msg: apiErrorMessage(err, "Erreur de connexion") });
     } finally {
       setActionLoading(false);
     }
@@ -290,12 +283,10 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
     setActionLoading(true);
     setActionFeedback(null);
     try {
-      const res = await fetch(`/api/admin/trainees/${id}/regenerate-end-of-training`, { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) {
-        setActionFeedback({ type: "error", msg: data.error || "Erreur" });
-        return;
-      }
+      const data = await apiFetch<{ emailSent?: boolean }>(
+        `/api/admin/trainees/${id}/regenerate-end-of-training`,
+        { method: "POST" }
+      );
       setActionFeedback({
         type: "success",
         msg: data.emailSent
@@ -303,8 +294,8 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
           : "Documents re-générés mais l'envoi du mail a échoué — vérifie les logs.",
       });
       await refresh();
-    } catch {
-      setActionFeedback({ type: "error", msg: "Erreur de connexion" });
+    } catch (err) {
+      setActionFeedback({ type: "error", msg: apiErrorMessage(err, "Erreur de connexion") });
     } finally {
       setActionLoading(false);
     }
@@ -883,20 +874,19 @@ function UploadSignedForm({
       const form = new FormData();
       form.append("file", file);
       form.append("type", type);
-      const r = await fetch(`/api/admin/trainees/${traineeId}/upload-signed`, {
-        method: "POST",
-        body: form,
-      });
-      const d = await r.json();
-      if (!r.ok || !d.success) {
+      const d = await apiFetch<{ success?: boolean; error?: string }>(
+        `/api/admin/trainees/${traineeId}/upload-signed`,
+        { method: "POST", body: form }
+      );
+      if (!d.success) {
         setFeedback({ type: "error", msg: d.error || "Échec de l'upload" });
         return;
       }
       setFeedback({ type: "success", msg: `Document archivé sur Drive ✓` });
       setFile(null);
       await onUploaded();
-    } catch {
-      setFeedback({ type: "error", msg: "Erreur réseau" });
+    } catch (err) {
+      setFeedback({ type: "error", msg: apiErrorMessage(err, "Erreur réseau") });
     } finally {
       setUploading(false);
       setTimeout(() => setFeedback(null), 6000);

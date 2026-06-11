@@ -10,6 +10,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { ApiError, apiFetch, isAbortError } from "@/lib/api-client";
 
 export default function AdminLayout({
   children,
@@ -29,24 +30,28 @@ export default function AdminLayout({
     }
 
     // Vérifie si une session existe via un appel API
-    fetch("/api/admin/links")
-      .then((res) => {
-        if (res.status === 401) {
-          router.push("/admin/login");
-          setIsAuthenticated(false);
-        } else {
-          setIsAuthenticated(true);
-        }
+    const ac = new AbortController();
+    apiFetch("/api/admin/links", { signal: ac.signal })
+      .then(() => {
+        setIsAuthenticated(true);
       })
-      .catch(() => {
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        if (err instanceof ApiError && err.status !== null && err.status !== 401) {
+          // Réponse serveur autre que 401 : la session existe
+          setIsAuthenticated(true);
+          return;
+        }
         router.push("/admin/login");
         setIsAuthenticated(false);
       });
+    return () => ac.abort();
   }, [pathname, router]);
 
   // Déconnexion
   const handleLogout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
+    // Même si l'appel échoue, on renvoie vers le login
+    await apiFetch("/api/auth/logout", { method: "POST" }).catch(() => {});
     router.push("/admin/login");
   };
 

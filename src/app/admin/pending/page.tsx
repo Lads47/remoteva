@@ -5,12 +5,14 @@
 // mais aucun univers ne lui est encore accessible.
 
 import { useRouter } from "next/navigation";
+import { apiFetch } from "@/lib/api-client";
 
 export default function PendingPage() {
   const router = useRouter();
 
   const handleLogout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
+    // Même si l'appel échoue, on renvoie vers le login
+    await apiFetch("/api/auth/logout", { method: "POST" }).catch(() => {});
     router.push("/admin/login");
   };
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { apiFetch, apiErrorMessage, isAbortError } from "@/lib/api-client";
 
 interface Director {
   id: string;
@@ -42,14 +43,18 @@ export default function DirectorsPage() {
     }
   }
 
-  useEffect(() => { fetchDirectors(); }, []);
+  useEffect(() => {
+    const ac = new AbortController();
+    fetchDirectors(ac.signal);
+    return () => ac.abort();
+  }, []);
 
-  async function fetchDirectors() {
+  async function fetchDirectors(signal?: AbortSignal) {
     try {
-      const res = await fetch("/api/admin/directors");
-      const data = await res.json();
+      const data = await apiFetch<{ directors?: Director[] }>("/api/admin/directors", { signal });
       if (Array.isArray(data.directors)) setDirectors(data.directors);
     } catch (err) {
+      if (isAbortError(err)) return;
       console.error(err);
     } finally {
       setLoading(false);
@@ -63,16 +68,10 @@ export default function DirectorsPage() {
     try {
       const method = editingId ? "PUT" : "POST";
       const body = editingId ? { id: editingId, ...form } : form;
-      const res = await fetch("/api/admin/directors", {
+      const data = await apiFetch<{ emailSent?: boolean; emailError?: string }>("/api/admin/directors", {
         method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body,
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Erreur");
-        return;
-      }
       // Pour la création : afficher le statut envoi du magic link
       if (!editingId) {
         if (data.emailSent) {
@@ -90,7 +89,7 @@ export default function DirectorsPage() {
       setTimeout(() => setFeedback(null), 5000);
     } catch (err) {
       console.error(err);
-      setError("Erreur connexion");
+      setError(apiErrorMessage(err, "Erreur connexion"));
     } finally {
       setSaving(false);
     }
@@ -105,12 +104,11 @@ export default function DirectorsPage() {
 
   async function handleToggleActive(d: Director) {
     try {
-      const res = await fetch("/api/admin/directors", {
+      await apiFetch("/api/admin/directors", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: d.id, active: !d.active }),
+        body: { id: d.id, active: !d.active },
       });
-      if (res.ok) await fetchDirectors();
+      await fetchDirectors();
     } catch (err) {
       console.error(err);
     }
@@ -119,8 +117,8 @@ export default function DirectorsPage() {
   async function handleDelete(d: Director) {
     if (!confirm(`Supprimer définitivement "${d.name}" ?\n\nCette action est irréversible. Préférez "Désactiver" pour conserver l'historique.`)) return;
     try {
-      const res = await fetch(`/api/admin/directors?id=${d.id}`, { method: "DELETE" });
-      if (res.ok) await fetchDirectors();
+      await apiFetch(`/api/admin/directors?id=${d.id}`, { method: "DELETE" });
+      await fetchDirectors();
     } catch (err) {
       console.error(err);
     }
@@ -129,12 +127,10 @@ export default function DirectorsPage() {
   async function handleRegenerateToken(d: Director) {
     if (!confirm(`Régénérer le lien magique pour "${d.name}" ?\n\nLe précédent lien deviendra invalide. Un nouveau mail sera envoyé à ${d.email}.`)) return;
     try {
-      const res = await fetch(`/api/admin/directors/${d.id}/regenerate-token`, { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) {
-        setFeedback({ type: "warning", msg: data.error ?? "Erreur" });
-        return;
-      }
+      const data = await apiFetch<{ emailSent?: boolean; emailError?: string }>(
+        `/api/admin/directors/${d.id}/regenerate-token`,
+        { method: "POST" }
+      );
       if (data.emailSent) {
         setFeedback({ type: "success", msg: `Nouveau magic link envoyé à ${d.email}` });
       } else {
@@ -144,6 +140,7 @@ export default function DirectorsPage() {
       setTimeout(() => setFeedback(null), 5000);
     } catch (err) {
       console.error(err);
+      setFeedback({ type: "warning", msg: apiErrorMessage(err, "Erreur") });
     }
   }
 

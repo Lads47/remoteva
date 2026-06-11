@@ -2,6 +2,7 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
+import { apiFetch, apiErrorMessage, isAbortError } from "@/lib/api-client";
 
 interface Question {
   name: string;
@@ -41,14 +42,15 @@ export default function SatisfactionAdminPage({ params }: { params: Promise<{ id
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string; url?: string } | null>(null);
 
   useEffect(() => {
-    fetch(`/api/admin/sessions/${id}/satisfaction`)
-      .then(async (r) => {
-        if (!r.ok) throw new Error((await r.json()).error || "Erreur");
-        return r.json();
-      })
+    const ac = new AbortController();
+    apiFetch<Synthesis>(`/api/admin/sessions/${id}/satisfaction`, { signal: ac.signal })
       .then(setData)
-      .catch((e: Error) => setError(e.message))
+      .catch((e) => {
+        if (isAbortError(e)) return;
+        setError(apiErrorMessage(e, "Erreur"));
+      })
       .finally(() => setLoading(false));
+    return () => ac.abort();
   }, [id]);
 
   async function archive() {
@@ -56,19 +58,16 @@ export default function SatisfactionAdminPage({ params }: { params: Promise<{ id
     setArchiving(true);
     setFeedback(null);
     try {
-      const r = await fetch(`/api/admin/sessions/${id}/satisfaction`, { method: "POST" });
-      const d = await r.json();
-      if (!r.ok) {
-        setFeedback({ type: "error", msg: d.error || "Échec" });
-        return;
-      }
+      const d = await apiFetch<{ driveWebUrl?: string }>(`/api/admin/sessions/${id}/satisfaction`, {
+        method: "POST",
+      });
       setFeedback({
         type: "success",
         msg: `PDF archivé dans Drive (03_EVALUATIONS)`,
         url: d.driveWebUrl,
       });
-    } catch {
-      setFeedback({ type: "error", msg: "Erreur réseau" });
+    } catch (err) {
+      setFeedback({ type: "error", msg: apiErrorMessage(err, "Erreur réseau") });
     } finally {
       setArchiving(false);
     }
@@ -260,15 +259,13 @@ function SendBlock({ sessionId }: { sessionId: string }) {
     setSending(true);
     setError("");
     try {
-      const r = await fetch(`/api/admin/sessions/${sessionId}/satisfaction/send`, { method: "POST" });
-      const d = await r.json();
-      if (!r.ok) {
-        setError(d.error || "Erreur");
-        return;
-      }
+      const d = await apiFetch<{ mailsSent: number; total: number; results: SendResult[]; surveyUrl: string }>(
+        `/api/admin/sessions/${sessionId}/satisfaction/send`,
+        { method: "POST" }
+      );
       setResult(d);
-    } catch {
-      setError("Erreur réseau");
+    } catch (err) {
+      setError(apiErrorMessage(err, "Erreur réseau"));
     } finally {
       setSending(false);
     }

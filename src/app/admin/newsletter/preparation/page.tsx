@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { ApiError, apiFetch, isAbortError } from "@/lib/api-client";
 
 interface Lexique {
   file_id: string;
@@ -38,15 +39,15 @@ export default function PreparationPage() {
   const [selectedTemplate, setSelectedTemplate] = useState("");
 
   // Charger les lexiques
-  const loadLexiques = useCallback(async () => {
+  const loadLexiques = useCallback(async (signal?: AbortSignal) => {
     setLoadingLexiques(true);
     try {
-      const response = await fetch("/api/lexiques");
-      const data = await response.json();
+      const data = await apiFetch<{ lexiques?: Lexique[] }>("/api/lexiques", { signal });
       if (data.lexiques) {
         setLexiques(data.lexiques);
       }
     } catch (error) {
+      if (isAbortError(error)) return;
       console.error("Erreur chargement lexiques:", error);
     } finally {
       setLoadingLexiques(false);
@@ -54,15 +55,15 @@ export default function PreparationPage() {
   }, []);
 
   // Charger les templates
-  const loadTemplates = useCallback(async () => {
+  const loadTemplates = useCallback(async (signal?: AbortSignal) => {
     setLoadingTemplates(true);
     try {
-      const response = await fetch("/api/newsletter/templates");
-      const data = await response.json();
+      const data = await apiFetch<{ success?: boolean; templates?: Template[] }>("/api/newsletter/templates", { signal });
       if (data.success && data.templates) {
         setTemplates(data.templates);
       }
     } catch (error) {
+      if (isAbortError(error)) return;
       console.error("Erreur chargement templates:", error);
     } finally {
       setLoadingTemplates(false);
@@ -70,8 +71,10 @@ export default function PreparationPage() {
   }, []);
 
   useEffect(() => {
-    loadLexiques();
-    loadTemplates();
+    const ac = new AbortController();
+    loadLexiques(ac.signal);
+    loadTemplates(ac.signal);
+    return () => ac.abort();
   }, [loadLexiques, loadTemplates]);
 
   // Polling progression
@@ -80,10 +83,9 @@ export default function PreparationPage() {
 
     const interval = setInterval(async () => {
       try {
-        const response = await fetch(
+        const data = await apiFetch<Progress>(
           `/api/preparation/progress/${encodeURIComponent(eventName)}`
         );
-        const data = await response.json();
 
         if (data.status === "not_found") return;
 
@@ -100,6 +102,8 @@ export default function PreparationPage() {
           resetForm();
         }
       } catch (error) {
+        // 404 = progression pas encore initialisée côté serveur, on continue le polling
+        if (error instanceof ApiError && error.status === 404) return;
         console.error("Erreur polling:", error);
       }
     }, 2000);
@@ -126,25 +130,24 @@ export default function PreparationPage() {
     }
 
     try {
-      const response = await fetch("/api/prepare-event", {
+      await apiFetch("/api/prepare-event", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: {
           event_name: eventName,
           drive_folder_url: driveUrl,
           mode: mode,
-        }),
+        },
       });
 
-      if (response.ok) {
-        setProcessing(true);
-        setProgress({ status: "init", progress_percent: 0, current_step: "init" });
-      } else {
-        const error = await response.json();
-        alert("Erreur: " + (error.detail || "Échec du lancement"));
-      }
+      setProcessing(true);
+      setProgress({ status: "init", progress_percent: 0, current_step: "init" });
     } catch (error) {
-      alert("Erreur réseau: " + (error as Error).message);
+      if (error instanceof ApiError && error.status !== null) {
+        const detail = (error.data as { detail?: string } | null)?.detail;
+        alert("Erreur: " + (detail || "Échec du lancement"));
+      } else {
+        alert("Erreur réseau: " + (error as Error).message);
+      }
     }
   };
 
@@ -166,29 +169,27 @@ export default function PreparationPage() {
       if (sheetId?.trim()) body.sheet_id = sheetId.trim();
       if (selectedTemplate) body.newsletter_template = selectedTemplate;
 
-      const response = await fetch("/api/lexiques/charger", {
+      const result = await apiFetch<{ conferences_count: number; speakers_count: number }>("/api/lexiques/charger", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body,
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        let message = `Lexique chargé avec succès !\n\n${result.conferences_count} conférences`;
-        if (result.speakers_count > 0) {
-          message += `\n${result.speakers_count} intervenants`;
-        }
-        if (selectedTemplate) {
-          message += `\nTemplate: ${selectedTemplate}`;
-        }
-        alert(message);
-        window.location.href = "/admin/newsletter";
-      } else {
-        const error = await response.json();
-        alert("Erreur: " + (error.detail || "Échec du chargement"));
+      let message = `Lexique chargé avec succès !\n\n${result.conferences_count} conférences`;
+      if (result.speakers_count > 0) {
+        message += `\n${result.speakers_count} intervenants`;
       }
+      if (selectedTemplate) {
+        message += `\nTemplate: ${selectedTemplate}`;
+      }
+      alert(message);
+      window.location.href = "/admin/newsletter";
     } catch (error) {
-      alert("Erreur réseau: " + (error as Error).message);
+      if (error instanceof ApiError && error.status !== null) {
+        const detail = (error.data as { detail?: string } | null)?.detail;
+        alert("Erreur: " + (detail || "Échec du chargement"));
+      } else {
+        alert("Erreur réseau: " + (error as Error).message);
+      }
     }
   };
 
@@ -203,21 +204,20 @@ export default function PreparationPage() {
     }
 
     try {
-      const response = await fetch("/api/lexiques/effacer", {
+      await apiFetch("/api/lexiques/effacer", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ file_id: fileId }),
+        body: { file_id: fileId },
       });
 
-      if (response.ok) {
-        alert("Lexique supprimé avec succès !");
-        loadLexiques();
-      } else {
-        const error = await response.json();
-        alert("Erreur: " + (error.detail || "Échec de la suppression"));
-      }
+      alert("Lexique supprimé avec succès !");
+      loadLexiques();
     } catch (error) {
-      alert("Erreur réseau: " + (error as Error).message);
+      if (error instanceof ApiError && error.status !== null) {
+        const detail = (error.data as { detail?: string } | null)?.detail;
+        alert("Erreur: " + (detail || "Échec de la suppression"));
+      } else {
+        alert("Erreur réseau: " + (error as Error).message);
+      }
     }
   };
 
@@ -389,7 +389,7 @@ export default function PreparationPage() {
             Lexiques disponibles (Google Drive)
           </h2>
           <button
-            onClick={loadLexiques}
+            onClick={() => loadLexiques()}
             className="text-blue-600 hover:text-blue-800 text-xl"
             title="Rafraîchir"
           >
@@ -450,7 +450,7 @@ export default function PreparationPage() {
             Templates Newsletter (Google Drive)
           </h2>
           <button
-            onClick={loadTemplates}
+            onClick={() => loadTemplates()}
             className="text-blue-600 hover:text-blue-800 text-xl"
             title="Rafraîchir"
           >

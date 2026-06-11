@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import TraineeStatusDropdown from "@/components/TraineeStatusDropdown";
+import { apiFetch, apiErrorMessage, isAbortError } from "@/lib/api-client";
 
 interface SessionDetail {
   id: string;
@@ -62,13 +63,15 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     setProvisioning(true);
     setFeedback(null);
     try {
-      const r = await fetch(`/api/admin/sessions/${id}/provision-drive`, { method: "POST" });
-      const d = await r.json();
-      if (!r.ok || !d.success) {
+      const d = await apiFetch<{ success?: boolean; error?: string; subfoldersCreated?: string[] }>(
+        `/api/admin/sessions/${id}/provision-drive`,
+        { method: "POST" }
+      );
+      if (!d.success) {
         setFeedback({ type: "error", msg: d.error || "Échec du provisioning Drive" });
         return;
       }
-      const subs = (d.subfoldersCreated as string[]) || [];
+      const subs = d.subfoldersCreated || [];
       setFeedback({
         type: "success",
         msg:
@@ -77,12 +80,12 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
             : `Dossier Drive OK · arborescence déjà complète`,
       });
       // Refresh session to update driveFolderId in UI
-      const sessionsRes = await fetch(`/api/admin/sessions`).then((r) => r.json());
+      const sessionsRes = await apiFetch<{ sessions?: SessionDetail[] }>(`/api/admin/sessions`);
       const found = (sessionsRes.sessions || []).find((s: SessionDetail) => s.id === id);
       if (found) setSession(found);
     } catch (err) {
       console.error(err);
-      setFeedback({ type: "error", msg: "Erreur réseau" });
+      setFeedback({ type: "error", msg: apiErrorMessage(err, "Erreur réseau") });
     } finally {
       setProvisioning(false);
       setTimeout(() => setFeedback(null), 8000);
@@ -97,26 +100,21 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     setEndOfTrainingBatching(true);
     setEndOfTrainingFeedback(null);
     try {
-      const r = await fetch(`/api/admin/sessions/${id}/end-of-training-batch`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      const d = await r.json();
-      if (!r.ok) {
-        setEndOfTrainingFeedback({ type: "error", msg: d.error || "Échec" });
-        return;
-      }
-      const errors = d.results.filter((x: { ok: boolean }) => !x.ok);
+      const d = await apiFetch<{
+        results: { ok: boolean; stagiaire: string; error: string }[];
+        sent: number;
+        total: number;
+      }>(`/api/admin/sessions/${id}/end-of-training-batch`, { method: "POST", body: {} });
+      const errors = d.results.filter((x) => !x.ok);
       const errorMsg = errors.length > 0
-        ? ` · ${errors.length} échec(s) : ${errors.slice(0, 3).map((x: { stagiaire: string; error: string }) => `${x.stagiaire} (${x.error})`).join(", ")}`
+        ? ` · ${errors.length} échec(s) : ${errors.slice(0, 3).map((x) => `${x.stagiaire} (${x.error})`).join(", ")}`
         : "";
       setEndOfTrainingFeedback({
         type: errors.length === 0 ? "success" : "error",
         msg: `✓ ${d.sent}/${d.total} mail(s) envoyé(s)${errorMsg}`,
       });
-    } catch {
-      setEndOfTrainingFeedback({ type: "error", msg: "Erreur réseau" });
+    } catch (err) {
+      setEndOfTrainingFeedback({ type: "error", msg: apiErrorMessage(err, "Erreur réseau") });
     } finally {
       setEndOfTrainingBatching(false);
       setTimeout(() => setEndOfTrainingFeedback(null), 12000);
@@ -125,9 +123,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
   async function refreshTrainees() {
     try {
-      const r = await fetch(`/api/admin/trainees?sessionId=${id}`);
-      if (!r.ok) return;
-      const d = await r.json();
+      const d = await apiFetch<{ trainees?: Trainee[] }>(`/api/admin/trainees?sessionId=${id}`);
       setTrainees(d.trainees || []);
     } catch {}
   }
@@ -143,9 +139,10 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
   }
 
   useEffect(() => {
+    const ac = new AbortController();
     Promise.all([
-      fetch(`/api/admin/sessions`).then((r) => r.json()),
-      fetch(`/api/admin/trainees?sessionId=${id}`).then((r) => r.json()),
+      apiFetch<{ sessions?: SessionDetail[] }>(`/api/admin/sessions`, { signal: ac.signal }),
+      apiFetch<{ trainees?: Trainee[] }>(`/api/admin/trainees?sessionId=${id}`, { signal: ac.signal }),
     ])
       .then(([sessionsData, traineesData]) => {
         const found = (sessionsData.sessions || []).find((s: SessionDetail) => s.id === id);
@@ -156,8 +153,12 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
         setSession(found);
         setTrainees(traineesData.trainees || []);
       })
-      .catch(() => setError("Erreur de chargement"))
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        setError(apiErrorMessage(err, "Erreur de chargement"));
+      })
       .finally(() => setLoading(false));
+    return () => ac.abort();
   }, [id]);
 
   if (loading) {
