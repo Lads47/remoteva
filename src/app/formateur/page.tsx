@@ -27,6 +27,14 @@ interface TrainerSession {
   isPast: boolean;
 }
 
+interface TrainerFormation {
+  id: string;
+  code: string;
+  nomLong: string;
+  description: string;
+  dureeJours: number;
+}
+
 const STATUS_LABELS: Record<string, string> = {
   planned: "Planifiée",
   open: "Ouverte aux inscriptions",
@@ -45,6 +53,7 @@ function FormateurHomeInner() {
 
   const [trainer, setTrainer] = useState<Trainer | null>(null);
   const [sessions, setSessions] = useState<TrainerSession[]>([]);
+  const [formations, setFormations] = useState<TrainerFormation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -55,13 +64,14 @@ function FormateurHomeInner() {
       return;
     }
     const ac = new AbortController();
-    apiFetch<{ trainer: Trainer; sessions?: TrainerSession[] }>(
+    apiFetch<{ trainer: Trainer; sessions?: TrainerSession[]; formations?: TrainerFormation[] }>(
       `/api/formateur/me?token=${encodeURIComponent(token)}`,
       { signal: ac.signal }
     )
       .then((data) => {
         setTrainer(data.trainer);
         setSessions(Array.isArray(data.sessions) ? data.sessions : []);
+        setFormations(Array.isArray(data.formations) ? data.formations : []);
       })
       .catch((err) => {
         if (isAbortError(err)) return;
@@ -111,6 +121,18 @@ function FormateurHomeInner() {
             voir la liste des stagiaires et leurs réponses aux pré-requis.
           </p>
         </div>
+
+        {/* Mes formations : accès au contenu pédagogique (grille d'éval + pré-requis),
+            indépendamment des sessions. */}
+        {formations.length > 0 && (
+          <Section title={`Mes formations (${formations.length})`}>
+            <div className="space-y-3">
+              {formations.map((f) => (
+                <FormationCard key={f.id} formation={f} token={token} />
+              ))}
+            </div>
+          </Section>
+        )}
 
         {/* À venir */}
         <Section title={`À venir (${upcoming.length})`}>
@@ -198,6 +220,41 @@ function SessionCard({
         {session.capacite} places
       </div>
     </Link>
+  );
+}
+
+function FormationCard({ formation, token }: { formation: TrainerFormation; token: string }) {
+  const qs = `?token=${encodeURIComponent(token)}`;
+  return (
+    <div className="p-4 rounded-xl border" style={{ borderColor: "#e5e7eb", backgroundColor: "white" }}>
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="px-2 py-0.5 rounded text-xs font-jetbrains" style={{ backgroundColor: "#7dcef5", color: "#1f2244" }}>
+          {formation.code}
+        </span>
+        <span className="text-xs font-jetbrains" style={{ color: "#9ca3af" }}>
+          {formation.dureeJours} jour{formation.dureeJours > 1 ? "s" : ""}
+        </span>
+      </div>
+      <h3 className="mt-2 font-semibold text-lg" style={{ color: "#1f2244" }}>
+        {formation.nomLong}
+      </h3>
+      <div className="mt-3 flex gap-2 flex-wrap">
+        <Link
+          href={`/formateur/formations/${formation.id}/evaluation-grid${qs}`}
+          className="text-xs px-3 py-1.5 rounded-full border cursor-pointer transition-colors hover:bg-gray-50"
+          style={{ borderColor: "#1f2244", color: "#1f2244" }}
+        >
+          ⚙ Grille d&apos;évaluation
+        </Link>
+        <Link
+          href={`/formateur/formations/${formation.id}/prerequis${qs}`}
+          className="text-xs px-3 py-1.5 rounded-full border cursor-pointer transition-colors hover:bg-gray-50"
+          style={{ borderColor: "#1f2244", color: "#1f2244" }}
+        >
+          📋 Pré-requis
+        </Link>
+      </div>
+    </div>
   );
 }
 

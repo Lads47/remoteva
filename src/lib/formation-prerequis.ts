@@ -165,17 +165,26 @@ function parsePrerequisFromConfig(configForm: string): PrerequisField[] | null {
     const parsed = JSON.parse(configForm) as unknown;
     if (!parsed || typeof parsed !== "object") return null;
     const obj = parsed as { prerequis?: unknown };
-    if (!Array.isArray(obj.prerequis)) return null;
-    const result: PrerequisField[] = [];
-    for (const f of obj.prerequis) {
-      const validated = validateField(f);
-      if (!validated) return null; // au moindre champ invalide, on tombe sur fallback
-      result.push(validated);
-    }
-    return result.length > 0 ? result : null;
+    return validatePrerequisArray(obj.prerequis);
   } catch {
     return null;
   }
+}
+
+/**
+ * Valide un tableau brut de champs pré-requis (ex: payload d'API).
+ * Retourne le tableau typé, ou `null` si vide ou si un champ est invalide.
+ * Utilisé côté serveur pour sécuriser l'enregistrement par admin/formateur.
+ */
+export function validatePrerequisArray(arr: unknown): PrerequisField[] | null {
+  if (!Array.isArray(arr)) return null;
+  const result: PrerequisField[] = [];
+  for (const f of arr) {
+    const validated = validateField(f);
+    if (!validated) return null; // au moindre champ invalide, on rejette tout
+    result.push(validated);
+  }
+  return result.length > 0 ? result : null;
 }
 
 function validateField(f: unknown): PrerequisField | null {

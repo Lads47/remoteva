@@ -23,6 +23,9 @@ export interface TrainerInfo {
   adresse: string;
   numeroDa: string;
   representantLegal: string;
+  // Formations affectées directement (cf. TrainerFormation) — donne accès aux
+  // exercices + pré-requis de ces formations dans le portail, sans session.
+  assignedFormationIds: string[];
 }
 
 export interface TrainerCreateInput {
@@ -39,6 +42,7 @@ export interface TrainerCreateInput {
   adresse?: string;
   numeroDa?: string;
   representantLegal?: string;
+  formationIds?: string[];
 }
 
 export interface TrainerUpdateInput {
@@ -56,6 +60,7 @@ export interface TrainerUpdateInput {
   adresse?: string;
   numeroDa?: string;
   representantLegal?: string;
+  formationIds?: string[];
 }
 
 /**
@@ -73,9 +78,15 @@ export function buildTrainerMagicLink(token: string, baseUrl?: string): string {
   return `${base}/formateur?token=${encodeURIComponent(token)}`;
 }
 
+// Include partagé pour toutes les lectures de formateur alimentant toInfo().
+const trainerInclude = {
+  _count: { select: { sessions: true } },
+  trainerFormations: { select: { formationId: true } },
+} as const;
+
 export async function getAllTrainers(): Promise<TrainerInfo[]> {
   const list = await prisma.trainer.findMany({
-    include: { _count: { select: { sessions: true } } },
+    include: trainerInclude,
     orderBy: { nom: "asc" },
   });
   return list.map(toInfo);
@@ -84,7 +95,7 @@ export async function getAllTrainers(): Promise<TrainerInfo[]> {
 export async function getActiveTrainers(): Promise<TrainerInfo[]> {
   const list = await prisma.trainer.findMany({
     where: { active: true },
-    include: { _count: { select: { sessions: true } } },
+    include: trainerInclude,
     orderBy: { nom: "asc" },
   });
   return list.map(toInfo);
@@ -93,7 +104,7 @@ export async function getActiveTrainers(): Promise<TrainerInfo[]> {
 export async function getTrainerById(id: string): Promise<TrainerInfo | null> {
   const t = await prisma.trainer.findUnique({
     where: { id },
-    include: { _count: { select: { sessions: true } } },
+    include: trainerInclude,
   });
   return t ? toInfo(t) : null;
 }
@@ -101,7 +112,7 @@ export async function getTrainerById(id: string): Promise<TrainerInfo | null> {
 export async function getTrainerByMagicToken(token: string): Promise<TrainerInfo | null> {
   const t = await prisma.trainer.findUnique({
     where: { magicToken: token },
-    include: { _count: { select: { sessions: true } } },
+    include: trainerInclude,
   });
   return t ? toInfo(t) : null;
 }
@@ -123,8 +134,11 @@ export async function createTrainer(input: TrainerCreateInput): Promise<TrainerI
       numeroDa: input.numeroDa ?? "",
       representantLegal: input.representantLegal ?? "",
       magicToken: generateMagicToken(),
+      ...(input.formationIds && input.formationIds.length > 0
+        ? { trainerFormations: { create: input.formationIds.map((formationId) => ({ formationId })) } }
+        : {}),
     },
-    include: { _count: { select: { sessions: true } } },
+    include: trainerInclude,
   });
   return toInfo(t);
 }
@@ -149,12 +163,56 @@ export async function updateTrainer(id: string, input: TrainerUpdateInput): Prom
   if (input.adresse !== undefined) data.adresse = input.adresse;
   if (input.numeroDa !== undefined) data.numeroDa = input.numeroDa;
   if (input.representantLegal !== undefined) data.representantLegal = input.representantLegal;
+
+  // Si formationIds est fourni, on remplace l'ensemble des affectations directes.
+  if (input.formationIds !== undefined) {
+    const ids = input.formationIds;
+    data.trainerFormations = {
+      deleteMany: {},
+      create: ids.map((formationId) => ({ formationId })),
+    };
+  }
+
   const t = await prisma.trainer.update({
     where: { id },
     data,
-    include: { _count: { select: { sessions: true } } },
+    include: trainerInclude,
   });
   return toInfo(t);
+}
+
+/**
+ * Formations accessibles à un formateur dans le portail = union de :
+ *   - ses affectations directes (TrainerFormation)
+ *   - les formations de ses sessions assignées
+ * Dédupliquées par id, triées par libellé.
+ */
+export interface TrainerFormationInfo {
+  id: string;
+  code: string;
+  nomLong: string;
+  description: string;
+  dureeJours: number;
+}
+
+export async function getTrainerFormations(trainerId: string): Promise<TrainerFormationInfo[]> {
+  const [direct, viaSessions] = await Promise.all([
+    prisma.trainerFormation.findMany({
+      where: { trainerId },
+      select: { formation: { select: { id: true, code: true, nomLong: true, description: true, dureeJours: true } } },
+    }),
+    prisma.session.findMany({
+      where: { trainerId },
+      select: { formation: { select: { id: true, code: true, nomLong: true, description: true, dureeJours: true } } },
+      distinct: ["formationId"],
+    }),
+  ]);
+
+  const byId = new Map<string, TrainerFormationInfo>();
+  for (const row of direct) byId.set(row.formation.id, row.formation);
+  for (const row of viaSessions) byId.set(row.formation.id, row.formation);
+
+  return Array.from(byId.values()).sort((a, b) => a.nomLong.localeCompare(b.nomLong, "fr"));
 }
 
 export async function regenerateMagicToken(id: string): Promise<string> {
@@ -193,22 +251,25 @@ export interface TrainerSessionInfo {
  */
 export async function authTrainerWithSessions(
   token: string
-): Promise<{ trainer: TrainerInfo; sessions: TrainerSessionInfo[] } | null> {
+): Promise<{ trainer: TrainerInfo; sessions: TrainerSessionInfo[]; formations: TrainerFormationInfo[] } | null> {
   if (!token) return null;
   const trainerRow = await prisma.trainer.findUnique({
     where: { magicToken: token },
-    include: { _count: { select: { sessions: true } } },
+    include: trainerInclude,
   });
   if (!trainerRow || !trainerRow.active) return null;
 
-  const sessions = await prisma.session.findMany({
-    where: { trainerId: trainerRow.id },
-    include: {
-      formation: { select: { code: true, nomLong: true } },
-      _count: { select: { trainees: true } },
-    },
-    orderBy: { dateDebut: "desc" },
-  });
+  const [sessions, formations] = await Promise.all([
+    prisma.session.findMany({
+      where: { trainerId: trainerRow.id },
+      include: {
+        formation: { select: { code: true, nomLong: true } },
+        _count: { select: { trainees: true } },
+      },
+      orderBy: { dateDebut: "desc" },
+    }),
+    getTrainerFormations(trainerRow.id),
+  ]);
 
   const now = Date.now();
   const trainerSessions: TrainerSessionInfo[] = sessions.map((s) => ({
@@ -226,7 +287,7 @@ export async function authTrainerWithSessions(
     isPast: s.dateFin.getTime() < now,
   }));
 
-  return { trainer: toInfo(trainerRow), sessions: trainerSessions };
+  return { trainer: toInfo(trainerRow), sessions: trainerSessions, formations };
 }
 
 /**
@@ -292,6 +353,7 @@ export async function getTrainerSessionDetail(token: string, sessionId: string) 
 
 type TrainerRow = Awaited<ReturnType<typeof prisma.trainer.findUniqueOrThrow>> & {
   _count: { sessions: number };
+  trainerFormations?: { formationId: string }[];
 };
 
 function toInfo(t: TrainerRow): TrainerInfo {
@@ -314,5 +376,6 @@ function toInfo(t: TrainerRow): TrainerInfo {
     adresse: t.adresse,
     numeroDa: t.numeroDa,
     representantLegal: t.representantLegal,
+    assignedFormationIds: (t.trainerFormations ?? []).map((tf) => tf.formationId),
   };
 }

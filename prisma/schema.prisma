@@ -184,6 +184,9 @@ model Formation {
 
   sessions                    Session[]
   evaluationExercises         EvaluationExercise[]
+  // Formateurs affectés directement à la formation (indépendamment des sessions).
+  // Leur donne accès aux exercices + pré-requis de la formation dans le portail.
+  trainerFormations           TrainerFormation[]
 
   // Override JSON des questions d'éval à chaud (sinon fallback global AppConfig)
   satisfactionConfigForm      String   @default("") @map("satisfaction_config_form")
@@ -453,10 +456,29 @@ model Trainer {
   attendanceFilesUploaded AttendanceFile[]
   evaluationsAuthored  TraineeExerciseEvaluation[]
   trainerEvalResponses TrainerEvalResponse[]
+  // Formations affectées directement à ce formateur (cf. Formation.trainerFormations)
+  trainerFormations    TrainerFormation[]
 
   @@map("trainers")
   @@index([magicToken])
   @@index([active])
+}
+
+// Affectation directe d'un formateur à une formation (table de jointure).
+// Indépendante des sessions : permet à un formateur d'accéder aux exercices
+// et pré-requis d'une formation même sans session encore assignée. L'accès
+// "formation" du portail formateur = union (sessions assignées + affectations directes).
+model TrainerFormation {
+  trainerId   String   @map("trainer_id")
+  formationId String   @map("formation_id")
+  assignedAt  DateTime @default(now()) @map("assigned_at")
+
+  trainer   Trainer   @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  formation Formation @relation(fields: [formationId], references: [id], onDelete: Cascade)
+
+  @@id([trainerId, formationId])
+  @@map("trainer_formations")
+  @@index([formationId])
 }
 
 // === RÉCLAMATIONS (Qualiopi indicateur 32) ===

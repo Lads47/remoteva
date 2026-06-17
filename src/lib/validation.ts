@@ -285,6 +285,8 @@ export const createTrainerSchema = z.object({
   adresse: z.string().trim().optional().default(""),
   numeroDa: z.string().trim().optional().default(""),
   representantLegal: z.string().trim().optional().default(""),
+  // Affectation directe à des formations (accès portail aux exercices + pré-requis)
+  formationIds: z.array(z.string()).optional(),
 });
 
 export const updateTrainerSchema = z.object({
@@ -304,6 +306,8 @@ export const updateTrainerSchema = z.object({
   adresse: z.string().trim().optional(),
   numeroDa: z.string().trim().optional(),
   representantLegal: z.string().trim().optional(),
+  // Remplace l'ensemble des affectations directes si fourni
+  formationIds: z.array(z.string()).optional(),
 });
 
 // Admin update d'un stagiaire (correction de saisie principalement).

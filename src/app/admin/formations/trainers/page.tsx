@@ -25,6 +25,14 @@ interface Trainer {
   adresse: string;
   numeroDa: string;
   representantLegal: string;
+  assignedFormationIds: string[];
+}
+
+interface FormationOption {
+  id: string;
+  code: string;
+  nomLong: string;
+  active: boolean;
 }
 
 const EMPTY_FORM = {
@@ -41,10 +49,12 @@ const EMPTY_FORM = {
   adresse: "",
   numeroDa: "",
   representantLegal: "",
+  formationIds: [] as string[],
 };
 
 export default function TrainersPage() {
   const [trainers, setTrainers] = useState<Trainer[]>([]);
+  const [formations, setFormations] = useState<FormationOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -72,6 +82,7 @@ export default function TrainersPage() {
 
   useEffect(() => {
     fetchTrainers();
+    fetchFormations();
   }, []);
 
   async function fetchTrainers() {
@@ -83,6 +94,24 @@ export default function TrainersPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function fetchFormations() {
+    try {
+      const data = await apiFetch<{ formations?: FormationOption[] }>("/api/admin/formations");
+      if (Array.isArray(data.formations)) setFormations(data.formations);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  function toggleFormation(formationId: string) {
+    setForm((prev) => ({
+      ...prev,
+      formationIds: prev.formationIds.includes(formationId)
+        ? prev.formationIds.filter((id) => id !== formationId)
+        : [...prev.formationIds, formationId],
+    }));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -136,6 +165,7 @@ export default function TrainersPage() {
       adresse: t.adresse ?? "",
       numeroDa: t.numeroDa ?? "",
       representantLegal: t.representantLegal ?? "",
+      formationIds: t.assignedFormationIds ?? [],
     });
     setShowForm(true);
     setError("");
@@ -298,6 +328,54 @@ export default function TrainersPage() {
                 className="input"
               />
             </Field>
+          </div>
+
+          {/* === Affectation directe à des formations ===
+              Donne au formateur l'accès, dans son portail, aux exercices
+              (grille d'éval) et aux pré-requis de ces formations — même sans
+              session encore assignée. L'accès reste aussi accordé via les
+              sessions qu'on lui assigne. */}
+          <div className="pt-3 border-t" style={{ borderColor: "#e5e7eb" }}>
+            <p className="text-xs font-jetbrains mb-1" style={{ color: "#727485" }}>
+              Formations affectées
+            </p>
+            <p className="text-xs font-jetbrains mb-3" style={{ color: "#9ca3af" }}>
+              Le formateur pourra consulter et éditer la grille d&apos;évaluation et les
+              pré-requis de ces formations depuis son espace, indépendamment des sessions.
+            </p>
+            {formations.length === 0 ? (
+              <p className="text-xs font-jetbrains" style={{ color: "#9ca3af" }}>
+                Aucune formation au catalogue.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {formations
+                  .filter((f) => f.active || form.formationIds.includes(f.id))
+                  .map((f) => (
+                    <label
+                      key={f.id}
+                      className="flex items-start gap-2 p-2 rounded-lg border cursor-pointer hover:bg-white"
+                      style={{ borderColor: "#e5e7eb" }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={form.formationIds.includes(f.id)}
+                        onChange={() => toggleFormation(f.id)}
+                        className="mt-0.5"
+                      />
+                      <span className="flex-1">
+                        <span className="text-xs font-jetbrains px-1.5 py-0.5 rounded" style={{ backgroundColor: "#1f2244", color: "white" }}>
+                          {f.code}
+                        </span>
+                        <span className="block text-sm mt-1" style={{ color: "#1f2244" }}>{f.nomLong}</span>
+                        {!f.active && (
+                          <span className="text-xs font-jetbrains" style={{ color: "#92400e" }}>archivée</span>
+                        )}
+                      </span>
+                    </label>
+                  ))}
+              </div>
+            )}
           </div>
 
           {/* === Qualiopi indicateur 21 — qualifications + pièces ===

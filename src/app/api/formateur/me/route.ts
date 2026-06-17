@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { authTrainerWithSessions } from "@/lib/trainer";
 
 // GET /api/formateur/me?token=xxx
-// Renvoie le formateur authentifié + ses sessions assignées (passées + à venir).
+// Renvoie le formateur authentifié + ses sessions assignées (passées + à venir)
+// + les formations auxquelles il a accès (sessions + affectations directes).
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -20,6 +21,7 @@ export async function GET(request: NextRequest) {
         email: result.trainer.email,
       },
       sessions: result.sessions,
+      formations: result.formations,
     });
   } catch (error) {
     console.error("[/api/formateur/me] error:", error);

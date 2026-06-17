@@ -14,7 +14,7 @@
 // ============================================================================
 
 import prisma from "./db";
-import { sendGridEditedNotification } from "./mailer";
+import { sendGridEditedNotification, sendPrerequisEditedNotification } from "./mailer";
 
 export interface TrainerGridAuth {
   trainer: { id: string; prenom: string; nom: string; email: string };
@@ -50,8 +50,31 @@ export async function notifyAdminGridEdit(
 }
 
 /**
- * Vérifie qu'un formateur (par token) a accès à une formation donnée
- * (= au moins une session de cette formation lui est assignée).
+ * Notifie l'admin qu'un formateur a modifié les pré-requis. Best-effort.
+ */
+export async function notifyAdminPrerequisEdit(auth: TrainerGridAuth): Promise<void> {
+  try {
+    const formation = await prisma.formation.findUnique({
+      where: { id: auth.formationId },
+      select: { code: true, nomLong: true },
+    });
+    if (!formation) return;
+    await sendPrerequisEditedNotification({
+      trainerNomComplet: `${auth.trainer.prenom} ${auth.trainer.nom}`,
+      formationCode: formation.code,
+      formationNomLong: formation.nomLong,
+      formationId: auth.formationId,
+    });
+  } catch (err) {
+    console.warn("[trainer-grid-access] notif prérequis échouée:", err);
+  }
+}
+
+/**
+ * Vérifie qu'un formateur (par token) a accès à une formation donnée. L'accès
+ * est accordé si AU MOINS l'une de ces conditions est vraie :
+ *   - une session de cette formation lui est assignée ;
+ *   - il est affecté directement à la formation (TrainerFormation).
  */
 export async function authTrainerForFormation(
   token: string | null,
@@ -64,11 +87,17 @@ export async function authTrainerForFormation(
   });
   if (!trainer || !trainer.active) return null;
 
-  const session = await prisma.session.findFirst({
-    where: { formationId, trainerId: trainer.id },
-    select: { id: true },
-  });
-  if (!session) return null;
+  const [session, directAssignment] = await Promise.all([
+    prisma.session.findFirst({
+      where: { formationId, trainerId: trainer.id },
+      select: { id: true },
+    }),
+    prisma.trainerFormation.findUnique({
+      where: { trainerId_formationId: { trainerId: trainer.id, formationId } },
+      select: { trainerId: true },
+    }),
+  ]);
+  if (!session && !directAssignment) return null;
 
   return {
     trainer: { id: trainer.id, prenom: trainer.prenom, nom: trainer.nom, email: trainer.email },

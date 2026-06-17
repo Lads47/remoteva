@@ -898,6 +898,59 @@ Vérifiez la cohérence avec les objectifs pédagogiques : ${gridUrl}`;
 }
 
 /**
+ * Notifie l'admin qu'un formateur a modifié les pré-requis d'une formation.
+ * Garde-fou Qualiopi : l'organisme reste responsable de la cohérence du
+ * positionnement / analyse du besoin avec les objectifs annoncés.
+ */
+export async function sendPrerequisEditedNotification(params: {
+  trainerNomComplet: string;
+  formationCode: string;
+  formationNomLong: string;
+  formationId: string;
+}): Promise<SendEmailResult> {
+  const adminEmail = process.env.ADMIN_NOTIFY_EMAIL;
+  if (!adminEmail) {
+    console.warn("[mailer] ADMIN_NOTIFY_EMAIL absent — notif prérequis non envoyée");
+    return { success: false, error: "ADMIN_NOTIFY_EMAIL manquant" };
+  }
+  const baseUrl = process.env.PUBLIC_BASE_URL || "http://localhost:3000";
+  const prerequisUrl = `${baseUrl}/admin/formations/${params.formationId}/prerequis`;
+
+  const safe = {
+    trainer: escapeHtml(params.trainerNomComplet),
+    formation: escapeHtml(params.formationNomLong),
+    code: escapeHtml(params.formationCode),
+  };
+
+  const html = `<!DOCTYPE html>
+<html lang="fr">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #1f2244;">
+  <h1 style="font-size: 20px; margin: 0 0 16px;">✏️ Pré-requis modifiés</h1>
+  <p><strong>${safe.trainer}</strong> a modifié les pré-requis (positionnement / analyse du besoin) de <strong>${safe.formation}</strong> (${safe.code}).</p>
+  <p style="font-size: 13px; color: #727485;">En tant qu'organisme de formation, vérifiez la cohérence des questions de positionnement avec les objectifs pédagogiques annoncés.</p>
+  <p style="margin-top: 24px;">
+    <a href="${prerequisUrl}" style="display: inline-block; padding: 10px 18px; background: #1f2244; color: white; text-decoration: none; border-radius: 999px; font-weight: 600;">
+      Voir les pré-requis
+    </a>
+  </p>
+</body>
+</html>`;
+
+  const text = `Pré-requis modifiés
+
+${params.trainerNomComplet} a modifié les pré-requis de ${params.formationNomLong} (${params.formationCode}).
+
+Vérifiez la cohérence avec les objectifs pédagogiques : ${prerequisUrl}`;
+
+  return sendEmail({
+    to: adminEmail,
+    subject: `Pré-requis modifiés : ${params.formationCode} — par ${params.trainerNomComplet}`,
+    html,
+    text,
+  });
+}
+
+/**
  * Mail d'invitation à répondre à l'évaluation à chaud (fin de session).
  *
  * Le lien envoyé est l'URL publique anonyme du formulaire — la même pour tous
