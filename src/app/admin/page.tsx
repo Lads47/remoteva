@@ -137,14 +137,6 @@ function HubTile({ tile }: { tile: Tile }) {
         <h2 className="text-lg font-semibold" style={{ color: EVA_DARK }}>
           {tile.title}
         </h2>
-        {tile.external && (
-          <span
-            className="text-xs px-2 py-1 rounded-full font-medium whitespace-nowrap"
-            style={{ backgroundColor: EVA_ACCENT, color: EVA_DARK }}
-          >
-            Lien externe ↗
-          </span>
-        )}
       </div>
       <p className="text-sm mt-3 flex-1" style={{ color: EVA_MUTED }}>
         {tile.description}
