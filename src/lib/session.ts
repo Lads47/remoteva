@@ -1,6 +1,6 @@
 import prisma from "./db";
 import { provisionSessionDriveFolder } from "./drive-provisioning";
-import { sendTrainerSessionAssignment } from "./mailer";
+import { sendTrainerSessionAssignment, sendTrainerContractEmail } from "./mailer";
 
 export interface SessionInfo {
   id: string;
@@ -60,37 +60,23 @@ export interface SessionUpdateInput {
 }
 
 /**
- * Notifie par mail le formateur qu'on vient de lui assigner une session.
- * Best-effort : ne fait pas échouer l'opération si le mail plante (juste
- * un warn dans les logs). Skip si le trainer n'existe pas, est inactif,
- * ou n'a pas d'email.
+ * Notifie par mail le formateur qu'on vient de lui assigner une session
+ * ("Nouvelle session assignée"). Best-effort : ne fait pas échouer l'opération
+ * si le mail plante. Skip si le trainer n'existe pas, est inactif, ou n'a pas
+ * d'email.
  *
- * Si le formateur est externe (Trainer.isExternal = true) ET qu'un
- * `trainerFeeAmount` est fourni, on génère un contrat de sous-traitance
- * personnalisé (PDF) et on le joint au mail (Qualiopi indicateur 27).
+ * NB : ce mail ne contient PAS le contrat de sous-traitance. Le contrat est
+ * découplé et envoyé séparément (cf. generateAndSendTrainerContract /
+ * maybeSendTrainerContractOnThreshold) une fois la formation confirmée.
  */
 export async function notifyTrainerOfSessionAssignment(
   sessionId: string,
-  trainerId: string,
-  trainerFeeAmount?: number
-): Promise<{
-  ok: boolean;
-  emailSent?: boolean;
-  error?: string;
-  contractGenerated?: boolean;
-  contractSkipReason?: string;
-}> {
+  trainerId: string
+): Promise<{ ok: boolean; emailSent?: boolean; error?: string }> {
   try {
     const trainer = await prisma.trainer.findUnique({
       where: { id: trainerId },
-      select: {
-        id: true,
-        prenom: true,
-        email: true,
-        magicToken: true,
-        active: true,
-        isExternal: true,
-      },
+      select: { id: true, prenom: true, email: true, magicToken: true, active: true },
     });
     if (!trainer || !trainer.active || !trainer.email) {
       return { ok: true, emailSent: false, error: "Formateur introuvable, inactif ou sans email" };
@@ -110,30 +96,6 @@ export async function notifyTrainerOfSessionAssignment(
     });
     if (!session) return { ok: false, error: "Session introuvable" };
 
-    // Si formateur externe + montant fourni : on génère le contrat de
-    // sous-traitance et on le joindra au mail. Sinon mail simple.
-    let contractPdfBuffer: Buffer | undefined;
-    let contractPdfFilename: string | undefined;
-    let contractGenerated = false;
-    let contractSkipReason: string | undefined;
-    if (trainer.isExternal && trainerFeeAmount && trainerFeeAmount > 0) {
-      const { generateExternalTrainerContract } = await import("./trainer-contract");
-      const contract = await generateExternalTrainerContract(sessionId, trainerFeeAmount);
-      if (contract.ok && !contract.skipped) {
-        contractPdfBuffer = contract.pdfBuffer;
-        contractPdfFilename = contract.pdfFilename;
-        contractGenerated = true;
-      } else if (contract.skipped) {
-        contractSkipReason = contract.skipReason;
-      } else {
-        contractSkipReason = contract.error;
-        console.warn(
-          `[notifyTrainerOfSessionAssignment] génération contrat KO sessionId=${sessionId}:`,
-          contract.error
-        );
-      }
-    }
-
     const base = process.env.PUBLIC_BASE_URL || "https://evaremote.com";
     const sessionUrl = `${base}/formateur/sessions/${session.id}?token=${encodeURIComponent(trainer.magicToken)}`;
 
@@ -148,17 +110,8 @@ export async function notifyTrainerOfSessionAssignment(
       sessionHoraires: session.horaires,
       sessionCapacite: session.capacite,
       sessionUrl,
-      contractPdfBuffer,
-      contractPdfFilename,
-      contractMontantHt: contractGenerated ? trainerFeeAmount : undefined,
     });
-    return {
-      ok: true,
-      emailSent: res.success,
-      error: res.error,
-      contractGenerated,
-      contractSkipReason,
-    };
+    return { ok: true, emailSent: res.success, error: res.error };
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Erreur inconnue";
     console.warn(`[notifyTrainerOfSessionAssignment] échec sessionId=${sessionId} trainerId=${trainerId}:`, msg);
@@ -167,17 +120,128 @@ export async function notifyTrainerOfSessionAssignment(
 }
 
 /**
+ * Génère le contrat de sous-traitance (PDF) du formateur externe assigné à la
+ * session et l'envoie par mail dédié. Best-effort. `amountOverride` permet de
+ * forcer un montant (sinon on prend celui persisté sur la session).
+ *
+ * `generateExternalTrainerContract` persiste trainerContractSentAt : il sert
+ * de garde-fou "déjà envoyé" pour l'envoi automatique au seuil.
+ */
+export async function generateAndSendTrainerContract(
+  sessionId: string,
+  amountOverride?: number
+): Promise<{
+  ok: boolean;
+  emailSent?: boolean;
+  contractGenerated?: boolean;
+  contractSkipReason?: string;
+  error?: string;
+}> {
+  try {
+    const session = await prisma.session.findUnique({
+      where: { id: sessionId },
+      select: {
+        id: true,
+        code: true,
+        dateDebut: true,
+        dateFin: true,
+        trainerFeeAmount: true,
+        trainerId: true,
+        trainer: { select: { prenom: true, email: true, magicToken: true, active: true, isExternal: true } },
+        formation: { select: { nomLong: true } },
+      },
+    });
+    if (!session || !session.trainerId || !session.trainer) {
+      return { ok: false, error: "Aucun formateur assigné à cette session" };
+    }
+    if (!session.trainer.isExternal) {
+      return { ok: false, error: "Le formateur assigné n'est pas externe" };
+    }
+    if (!session.trainer.active || !session.trainer.email) {
+      return { ok: true, emailSent: false, error: "Formateur inactif ou sans email" };
+    }
+    const amount = amountOverride ?? session.trainerFeeAmount ?? 0;
+    if (!amount || amount <= 0) {
+      return { ok: false, error: "Montant HT manquant ou nul" };
+    }
+
+    const { generateExternalTrainerContract } = await import("./trainer-contract");
+    const contract = await generateExternalTrainerContract(sessionId, amount);
+    if (!contract.ok) {
+      return { ok: false, error: contract.error };
+    }
+    if (contract.skipped || !contract.pdfBuffer || !contract.pdfFilename) {
+      return { ok: true, contractGenerated: false, contractSkipReason: contract.skipReason };
+    }
+
+    const base = process.env.PUBLIC_BASE_URL || "https://evaremote.com";
+    const sessionUrl = `${base}/formateur/sessions/${session.id}?token=${encodeURIComponent(session.trainer.magicToken)}`;
+
+    const res = await sendTrainerContractEmail({
+      to: session.trainer.email,
+      prenom: session.trainer.prenom,
+      formationNomLong: session.formation.nomLong,
+      sessionCode: session.code,
+      sessionDateDebut: session.dateDebut,
+      sessionDateFin: session.dateFin,
+      montantHt: amount,
+      contractPdfBuffer: contract.pdfBuffer,
+      contractPdfFilename: contract.pdfFilename,
+      sessionUrl,
+    });
+    return { ok: true, emailSent: res.success, error: res.error, contractGenerated: true };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Erreur inconnue";
+    console.warn(`[generateAndSendTrainerContract] échec sessionId=${sessionId}:`, msg);
+    return { ok: false, error: msg };
+  }
+}
+
+/**
+ * Envoie automatiquement le contrat de sous-traitance si la session a atteint
+ * le seuil d'inscrits (Formation.minInscrits) confirmant que la formation aura
+ * lieu. Best-effort, appelé après chaque inscription. Conditions :
+ *   - formateur externe assigné + montant HT saisi ;
+ *   - seuil configuré (> 0) ;
+ *   - nb d'inscrits non "abandonne" >= seuil ;
+ *   - contrat pas déjà envoyé (trainerContractSentAt null).
+ */
+export async function maybeSendTrainerContractOnThreshold(sessionId: string): Promise<void> {
+  try {
+    const session = await prisma.session.findUnique({
+      where: { id: sessionId },
+      select: {
+        id: true,
+        trainerId: true,
+        trainerFeeAmount: true,
+        trainerContractSentAt: true,
+        trainer: { select: { isExternal: true } },
+        formation: { select: { minInscrits: true } },
+      },
+    });
+    if (!session || !session.trainerId || !session.trainer?.isExternal) return;
+    if (session.trainerContractSentAt) return; // déjà envoyé
+    if (!session.trainerFeeAmount || session.trainerFeeAmount <= 0) return; // montant non saisi
+    const threshold = session.formation.minInscrits;
+    if (!threshold || threshold <= 0) return; // seuil désactivé
+
+    const activeCount = await prisma.trainee.count({
+      where: { sessionId, status: { not: "abandonne" } },
+    });
+    if (activeCount < threshold) return;
+
+    await generateAndSendTrainerContract(sessionId, session.trainerFeeAmount);
+  } catch (err) {
+    console.warn(`[maybeSendTrainerContractOnThreshold] sessionId=${sessionId}:`, err);
+  }
+}
+
+/**
  * Issue d'une tentative de notification du formateur, telle que remontée à
  * l'admin après création / mise à jour de session.
  */
 export type TrainerNotifyOutcome =
-  | {
-      status: "sent";
-      emailSent?: boolean;
-      error?: string;
-      contractGenerated?: boolean;
-      contractSkipReason?: string;
-    }
+  | { status: "sent"; emailSent?: boolean; error?: string }
   | { status: "deferred" } // formateur assigné mais session pas encore "open"
   | { status: "already_sent" };
 
@@ -202,7 +266,6 @@ export async function notifyTrainerIfSessionOpen(
       id: true,
       status: true,
       trainerId: true,
-      trainerFeeAmount: true,
       trainerAssignmentMailSentAt: true,
     },
   });
@@ -210,11 +273,7 @@ export async function notifyTrainerIfSessionOpen(
   if (s.trainerAssignmentMailSentAt) return { status: "already_sent" };
   if (s.status !== "open") return { status: "deferred" };
 
-  const res = await notifyTrainerOfSessionAssignment(
-    s.id,
-    s.trainerId,
-    s.trainerFeeAmount ?? undefined
-  );
+  const res = await notifyTrainerOfSessionAssignment(s.id, s.trainerId);
   // On marque "notifié" dès que le flux a abouti (mail envoyé, ou skip propre
   // type formateur sans email) pour ne pas re-tenter à chaque édition. Un
   // échec dur (res.ok = false) laisse le flag null → re-tentable.
@@ -224,13 +283,7 @@ export async function notifyTrainerIfSessionOpen(
       data: { trainerAssignmentMailSentAt: new Date() },
     });
   }
-  return {
-    status: "sent",
-    emailSent: res.emailSent,
-    error: res.error,
-    contractGenerated: res.contractGenerated,
-    contractSkipReason: res.contractSkipReason,
-  };
+  return { status: "sent", emailSent: res.emailSent, error: res.error };
 }
 
 /**

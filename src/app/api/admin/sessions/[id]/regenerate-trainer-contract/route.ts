@@ -15,7 +15,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import prisma from "@/lib/db";
-import { notifyTrainerOfSessionAssignment } from "@/lib/session";
+import { generateAndSendTrainerContract } from "@/lib/session";
 
 export async function POST(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const session = await getSession();
@@ -58,20 +58,10 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
       );
     }
 
-    const res = await notifyTrainerOfSessionAssignment(id, sessionRow.trainerId, amount);
-
-    // Envoi manuel = on marque le formateur comme notifié, pour que le
-    // déclenchement automatique à l'ouverture de la session ne renvoie pas le
-    // mail une seconde fois.
-    if (res.ok) {
-      await prisma.session.update({
-        where: { id },
-        data: { trainerAssignmentMailSentAt: new Date() },
-      });
-    }
+    const res = await generateAndSendTrainerContract(id, amount);
 
     return NextResponse.json({
-      success: true,
+      success: res.ok,
       emailSent: res.emailSent,
       contractGenerated: res.contractGenerated,
       contractSkipReason: res.contractSkipReason,

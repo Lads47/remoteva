@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { publicInscriptionSchema } from "@/lib/validation";
 import { getSessionById } from "@/lib/session";
 import { createTrainee, recordTraineeEvent } from "@/lib/trainee";
-import { syncSessionStatusOnRosterChange } from "@/lib/session";
+import { syncSessionStatusOnRosterChange, maybeSendTrainerContractOnThreshold } from "@/lib/session";
 import { detectOpcoBySiret } from "@/lib/opco";
 import { sendInscriptionConfirmation, sendInscriptionAdminNotif } from "@/lib/mailer";
 
@@ -86,6 +86,9 @@ export async function POST(request: NextRequest) {
 
     // Bascule auto du statut session si la capacité est désormais atteinte
     await syncSessionStatusOnRosterChange(data.sessionId);
+    // Si le seuil d'inscrits confirmant la formation est atteint, on envoie le
+    // contrat de sous-traitance au formateur externe (best-effort, une fois).
+    await maybeSendTrainerContractOnThreshold(data.sessionId);
 
     await recordTraineeEvent(trainee.id, "rgpd_consent", "Consentement RGPD donné", {
       timestamp: new Date().toISOString(),

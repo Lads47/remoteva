@@ -207,8 +207,9 @@ function SessionsPageInner() {
     setError("");
     setSaving(true);
     try {
-      // Si formateur externe sélectionné, on parse le montant HT pour déclencher
-      // la génération du contrat de sous-traitance (Qualiopi ind. 27).
+      // Si formateur externe sélectionné, on parse le montant HT à persister
+      // sur la session (le contrat de sous-traitance sera envoyé plus tard, au
+      // seuil d'inscrits ou manuellement — Qualiopi ind. 27).
       const selectedTrainer = trainers.find((t) => t.id === form.trainerId);
       const feeRaw = form.trainerFeeAmount.replace(",", ".").trim();
       const feeNumber = feeRaw === "" ? null : parseFloat(feeRaw);
@@ -248,13 +249,7 @@ function SessionsPageInner() {
         : payload;
       const data = await apiFetch<{
         trainerNotified?:
-          | {
-              status: "sent";
-              emailSent?: boolean;
-              error?: string;
-              contractGenerated?: boolean;
-              contractSkipReason?: string;
-            }
+          | { status: "sent"; emailSent?: boolean; error?: string }
           | { status: "deferred" }
           | { status: "already_sent" }
           | null;
@@ -268,8 +263,6 @@ function SessionsPageInner() {
       } else if (notif?.status === "sent") {
         if (notif.emailSent) {
           trainerNote = " · Formateur prévenu par mail ✓";
-          if (notif.contractGenerated) trainerNote += " (contrat de sous-traitance joint 📎)";
-          else if (notif.contractSkipReason) trainerNote += ` (contrat non généré : ${notif.contractSkipReason})`;
         } else if (notif.error) {
           trainerNote = ` · Mail formateur en erreur (${String(notif.error).slice(0, 60)})`;
         }
@@ -568,10 +561,10 @@ function SessionsPageInner() {
             </Field>
 
             {/* === Qualiopi ind. 27 — Montant HT si formateur externe ===
-                Quand un formateur externe est sélectionné, on demande le
-                montant HT du contrat. Si rempli + envoi, on génère et joint
-                automatiquement le contrat de sous-traitance au mail
-                d'assignation. */}
+                On saisit le montant HT du contrat. Le contrat n'est PAS envoyé
+                à l'assignation : il part automatiquement quand le seuil
+                d'inscrits de la formation est atteint (formation confirmée),
+                ou manuellement via le bouton « contrat de sous-traitance ». */}
             {(() => {
               const selected = trainers.find((t) => t.id === form.trainerId);
               if (!selected?.isExternal) return null;
@@ -587,9 +580,10 @@ function SessionsPageInner() {
                     className="input"
                   />
                   <p className="text-xs mt-1.5 font-jetbrains" style={{ color: "#92400e" }}>
-                    📎 Formateur externe : un contrat de sous-traitance sera généré et joint
-                    au mail d&apos;assignation (Qualiopi ind. 27). Laisser vide pour envoyer
-                    juste le mail sans contrat.
+                    📎 Formateur externe : le contrat de sous-traitance sera envoyé
+                    automatiquement quand la formation atteint son seuil d&apos;inscrits
+                    (réglable dans le catalogue), ou manuellement via le bouton dédié.
+                    Renseigne le montant HT dès maintenant.
                   </p>
                 </Field>
               );

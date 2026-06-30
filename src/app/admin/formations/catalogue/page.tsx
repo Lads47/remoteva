@@ -12,6 +12,7 @@ interface Formation {
   prixHT: number;
   dureeJours: number;
   active: boolean;
+  minInscrits: number;
   sellsyPipelineId: number | null;
   sellsyStepInitial: number | null;
   sellsyServiceId: number | null;
@@ -37,6 +38,7 @@ type FormState = {
   prixHT: string;
   dureeJours: string;
   active: boolean;
+  minInscrits: string;
   sellsyServiceId: string;
   sellsyEstimateModelId: string;
   codeOpportunite: string;
@@ -57,6 +59,7 @@ const EMPTY_FORM: FormState = {
   prixHT: "",
   dureeJours: "1",
   active: true,
+  minInscrits: "0",
   sellsyServiceId: "",
   sellsyEstimateModelId: "",
   codeOpportunite: "",
@@ -106,6 +109,7 @@ export default function FormationsPage() {
       prixHT: f.prixHT.toString(),
       dureeJours: f.dureeJours.toString(),
       active: f.active,
+      minInscrits: (f.minInscrits ?? 0).toString(),
       sellsyServiceId: f.sellsyServiceId?.toString() ?? "",
       sellsyEstimateModelId: f.sellsyEstimateModelId?.toString() ?? "",
       codeOpportunite: f.codeOpportunite,
@@ -130,6 +134,7 @@ export default function FormationsPage() {
       prixHT: parseFloat(f.prixHT) || 0,
       dureeJours: parseInt(f.dureeJours, 10) || 1,
       active: f.active,
+      minInscrits: parseInt(f.minInscrits, 10) || 0,
       sellsyServiceId: toIntOrNull(f.sellsyServiceId),
       sellsyEstimateModelId: toIntOrNull(f.sellsyEstimateModelId),
       codeOpportunite: f.codeOpportunite.trim(),
@@ -310,6 +315,15 @@ export default function FormationsPage() {
                 onChange={(e) => setForm({ ...form, dureeJours: e.target.value })}
                 className="input"
                 required
+              />
+            </Field>
+            <Field label="Seuil d'inscrits → contrat ST auto (0 = manuel)">
+              <input
+                type="number"
+                min="0"
+                value={form.minInscrits}
+                onChange={(e) => setForm({ ...form, minInscrits: e.target.value })}
+                className="input"
               />
             </Field>
             <Field label="Description / Objectifs de la formation" full>

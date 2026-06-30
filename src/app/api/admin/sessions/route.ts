@@ -9,6 +9,7 @@ import {
   deleteSession,
   generateSessionCode,
   notifyTrainerIfSessionOpen,
+  maybeSendTrainerContractOnThreshold,
   type TrainerNotifyOutcome,
 } from "@/lib/session";
 import { createSessionSchema, updateSessionSchema } from "@/lib/validation";
@@ -114,6 +115,10 @@ export async function PUT(request: NextRequest) {
     // "open" + formateur assigné + pas déjà envoyé. Couvre donc aussi bien le
     // passage de statut à "open" que l'assignation sur une session déjà ouverte.
     const trainerNotified: TrainerNotifyOutcome | null = await notifyTrainerIfSessionOpen(id);
+    // Couvre le cas où l'admin renseigne le montant ST après que le seuil
+    // d'inscrits soit déjà atteint (sinon plus aucune inscription ne le
+    // re-déclencherait). Best-effort, envoi unique grâce au garde-fou.
+    await maybeSendTrainerContractOnThreshold(id);
     return NextResponse.json({ session, trainerNotified });
   } catch (error) {
     console.error("[/api/admin/sessions] PUT error:", error);

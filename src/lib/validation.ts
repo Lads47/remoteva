@@ -165,6 +165,8 @@ export const createFormationSchema = z.object({
   prixHT: z.number().nonnegative("Prix HT >= 0"),
   dureeJours: z.number().int().positive("Durée >= 1 jour"),
   active: z.boolean().optional(),
+  // Seuil d'inscrits pour l'envoi auto du contrat de sous-traitance (0 = off)
+  minInscrits: z.number().int().nonnegative().optional(),
   sellsyPipelineId: z.number().int().nullable().optional(),
   sellsyStepInitial: z.number().int().nullable().optional(),
   sellsyServiceId: z.number().int().nullable().optional(),

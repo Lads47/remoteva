@@ -160,6 +160,10 @@ model Formation {
   prixHT                      Float    @map("prix_ht")
   dureeJours                  Int      @map("duree_jours")
   active                      Boolean  @default(true)
+  // Seuil d'inscrits (non "abandonne") à partir duquel la formation est
+  // considérée confirmée : déclenche l'envoi auto du contrat de sous-traitance
+  // au formateur externe assigné. 0 = désactivé (contrat envoyé manuellement).
+  minInscrits                 Int      @default(0) @map("min_inscrits")
 
   // Sellsy
   sellsyPipelineId            Int?     @map("sellsy_pipeline_id")

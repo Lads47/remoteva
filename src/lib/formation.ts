@@ -8,6 +8,8 @@ export interface FormationInfo {
   prixHT: number;
   dureeJours: number;
   active: boolean;
+  // Seuil d'inscrits confirmant la formation → envoi auto du contrat ST (0 = off)
+  minInscrits: number;
 
   sellsyPipelineId: number | null;
   sellsyStepInitial: number | null;
@@ -36,6 +38,7 @@ export interface FormationCreateInput {
   prixHT: number;
   dureeJours: number;
   active?: boolean;
+  minInscrits?: number;
   sellsyPipelineId?: number | null;
   sellsyStepInitial?: number | null;
   sellsyServiceId?: number | null;
@@ -102,6 +105,7 @@ function toInfo(f: FormationRow): FormationInfo {
     prixHT: f.prixHT,
     dureeJours: f.dureeJours,
     active: f.active,
+    minInscrits: f.minInscrits,
     sellsyPipelineId: f.sellsyPipelineId,
     sellsyStepInitial: f.sellsyStepInitial,
     sellsyServiceId: f.sellsyServiceId,

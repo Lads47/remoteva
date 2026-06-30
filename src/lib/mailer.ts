@@ -531,6 +531,102 @@ Les Ateliers du Stream`;
 }
 
 /**
+ * Mail dédié à l'envoi du contrat de sous-traitance (Qualiopi ind. 27).
+ *
+ * Découplé du mail d'assignation : il ne part que lorsque la formation est
+ * confirmée (seuil d'inscrits atteint) ou sur action manuelle de l'admin, pour
+ * ne pas engager le sous-traitant avant d'être sûr que la session aura lieu.
+ */
+export async function sendTrainerContractEmail(params: {
+  to: string;
+  prenom: string;
+  formationNomLong: string;
+  sessionCode: string;
+  sessionDateDebut: Date | string;
+  sessionDateFin: Date | string;
+  montantHt: number;
+  contractPdfBuffer: Buffer;
+  contractPdfFilename: string;
+  sessionUrl: string;
+  replyTo?: string;
+}): Promise<SendEmailResult> {
+  const replyTo = params.replyTo || process.env.ADMIN_NOTIFY_EMAIL;
+  const safe = {
+    prenom: escapeHtml(params.prenom),
+    formation: escapeHtml(params.formationNomLong),
+    code: escapeHtml(params.sessionCode),
+    url: escapeHtml(params.sessionUrl),
+  };
+  const dateDebut = fmtDateFr(params.sessionDateDebut);
+  const dateFin = fmtDateFr(params.sessionDateFin);
+  const montantFmt =
+    new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(params.montantHt) +
+    " € HT";
+
+  const html = `<!DOCTYPE html>
+<html lang="fr">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #1f2244;">
+  <h1 style="font-size: 22px; margin: 0 0 16px;">Votre contrat de sous-traitance</h1>
+  <p>Bonjour ${safe.prenom},</p>
+  <p>La session ci-dessous est confirmée. Vous trouverez <strong>en pièce jointe</strong> votre contrat de sous-traitance.</p>
+
+  <table style="border-collapse: collapse; margin: 16px 0; background: #f8fafc; border-radius: 8px; padding: 12px; width: 100%;">
+    <tr><td style="padding: 8px 12px; color: #727485; width: 40%;">Formation</td><td style="padding: 8px 12px;"><strong>${safe.formation}</strong></td></tr>
+    <tr><td style="padding: 8px 12px; color: #727485;">Code session</td><td style="padding: 8px 12px; font-family: 'JetBrains Mono', monospace;">${safe.code}</td></tr>
+    <tr><td style="padding: 8px 12px; color: #727485;">Dates</td><td style="padding: 8px 12px;">Du ${dateDebut} au ${dateFin}</td></tr>
+    <tr><td style="padding: 8px 12px; color: #727485;">Rémunération</td><td style="padding: 8px 12px;"><strong>${escapeHtml(montantFmt)}</strong></td></tr>
+  </table>
+
+  <p style="font-size: 14px;">Merci de retourner le contrat <strong>signé</strong> à
+    <a href="mailto:formation@lesateliersdustream.fr">formation@lesateliersdustream.fr</a>.</p>
+
+  <p style="margin: 24px 0; text-align: center;">
+    <a href="${safe.url}" style="display: inline-block; padding: 12px 22px; background: #1f2244; color: white; text-decoration: none; border-radius: 999px; font-weight: 600;">
+      Voir ma session →
+    </a>
+  </p>
+
+  <p>Pour toute question, vous pouvez répondre directement à ce mail.</p>
+  <p>Bien cordialement,<br/>Noémie Marphay<br/><em>Les Ateliers du Stream</em></p>
+</body>
+</html>`;
+
+  const text = `Bonjour ${params.prenom},
+
+La session ci-dessous est confirmée. Vous trouverez en pièce jointe votre contrat de sous-traitance.
+
+Formation : ${params.formationNomLong}
+Code session : ${params.sessionCode}
+Dates : du ${dateDebut} au ${dateFin}
+Rémunération : ${montantFmt}
+
+Merci de retourner le contrat signé à formation@lesateliersdustream.fr.
+
+Accéder à votre espace formateur :
+${params.sessionUrl}
+
+Pour toute question, répondez à ce mail.
+
+Bien cordialement,
+Noémie Marphay
+Les Ateliers du Stream`;
+
+  return sendEmail({
+    to: params.to,
+    subject: `Contrat de sous-traitance — ${params.formationNomLong} (${params.sessionCode})`,
+    html,
+    text,
+    replyTo,
+    attachments: [
+      {
+        filename: params.contractPdfFilename,
+        content: params.contractPdfBuffer.toString("base64"),
+      },
+    ],
+  });
+}
+
+/**
  * Accusé de réception d'une réclamation au réclamant.
  * Rappelle l'engagement réglementaire de traitement sous 30 jours.
  */
