@@ -222,6 +222,10 @@ model Session {
   trainerFeeAmount         Float?    @map("trainer_fee_amount")
   trainerContractDriveFileId String? @map("trainer_contract_drive_file_id")
   trainerContractSentAt    DateTime? @map("trainer_contract_sent_at")
+  // Date d'envoi du mail d'assignation au formateur. Garde-fou anti-doublon :
+  // le mail part une seule fois, quand la session devient "open" avec un
+  // formateur assigné. Remis à null si on change de formateur.
+  trainerAssignmentMailSentAt DateTime? @map("trainer_assignment_mail_sent_at")
 
   notes            String   @default("")
   createdAt        DateTime @default(now()) @map("created_at")

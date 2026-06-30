@@ -22,6 +22,7 @@ export interface SessionInfo {
   trainerFeeAmount: number | null;
   trainerContractDriveFileId: string | null;
   trainerContractSentAt: Date | null;
+  trainerAssignmentMailSentAt: Date | null;
   notes: string;
   traineeCount: number;
   createdAt: Date;
@@ -54,6 +55,7 @@ export interface SessionUpdateInput {
   driveSuiviFileId?: string | null;
   trainerId?: string | null;
   trainerFeeAmount?: number | null;
+  trainerAssignmentMailSentAt?: Date | null;
   notes?: string;
 }
 
@@ -162,6 +164,73 @@ export async function notifyTrainerOfSessionAssignment(
     console.warn(`[notifyTrainerOfSessionAssignment] échec sessionId=${sessionId} trainerId=${trainerId}:`, msg);
     return { ok: false, error: msg };
   }
+}
+
+/**
+ * Issue d'une tentative de notification du formateur, telle que remontée à
+ * l'admin après création / mise à jour de session.
+ */
+export type TrainerNotifyOutcome =
+  | {
+      status: "sent";
+      emailSent?: boolean;
+      error?: string;
+      contractGenerated?: boolean;
+      contractSkipReason?: string;
+    }
+  | { status: "deferred" } // formateur assigné mais session pas encore "open"
+  | { status: "already_sent" };
+
+/**
+ * Envoie le mail d'assignation au formateur UNIQUEMENT si toutes ces
+ * conditions sont réunies :
+ *   - un formateur est assigné à la session ;
+ *   - la session est "open" (ouverte aux inscriptions) ;
+ *   - le mail n'a pas déjà été envoyé (garde-fou trainerAssignmentMailSentAt).
+ *
+ * À appeler après création / mise à jour de session et après tout passage de
+ * statut. Idempotent : marque trainerAssignmentMailSentAt au premier envoi
+ * réussi pour ne jamais doublonner. Retourne null si aucun formateur n'est
+ * assigné (rien à signaler).
+ */
+export async function notifyTrainerIfSessionOpen(
+  sessionId: string
+): Promise<TrainerNotifyOutcome | null> {
+  const s = await prisma.session.findUnique({
+    where: { id: sessionId },
+    select: {
+      id: true,
+      status: true,
+      trainerId: true,
+      trainerFeeAmount: true,
+      trainerAssignmentMailSentAt: true,
+    },
+  });
+  if (!s || !s.trainerId) return null;
+  if (s.trainerAssignmentMailSentAt) return { status: "already_sent" };
+  if (s.status !== "open") return { status: "deferred" };
+
+  const res = await notifyTrainerOfSessionAssignment(
+    s.id,
+    s.trainerId,
+    s.trainerFeeAmount ?? undefined
+  );
+  // On marque "notifié" dès que le flux a abouti (mail envoyé, ou skip propre
+  // type formateur sans email) pour ne pas re-tenter à chaque édition. Un
+  // échec dur (res.ok = false) laisse le flag null → re-tentable.
+  if (res.ok) {
+    await prisma.session.update({
+      where: { id: s.id },
+      data: { trainerAssignmentMailSentAt: new Date() },
+    });
+  }
+  return {
+    status: "sent",
+    emailSent: res.emailSent,
+    error: res.error,
+    contractGenerated: res.contractGenerated,
+    contractSkipReason: res.contractSkipReason,
+  };
 }
 
 /**
@@ -323,6 +392,7 @@ export async function updateSession(id: string, input: SessionUpdateInput): Prom
   if (input.driveSuiviFileId !== undefined) data.driveSuiviFileId = input.driveSuiviFileId;
   if (input.trainerId !== undefined) data.trainerId = input.trainerId;
   if (input.trainerFeeAmount !== undefined) data.trainerFeeAmount = input.trainerFeeAmount;
+  if (input.trainerAssignmentMailSentAt !== undefined) data.trainerAssignmentMailSentAt = input.trainerAssignmentMailSentAt;
   if (input.notes !== undefined) data.notes = input.notes;
 
   const s = await prisma.session.update({
@@ -368,6 +438,7 @@ function toInfo(s: SessionRow): SessionInfo {
     trainerFeeAmount: s.trainerFeeAmount,
     trainerContractDriveFileId: s.trainerContractDriveFileId,
     trainerContractSentAt: s.trainerContractSentAt,
+    trainerAssignmentMailSentAt: s.trainerAssignmentMailSentAt,
     notes: s.notes,
     traineeCount: s._count.trainees,
     createdAt: s.createdAt,

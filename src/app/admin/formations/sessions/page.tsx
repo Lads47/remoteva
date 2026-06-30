@@ -247,18 +247,25 @@ function SessionsPageInner() {
           }
         : payload;
       const data = await apiFetch<{
-        trainerNotified?: {
-          emailSent?: boolean;
-          error?: string;
-          contractGenerated?: boolean;
-          contractSkipReason?: string;
-        } | null;
+        trainerNotified?:
+          | {
+              status: "sent";
+              emailSent?: boolean;
+              error?: string;
+              contractGenerated?: boolean;
+              contractSkipReason?: string;
+            }
+          | { status: "deferred" }
+          | { status: "already_sent" }
+          | null;
       }>("/api/admin/sessions", { method, body });
-      // Si le serveur a notifié le formateur d'une assignation, on l'indique
-      // dans le toast pour rassurer l'admin (sinon le mail part en silence).
+      // Le mail formateur ne part qu'à l'ouverture des inscriptions. On
+      // l'indique dans le toast pour que l'admin sache à quoi s'attendre.
       const notif = data.trainerNotified;
       let trainerNote = "";
-      if (notif) {
+      if (notif?.status === "deferred") {
+        trainerNote = " · Le formateur sera prévenu par mail à l'ouverture des inscriptions";
+      } else if (notif?.status === "sent") {
         if (notif.emailSent) {
           trainerNote = " · Formateur prévenu par mail ✓";
           if (notif.contractGenerated) trainerNote += " (contrat de sous-traitance joint 📎)";

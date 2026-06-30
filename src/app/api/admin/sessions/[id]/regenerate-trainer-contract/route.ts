@@ -60,6 +60,16 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
 
     const res = await notifyTrainerOfSessionAssignment(id, sessionRow.trainerId, amount);
 
+    // Envoi manuel = on marque le formateur comme notifié, pour que le
+    // déclenchement automatique à l'ouverture de la session ne renvoie pas le
+    // mail une seconde fois.
+    if (res.ok) {
+      await prisma.session.update({
+        where: { id },
+        data: { trainerAssignmentMailSentAt: new Date() },
+      });
+    }
+
     return NextResponse.json({
       success: true,
       emailSent: res.emailSent,

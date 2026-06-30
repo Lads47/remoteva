@@ -8,7 +8,8 @@ import {
   updateSession,
   deleteSession,
   generateSessionCode,
-  notifyTrainerOfSessionAssignment,
+  notifyTrainerIfSessionOpen,
+  type TrainerNotifyOutcome,
 } from "@/lib/session";
 import { createSessionSchema, updateSessionSchema } from "@/lib/validation";
 
@@ -63,28 +64,11 @@ export async function POST(request: NextRequest) {
       : await generateSessionCode(parsed.data.formationId, parsed.data.dateDebut);
     const session = await createSession({ ...parsed.data, code });
 
-    // Si la session est créée avec un formateur assigné, on le prévient par
-    // mail. Si formateur externe + montant fourni, le contrat de
-    // sous-traitance est généré et joint au mail (Qualiopi ind. 27).
-    let trainerNotified: {
-      emailSent?: boolean;
-      error?: string;
-      contractGenerated?: boolean;
-      contractSkipReason?: string;
-    } | null = null;
-    if (parsed.data.trainerId) {
-      const res = await notifyTrainerOfSessionAssignment(
-        session.id,
-        parsed.data.trainerId,
-        parsed.data.trainerFeeAmount ?? undefined
-      );
-      trainerNotified = {
-        emailSent: res.emailSent,
-        error: res.error,
-        contractGenerated: res.contractGenerated,
-        contractSkipReason: res.contractSkipReason,
-      };
-    }
+    // Le mail d'assignation ne part que lorsque la session est "open" avec un
+    // formateur assigné. À la création, cela ne concerne donc que les sessions
+    // créées directement ouvertes ; sinon l'envoi est différé jusqu'à
+    // l'ouverture (le contrat de sous-traitance suit le même déclenchement).
+    const trainerNotified: TrainerNotifyOutcome | null = await notifyTrainerIfSessionOpen(session.id);
     return NextResponse.json({ session, trainerNotified }, { status: 201 });
   } catch (error) {
     console.error("[/api/admin/sessions] POST error:", error);
@@ -113,35 +97,23 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Détecte si le trainerId va changer (assignation initiale ou réassignation)
-    // pour pouvoir prévenir le nouveau formateur par mail après la mise à jour.
+    // Si on change de formateur, on réinitialise le garde-fou d'envoi pour que
+    // le nouveau formateur soit notifié (à l'ouverture si la session n'est pas
+    // encore "open", ou immédiatement si elle l'est déjà).
     const previous = await getSessionById(id);
-    const newTrainerId = parsed.data.trainerId ?? undefined;
+    const newTrainerId = parsed.data.trainerId;
     const previousTrainerId = previous?.trainerId ?? null;
-    const trainerChanged =
-      newTrainerId !== undefined && newTrainerId !== previousTrainerId && newTrainerId !== null;
+    const trainerIdChanged = newTrainerId !== undefined && newTrainerId !== previousTrainerId;
 
-    const session = await updateSession(id, parsed.data);
+    const session = await updateSession(id, {
+      ...parsed.data,
+      ...(trainerIdChanged ? { trainerAssignmentMailSentAt: null } : {}),
+    });
 
-    let trainerNotified: {
-      emailSent?: boolean;
-      error?: string;
-      contractGenerated?: boolean;
-      contractSkipReason?: string;
-    } | null = null;
-    if (trainerChanged && newTrainerId) {
-      const res = await notifyTrainerOfSessionAssignment(
-        session.id,
-        newTrainerId,
-        parsed.data.trainerFeeAmount ?? undefined
-      );
-      trainerNotified = {
-        emailSent: res.emailSent,
-        error: res.error,
-        contractGenerated: res.contractGenerated,
-        contractSkipReason: res.contractSkipReason,
-      };
-    }
+    // Le mail (et le contrat ST le cas échéant) part dès que la session est
+    // "open" + formateur assigné + pas déjà envoyé. Couvre donc aussi bien le
+    // passage de statut à "open" que l'assignation sur une session déjà ouverte.
+    const trainerNotified: TrainerNotifyOutcome | null = await notifyTrainerIfSessionOpen(id);
     return NextResponse.json({ session, trainerNotified });
   } catch (error) {
     console.error("[/api/admin/sessions] PUT error:", error);
