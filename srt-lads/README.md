@@ -1,4 +1,19 @@
-# SRT LADS
+# ⚠️ LEGACY — Ne plus utiliser
+
+> **Ce dossier est archivé. Il décrit l'architecture V1 du projet, basée sur SLS (SRT Live Server). En production depuis mai 2026, la stack a été migrée vers MediaMTX et le projet a été remplacé par EVA STREAM.**
+>
+> **Pour la prod actuelle, voir le repo dédié :** https://github.com/Lads47/eva-stream
+>
+> - Serveur média : MediaMTX (Go, bluenviron/mediamtx) — pas SLS
+> - Backend web : `eva-stream-web` (Fastify) — pas `srt-lads-web` (Node.js Express)
+> - Monitoring temps réel : API REST MediaMTX (`/v3/srtconns/list`) — pas parsing de `/var/log/sls/error.log`
+> - Sur le VPS OVH (193.70.43.0), `sls.service` et `srt-lads-web.service` sont `inactive`. Seuls `mediamtx.service` et `eva-stream-web.service` tournent.
+>
+> Ce dossier est conservé uniquement pour référence historique (cahier des charges originaux, choix d'archi V1, runbook SLS). Aucun de ses fichiers de config / scripts / code n'est plus déployé.
+
+---
+
+# SRT LADS (archivé)
 
 Infrastructure SRT multi-sites pour TF1 Factory - Evaremote / Lads47.
 
