@@ -235,6 +235,10 @@ export async function sendDevisToStagiaire(params: {
   // PJ pour donner au stagiaire le détail des objectifs/contenu avant signature.
   programmeBuffer?: Buffer;
   programmeFilename?: string;
+  // Guide de financement (PDF Drive commun, optionnel) — joint en PJ pour aider
+  // le stagiaire à monter son dossier de prise en charge.
+  financementGuideBuffer?: Buffer;
+  financementGuideFilename?: string;
 }): Promise<SendEmailResult> {
   const replyTo = process.env.ADMIN_NOTIFY_EMAIL;
   const safe = {
@@ -260,6 +264,7 @@ export async function sendDevisToStagiaire(params: {
   <ul style="padding-left: 20px;">
     <li>Votre <strong>devis personnalisé</strong> à signer</li>
     ${params.programmeBuffer ? `<li>Le <strong>programme détaillé</strong> de la formation</li>` : ""}
+    ${params.financementGuideBuffer ? `<li>Le <strong>guide de financement</strong> pour vous aider dans vos démarches de prise en charge</li>` : ""}
   </ul>
 
   <table style="border-collapse: collapse; margin: 16px 0; background: #f8fafc; border-radius: 8px; padding: 12px; width: 100%;">
@@ -293,7 +298,8 @@ export async function sendDevisToStagiaire(params: {
 
 Suite à votre demande d'inscription à la formation ${params.formationNomLong} (session du ${dateDebut} au ${dateFin}), vous trouverez ci-joint :
 - Votre devis personnalisé à signer${params.programmeBuffer ? `
-- Le programme détaillé de la formation` : ""}
+- Le programme détaillé de la formation` : ""}${params.financementGuideBuffer ? `
+- Le guide de financement (démarches de prise en charge)` : ""}
 
 Session : du ${dateDebut} au ${dateFin}
 Lieu : ${params.sessionLieu || "Lieu à préciser"}
@@ -319,6 +325,12 @@ Les Ateliers du Stream`;
     attachments.push({
       filename: params.programmeFilename,
       content: params.programmeBuffer.toString("base64"),
+    });
+  }
+  if (params.financementGuideBuffer && params.financementGuideFilename) {
+    attachments.push({
+      filename: params.financementGuideFilename,
+      content: params.financementGuideBuffer.toString("base64"),
     });
   }
 

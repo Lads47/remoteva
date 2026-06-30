@@ -24,6 +24,10 @@ async function requireAuth() {
   return null;
 }
 
+// Guide de financement (PDF Google Drive) joint au mail devis pour toutes les
+// formations. ID du fichier sur le Drive partagé "FORMATION".
+const FINANCEMENT_GUIDE_DRIVE_ID = "15_uG_S1Dis6Z4Svs9MFlbL3TouJr7VU8";
+
 // POST /api/admin/trainees/[id]/send-devis
 // Orchestre : création contact Sellsy → opportunité → devis → envoi mail au stagiaire avec PDF
 // → passage du Trainee en statut "devis_envoye" + bascule du step Sellsy.
@@ -223,6 +227,19 @@ export async function POST(_request: NextRequest, ctx: { params: Promise<{ id: s
       }
     }
 
+    // Guide de financement commun (best-effort, même logique que le programme).
+    let financementGuideBuffer: Buffer | undefined;
+    let financementGuideFilename: string | undefined;
+    if (isDriveConfigured()) {
+      try {
+        const guideFile = await getFileAsPdf(FINANCEMENT_GUIDE_DRIVE_ID);
+        financementGuideBuffer = guideFile.buffer;
+        financementGuideFilename = "Guide de financement.pdf";
+      } catch (err) {
+        console.warn("[send-devis] récupération guide de financement échouée:", err);
+      }
+    }
+
     const mailRes = await sendDevisToStagiaire({
       to: trainee.email,
       prenom: trainee.prenom,
@@ -236,6 +253,8 @@ export async function POST(_request: NextRequest, ctx: { params: Promise<{ id: s
       pdfFilename: pdf.filename,
       programmeBuffer,
       programmeFilename,
+      financementGuideBuffer,
+      financementGuideFilename,
     });
     await recordTraineeEvent(
       trainee.id,
