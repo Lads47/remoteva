@@ -54,6 +54,14 @@ const TILES: Tile[] = [
     external: true,
   },
   {
+    title: "EVA Scoring",
+    description:
+      "Scoring beach tennis en direct (API MOVN → vMix / écran LED). Ouvre dans un nouvel onglet.",
+    publicHref: "/admin/login",
+    authedHref: "https://scoring.evaremote.com",
+    external: true,
+  },
+  {
     title: "EVA Formations",
     description:
       "Gestion Qualiopi complète : catalogue, sessions, stagiaires, formateurs, évaluations.",
