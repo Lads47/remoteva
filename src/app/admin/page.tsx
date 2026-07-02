@@ -15,7 +15,9 @@ const EVA_ACCENT = "#7dcef5";
 const EVA_MUTED = "#727485";
 
 type Tile = {
-  universe: EvaUniverse;
+  // Univers requis pour voir la tuile. Absent = visible par tout compte validé
+  // (ex. EVA Scoring, hébergé à part et ouvert à toute session EVA validée).
+  universe?: EvaUniverse;
   href: string;
   external?: boolean;
   title: string;
@@ -59,6 +61,14 @@ const TILES: Tile[] = [
     description:
       "Gestion Qualiopi complète : catalogue, sessions, stagiaires, formateurs, évaluations.",
   },
+  {
+    // Pas d'univers dédié : ouvert à tout compte EVA validé.
+    href: "https://scoring.evaremote.com",
+    external: true,
+    title: "EVA Scoring",
+    description:
+      "Scoring beach tennis en direct (API MOVN → vMix / écran LED). Ouvre dans un nouvel onglet.",
+  },
 ];
 
 export default async function AdminHubPage() {
@@ -76,7 +86,7 @@ export default async function AdminHubPage() {
   const allowed = new Set<EvaUniverse>(session.universes || []);
   const visibleTiles = session.isSuperAdmin
     ? TILES
-    : TILES.filter((t) => allowed.has(t.universe));
+    : TILES.filter((t) => !t.universe || allowed.has(t.universe));
 
   return (
     <div className="space-y-8">
