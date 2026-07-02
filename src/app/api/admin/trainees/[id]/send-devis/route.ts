@@ -10,7 +10,9 @@ import {
   addCompanyAddress,
   addIndividualAddress,
   createOpportunity,
+  getOpportunity,
   createEstimate,
+  getEstimate,
   downloadEstimatePdf,
   updateOpportunityStep,
 } from "@/lib/sellsy";
@@ -22,6 +24,13 @@ async function requireAuth() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
   return null;
+}
+
+// Une ressource Sellsy stockée (opportunité / devis) a pu être supprimée
+// manuellement dans Sellsy. On ne considère "absente" qu'un vrai 404 ; une
+// autre erreur (réseau, 5xx) est relancée pour ne pas recréer un doublon.
+function isSellsyNotFound(err: unknown): boolean {
+  return err instanceof Error && err.message.includes("(HTTP 404)");
 }
 
 // Guide de financement (PDF Google Drive) joint au mail devis pour toutes les
@@ -133,6 +142,36 @@ export async function POST(_request: NextRequest, ctx: { params: Promise<{ id: s
 
     const relatedType: "company" | "individual" = isEntreprise ? "company" : "individual";
     const relatedId = isEntreprise ? companyId! : individualId!;
+
+    // === Re-vérification des ressources Sellsy stockées ===
+    // Elles ont pu être supprimées côté Sellsy (nettoyage manuel). Dans ce cas
+    // on oublie l'ID périmé pour que l'étape correspondante les recrée, plutôt
+    // que de sauter l'étape puis échouer (ex: télécharger le PDF d'un devis
+    // supprimé). Ne concerne qu'un vrai 404.
+    if (opportunityId) {
+      try {
+        await getOpportunity(opportunityId);
+      } catch (err) {
+        if (!isSellsyNotFound(err)) throw err;
+        opportunityId = null;
+        await updateTrainee(trainee.id, { sellsyOpportunityId: null });
+        await recordTraineeEvent(trainee.id, "sellsy_synced", "Opportunité Sellsy introuvable (supprimée) — recréation", {
+          type: "opportunity_missing",
+        });
+      }
+    }
+    if (estimateId) {
+      try {
+        await getEstimate(estimateId);
+      } catch (err) {
+        if (!isSellsyNotFound(err)) throw err;
+        estimateId = null;
+        await updateTrainee(trainee.id, { sellsyEstimateId: null });
+        await recordTraineeEvent(trainee.id, "sellsy_synced", "Devis Sellsy introuvable (supprimé) — recréation", {
+          type: "estimate_missing",
+        });
+      }
+    }
 
     // === 2. Opportunité ===
     if (!opportunityId) {
