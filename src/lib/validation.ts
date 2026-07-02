@@ -131,7 +131,6 @@ export const VALID_TRAINEE_STATUSES = [
   "devis_signe",
   "convention_envoyee",
   "convention_signee",
-  "valide",
   "convoque",
   "en_formation",
   "termine",

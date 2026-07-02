@@ -86,7 +86,6 @@ const STATUS_LABELS: Record<string, string> = {
   devis_signe: "Devis signé",
   convention_envoyee: "Convention envoyée",
   convention_signee: "Convention signée",
-  valide: "Validé",
   convoque: "Convoqué",
   en_formation: "En formation",
   termine: "Terminé",
@@ -427,7 +426,7 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
       {/* Bandeau convocation — disponible dès convention envoyée. Permet
           envoi manuel hors fenêtre normale du cron J-14 (last-minute, ré-envoi). */}
       {trainee.formation.hasTemplateConvocation &&
-        ["convention_envoyee", "convention_signee", "valide", "convoque", "en_formation"].includes(trainee.status) && (
+        ["convention_envoyee", "convention_signee", "convoque", "en_formation"].includes(trainee.status) && (
         <div
           className="p-5 rounded-xl border flex items-center justify-between gap-3 flex-wrap"
           style={
