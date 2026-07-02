@@ -1624,6 +1624,10 @@ export async function sendEndOfTrainingDocs(params: {
   certificatPdfFilename: string;
   attestationPdfBuffer: Buffer;
   attestationPdfFilename: string;
+  // Synthèse d'évaluation pratique (optionnelle) — c'est ce document qui détaille
+  // les compétences évaluées et leur niveau d'acquisition, exercice par exercice.
+  synthesePdfBuffer?: Buffer;
+  synthesePdfFilename?: string;
   replyTo?: string;
 }): Promise<SendEmailResult> {
   const replyTo = params.replyTo || process.env.ADMIN_NOTIFY_EMAIL;
@@ -1633,6 +1637,14 @@ export async function sendEndOfTrainingDocs(params: {
   };
   const dateDebut = fmtDateFr(params.sessionDateDebut);
   const dateFin = fmtDateFr(params.sessionDateFin);
+  const hasSynthese = Boolean(params.synthesePdfBuffer && params.synthesePdfFilename);
+
+  const syntheseLineHtml = hasSynthese
+    ? `<li><strong>Synthèse d'évaluation</strong> — le détail des compétences travaillées et de leur niveau d'acquisition (acquis, en cours d'acquisition…), exercice par exercice.</li>`
+    : "";
+  const syntheseLineText = hasSynthese
+    ? "\n- Synthèse d'évaluation — le détail des compétences travaillées et de leur niveau d'acquisition, exercice par exercice."
+    : "";
 
   const html = `<!DOCTYPE html>
 <html lang="fr">
@@ -1644,7 +1656,8 @@ export async function sendEndOfTrainingDocs(params: {
   <p>Vous trouverez en pièces jointes&nbsp;:</p>
   <ul style="padding-left: 20px;">
     <li><strong>Certificat de réalisation</strong> — à transmettre à votre financeur (OPCO, AFDAS, France Travail…) pour clôturer votre dossier.</li>
-    <li><strong>Attestation de fin de formation</strong> — qui détaille les compétences que vous avez acquises pendant la formation.</li>
+    <li><strong>Attestation de fin de formation</strong> — document officiel attestant de votre participation et de la réalisation de la formation.</li>
+    ${syntheseLineHtml}
   </ul>
   <p>Pour toute question, vous pouvez simplement répondre à ce mail.</p>
   <p>Bien cordialement,<br/>Noémie Marphay<br/><em>Les Ateliers du Stream</em></p>
@@ -1661,7 +1674,7 @@ Vous venez de terminer la formation ${params.formationNomLong} (du ${dateDebut} 
 
 Vous trouverez en pièces jointes :
 - Certificat de réalisation — à transmettre à votre financeur (OPCO, AFDAS, France Travail…) pour clôturer votre dossier.
-- Attestation de fin de formation — qui détaille les compétences que vous avez acquises.
+- Attestation de fin de formation — document officiel attestant de votre participation et de la réalisation de la formation.${syntheseLineText}
 
 Pour toute question, répondez simplement à ce mail.
 
@@ -1673,6 +1686,12 @@ Les Ateliers du Stream`;
     { filename: params.certificatPdfFilename, content: params.certificatPdfBuffer.toString("base64") },
     { filename: params.attestationPdfFilename, content: params.attestationPdfBuffer.toString("base64") },
   ];
+  if (params.synthesePdfBuffer && params.synthesePdfFilename) {
+    attachments.push({
+      filename: params.synthesePdfFilename,
+      content: params.synthesePdfBuffer.toString("base64"),
+    });
+  }
 
   return sendEmail({
     to: params.to,

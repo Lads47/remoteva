@@ -1021,7 +1021,21 @@ export async function generateAndMailEndOfTrainingDocs(
   const certificatPdfFilename = `${certGen.fileName}.pdf`;
   const attestationPdfFilename = `${attGen.fileName}.pdf`;
 
-  // 4. Envoi mail unique avec les 2 PJ
+  // 3.bis Synthèse d'évaluation pratique du stagiaire (best-effort) — c'est ce
+  // document qui détaille réellement les compétences évaluées et leur niveau
+  // d'acquisition. Jointe au mail à côté du certificat et de l'attestation.
+  let synthesePdfBuffer: Buffer | undefined;
+  let synthesePdfFilename: string | undefined;
+  try {
+    const { buildGlobalEvaluationPdf } = await import("./evaluation-pdf");
+    const synth = await buildGlobalEvaluationPdf(traineeId);
+    synthesePdfBuffer = synth.buffer;
+    synthesePdfFilename = synth.filename;
+  } catch (err) {
+    console.warn("[generateAndMailEndOfTrainingDocs] synthèse éval non générée:", err);
+  }
+
+  // 4. Envoi mail unique avec les PJ (certif + attestation + synthèse si dispo)
   const mailRes = await sendEndOfTrainingDocs({
     to: trainee.email,
     prenom: trainee.prenom,
@@ -1032,6 +1046,8 @@ export async function generateAndMailEndOfTrainingDocs(
     certificatPdfFilename,
     attestationPdfBuffer,
     attestationPdfFilename,
+    synthesePdfBuffer,
+    synthesePdfFilename,
   });
 
   // 5. Marque sentAt sur les 2 TraineeDocument si mail envoyé
