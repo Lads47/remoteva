@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, use, useState } from "react";
+import { Suspense, use, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { apiFetch, apiErrorMessage } from "@/lib/api-client";
@@ -64,7 +64,29 @@ function SatisfactionPage({ id }: { id: string }) {
   const [result, setResult] = useState<SendResponse | null>(null);
   const [closing, setClosing] = useState(false);
   const [closeResult, setCloseResult] = useState<CloseResponse | null>(null);
+  const [sessionClosed, setSessionClosed] = useState(false);
   const [error, setError] = useState("");
+
+  // Détermine si la session est déjà clôturée (bouton désactivé + état visuel),
+  // de façon persistante. Signal = tous les stagiaires sont "terminé"/"abandonné"
+  // (l'effet réel du bouton Clôturer). On n'utilise PAS le statut de session
+  // "closed" car le cron le pose aussi pour toute session passée, avant même que
+  // le formateur ait généré les certificats.
+  useEffect(() => {
+    if (!token) return;
+    const ac = new AbortController();
+    apiFetch<{ trainees?: { status: string }[] }>(
+      `/api/formateur/sessions/${id}?token=${encodeURIComponent(token)}`,
+      { signal: ac.signal }
+    )
+      .then((d) => {
+        const list = d.trainees ?? [];
+        const allDone = list.length > 0 && list.every((t) => t.status === "termine" || t.status === "abandonne");
+        setSessionClosed(allDone);
+      })
+      .catch(() => {});
+    return () => ac.abort();
+  }, [id, token]);
   const [showPreview, setShowPreview] = useState(false);
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -119,6 +141,8 @@ function SatisfactionPage({ id }: { id: string }) {
         { method: "POST" }
       );
       setCloseResult(d);
+      // Clôturée seulement si tous les stagiaires sont bien terminés (aucun échec).
+      if (d.total > 0 && d.failed === 0) setSessionClosed(true);
     } catch (err) {
       setError(apiErrorMessage(err, "Erreur réseau"));
     } finally {
@@ -276,25 +300,45 @@ function SatisfactionPage({ id }: { id: string }) {
         </div>
       </div>
 
-      {/* Bloc clôture session — pleine largeur sous le grid */}
-      <div className="mt-6 p-4 rounded-xl border" style={{ borderColor: "#fde68a", backgroundColor: "#fffbeb" }}>
+      {/* Bloc clôture session — pleine largeur sous le grid.
+          Vert + badge non-cliquable une fois la session clôturée. */}
+      <div
+        className="mt-6 p-4 rounded-xl border"
+        style={{
+          borderColor: sessionClosed ? "#a7f3d0" : "#fde68a",
+          backgroundColor: sessionClosed ? "#f0fdf4" : "#fffbeb",
+        }}
+      >
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex-1 min-w-0">
-            <h2 className="text-sm font-semibold" style={{ color: "#92400e" }}>
-              🎓 Clôturer la session
+            <h2 className="text-sm font-semibold" style={{ color: sessionClosed ? "#166534" : "#92400e" }}>
+              {sessionClosed ? "✓ Session clôturée" : "🎓 Clôturer la session"}
             </h2>
-            <p className="text-xs font-jetbrains mt-0.5" style={{ color: "#b45309" }}>
-              Statut <strong>Terminé</strong> + envoi <strong>certificat</strong> + <strong>attestation</strong> + archivage <strong>synthèse éval</strong> Drive. Idempotent.
+            <p className="text-xs font-jetbrains mt-0.5" style={{ color: sessionClosed ? "#166534" : "#b45309" }}>
+              {sessionClosed ? (
+                "Cette session a été clôturée : stagiaires passés en « Terminé », certificat + attestation envoyés."
+              ) : (
+                <>Statut <strong>Terminé</strong> + envoi <strong>certificat</strong> + <strong>attestation</strong> + archivage <strong>synthèse éval</strong> Drive. Idempotent.</>
+              )}
             </p>
           </div>
-          <button
-            onClick={closeSession}
-            disabled={closing}
-            className="px-4 py-2 rounded-full text-sm font-medium text-white cursor-pointer disabled:opacity-50 whitespace-nowrap"
-            style={{ backgroundColor: "#92400e" }}
-          >
-            {closing ? "Clôture en cours..." : "Clôturer la session"}
-          </button>
+          {sessionClosed ? (
+            <span
+              className="px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap inline-flex items-center gap-1.5"
+              style={{ backgroundColor: "#dcfce7", color: "#166534" }}
+            >
+              ✓ Clôturée
+            </span>
+          ) : (
+            <button
+              onClick={closeSession}
+              disabled={closing}
+              className="px-4 py-2 rounded-full text-sm font-medium text-white cursor-pointer disabled:opacity-50 whitespace-nowrap"
+              style={{ backgroundColor: "#92400e" }}
+            >
+              {closing ? "Clôture en cours..." : "Clôturer la session"}
+            </button>
+          )}
         </div>
         {closeResult && (
           <div className="mt-3 pt-3 border-t" style={{ borderColor: "#fde68a" }}>
