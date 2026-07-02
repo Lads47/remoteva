@@ -24,6 +24,7 @@ export interface TraineeInfo {
   montantHT: number | null;
   psh: boolean;
   besoinsAdaptation: string;
+  isTest: boolean;
   objectifsAtteintsOverride: string;
   sellsyCompanyId: number | null;
   sellsyIndividualId: number | null;
@@ -220,6 +221,7 @@ export interface TraineeUpdateInput {
   adressePostale?: string;
   psh?: boolean;
   besoinsAdaptation?: string;
+  isTest?: boolean;
   attentes?: string;
   sellsyCompanyId?: number | null;
   sellsyIndividualId?: number | null;
@@ -253,6 +255,8 @@ export async function updateTrainee(id: string, input: TraineeUpdateInput): Prom
   // Accessibilité
   if (input.psh !== undefined) data.psh = input.psh;
   if (input.besoinsAdaptation !== undefined) data.besoinsAdaptation = input.besoinsAdaptation;
+  // Stagiaire de test
+  if (input.isTest !== undefined) data.isTest = input.isTest;
   // Attentes
   if (input.attentes !== undefined) data.attentes = input.attentes;
   // Statut + Sellsy + dates
@@ -313,6 +317,7 @@ function toInfo(t: TraineeRow): TraineeInfo {
     montantHT: t.montantHT,
     psh: t.psh,
     besoinsAdaptation: t.besoinsAdaptation,
+    isTest: t.isTest,
     objectifsAtteintsOverride: t.objectifsAtteintsOverride,
     sellsyCompanyId: t.sellsyCompanyId,
     sellsyIndividualId: t.sellsyIndividualId,

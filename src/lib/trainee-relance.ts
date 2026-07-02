@@ -53,6 +53,7 @@ export async function findTraineesDueForRelance(): Promise<TraineeDueForRelance[
       updatedAt: { lte: blocageThreshold },
       // Session encore à venir : pas de relance sur session déjà commencée
       session: { dateDebut: { gte: now } },
+      isTest: false, // pas de relance auto pour les stagiaires de test
     },
     select: {
       id: true,

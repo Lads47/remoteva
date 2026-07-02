@@ -339,6 +339,9 @@ export const adminUpdateTraineeSchema = z.object({
 
   // Attentes
   attentes: z.string().trim().optional(),
+
+  // Stagiaire de test (exclu des stats Qualiopi/BPF et des actions auto)
+  isTest: z.boolean().optional(),
 });
 
 // Transition de statut d'un stagiaire (Kanban EVA + sync Sellsy)

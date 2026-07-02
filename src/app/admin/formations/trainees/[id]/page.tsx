@@ -45,6 +45,7 @@ interface TraineeDetail {
   opcoDetecte: string;
   psh: boolean;
   besoinsAdaptation: string;
+  isTest: boolean;
   objectifsAtteintsOverride: string;
   evalEntree: string;
   attentes: string;
@@ -352,8 +353,17 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
               </span>
             )}
           </div>
-          <h1 className="text-3xl font-bold mt-1" style={{ color: "#1f2244" }}>
+          <h1 className="text-3xl font-bold mt-1 flex items-center gap-2 flex-wrap" style={{ color: "#1f2244" }}>
             {trainee.prenom} {trainee.nom}
+            {trainee.isTest && (
+              <span
+                className="px-2 py-0.5 rounded text-xs font-jetbrains font-medium"
+                style={{ backgroundColor: "#fef3c7", color: "#92400e" }}
+                title="Stagiaire de test : exclu des stats Qualiopi, du BPF et des relances automatiques"
+              >
+                TEST
+              </span>
+            )}
           </h1>
           <p className="text-sm mt-1 font-jetbrains" style={{ color: "#727485" }}>
             {trainee.formation.nomLong} · session du {fmtDate(trainee.session.dateDebut)} au{" "}

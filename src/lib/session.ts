@@ -226,7 +226,7 @@ export async function maybeSendTrainerContractOnThreshold(sessionId: string): Pr
     if (!threshold || threshold <= 0) return; // seuil désactivé
 
     const activeCount = await prisma.trainee.count({
-      where: { sessionId, status: { not: "abandonne" } },
+      where: { sessionId, status: { not: "abandonne" }, isTest: false },
     });
     if (activeCount < threshold) return;
 

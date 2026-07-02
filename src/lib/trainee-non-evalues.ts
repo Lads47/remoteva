@@ -39,6 +39,7 @@ export async function findNonEvaluesTrainees(): Promise<NonEvalueeTrainee[]> {
     where: {
       status: "termine",
       objectifsAtteintsOverride: "",
+      isTest: false,
     },
     select: {
       id: true,

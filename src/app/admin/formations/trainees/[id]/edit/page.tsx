@@ -22,6 +22,7 @@ interface TraineeDetail {
   adressePostale: string;
   psh: boolean;
   besoinsAdaptation: string;
+  isTest: boolean;
   attentes: string;
   formation: { code: string; nomLong: string };
   session: { code: string };
@@ -86,6 +87,7 @@ export default function TraineeEditPage({ params }: { params: Promise<{ id: stri
         adressePostale: trainee.adressePostale,
         psh: trainee.psh,
         besoinsAdaptation: trainee.besoinsAdaptation,
+        isTest: trainee.isTest,
         attentes: trainee.attentes,
       };
       await apiFetch(`/api/admin/trainees/${id}`, { method: "PUT", body: payload });
@@ -247,6 +249,24 @@ export default function TraineeEditPage({ params }: { params: Promise<{ id: stri
             rows={3}
             className="input"
           />
+        </Section>
+
+        <Section title="Stagiaire de test">
+          <label className="inline-flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={trainee.isTest}
+              onChange={(e) => update("isTest", e.target.checked)}
+              className="mt-1"
+            />
+            <span style={{ color: "#1f2244" }}>
+              Marquer comme stagiaire de test
+              <span className="block text-xs font-jetbrains mt-0.5" style={{ color: "#727485" }}>
+                Le parcours reste pleinement fonctionnel (devis, documents…), mais ce stagiaire
+                est exclu des statistiques Qualiopi, du BPF, du dashboard et des relances automatiques.
+              </span>
+            </span>
+          </label>
         </Section>
 
         <div className="flex justify-between gap-2">

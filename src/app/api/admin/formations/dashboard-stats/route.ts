@@ -41,7 +41,7 @@ export async function GET() {
         },
       }),
       prisma.trainee.count({
-        where: { createdAt: { gte: yearStart, lt: yearEnd } },
+        where: { createdAt: { gte: yearStart, lt: yearEnd }, isTest: false },
       }),
       getComplaintStats(now.getFullYear()),
       // Stagiaires "bloqués" : statut intermédiaire (devis_envoye / convention_envoyee)
@@ -50,6 +50,7 @@ export async function GET() {
         where: {
           status: { in: ["devis_envoye", "convention_envoyee"] },
           updatedAt: { lte: new Date(now.getTime() - 14 * 24 * 3600 * 1000) },
+          isTest: false,
         },
       }),
       countNonEvalues(),

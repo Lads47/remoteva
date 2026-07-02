@@ -293,6 +293,11 @@ model Trainee {
   psh                      Boolean  @default(false)
   besoinsAdaptation        String   @default("") @map("besoins_adaptation")
 
+  // Stagiaire de test : parcours pleinement fonctionnel (devis, docs…) mais
+  // EXCLU de toutes les stats officielles (Qualiopi, BPF, dashboard, résultats
+  // publics, non-évalués) et des actions auto (relances, seuil contrat, émargement).
+  isTest                   Boolean  @default(false) @map("is_test")
+
   // Atteinte des objectifs pédagogiques (utilisé pour l'attestation de fin
   // de formation). Si vide, calculé automatiquement depuis les grilles
   // d'évaluation pratique. Sinon, l'admin/formateur a saisi un override

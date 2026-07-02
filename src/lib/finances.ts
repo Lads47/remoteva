@@ -69,7 +69,7 @@ export async function getFinancialStats(
       trainerFeeAmount: true,
       formation: { select: { code: true, nomLong: true } },
       trainer: { select: { prenom: true, nom: true, isExternal: true } },
-      trainees: { select: { montantHT: true } },
+      trainees: { where: { isTest: false }, select: { montantHT: true } },
     },
     orderBy: { dateFin: "desc" },
   });

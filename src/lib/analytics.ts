@@ -73,6 +73,7 @@ export async function getActivityStats(year: number): Promise<ActivityStats> {
       formationId: true,
       formation: { select: { dureeJours: true } },
       trainees: {
+        where: { isTest: false },
         select: {
           id: true,
           psh: true,
@@ -157,7 +158,10 @@ export async function getSatisfactionChaudStats(year: number): Promise<Satisfact
   const sessions = await prisma.session.findMany({
     where: { dateFin: range, status: { notIn: EXCLUDED_SESSION_STATUSES } },
     select: {
-      _count: { select: { trainees: true } },
+      // Éval à chaud anonyme (traineeId null) : on ne peut pas filtrer les
+      // réponses par stagiaire de test ; on exclut au moins les stagiaires de
+      // test du dénominateur (invités) pour ne pas fausser le taux de réponse.
+      _count: { select: { trainees: { where: { isTest: false } } } },
       satisfactionResponses: {
         where: { submittedAt: { not: null } },
         select: { answers: { select: { questionName: true, value: true } } },
@@ -210,8 +214,9 @@ export async function getSatisfactionFroidStats(year: number): Promise<Satisfact
   const sessions = await prisma.session.findMany({
     where: { dateFin: range, status: { notIn: EXCLUDED_SESSION_STATUSES } },
     select: {
-      _count: { select: { trainees: true } },
+      _count: { select: { trainees: { where: { isTest: false } } } },
       coldEvalResponses: {
+        where: { trainee: { isTest: false } },
         select: { submittedAt: true, answers: { select: { questionName: true, value: true } } },
       },
     },
@@ -275,7 +280,7 @@ export async function getPedagogyStats(year: number): Promise<PedagogyStats> {
   // On charge en une fois pour éviter N+1 : pour chaque trainee de l'année,
   // ses évaluations + tous les exercices actifs de sa formation.
   const trainees = await prisma.trainee.findMany({
-    where: { session: { dateFin: range, status: { notIn: EXCLUDED_SESSION_STATUSES } } },
+    where: { isTest: false, session: { dateFin: range, status: { notIn: EXCLUDED_SESSION_STATUSES } } },
     select: {
       id: true,
       objectifsAtteintsOverride: true,
@@ -470,6 +475,7 @@ export async function getBpfStats(year: number): Promise<BpfStats> {
       formationId: true,
       formation: { select: { code: true, nomLong: true, dureeJours: true } },
       trainees: {
+        where: { isTest: false },
         select: {
           psh: true,
           statutActuel: true,
@@ -634,12 +640,14 @@ export async function getFormationPublicResults(code: string): Promise<Formation
       dateFin: { lte: now },
     },
     select: {
-      _count: { select: { trainees: true } },
+      // Exclut les stagiaires de test des résultats publics (indicateur Qualiopi 1).
+      _count: { select: { trainees: { where: { isTest: false } } } },
       satisfactionResponses: {
         where: { submittedAt: { not: null } },
         select: { answers: { select: { questionName: true, value: true } } },
       },
       trainees: {
+        where: { isTest: false },
         select: {
           objectifsAtteintsOverride: true,
           exerciseEvaluations: {
