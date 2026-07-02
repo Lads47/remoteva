@@ -31,6 +31,7 @@ const ALL_UNIVERSES = [
   { id: "flow", label: "EVA Flow" },
   { id: "stream", label: "EVA Stream" },
   { id: "formations", label: "EVA Formations" },
+  { id: "scoring", label: "EVA Scoring (studio)" },
 ];
 
 export default function UsersPage() {

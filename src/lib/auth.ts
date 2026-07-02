@@ -24,6 +24,7 @@ export const EVA_UNIVERSES = [
   "flow",
   "stream",
   "formations",
+  "scoring",
 ] as const;
 export type EvaUniverse = (typeof EVA_UNIVERSES)[number];
 
