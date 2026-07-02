@@ -92,7 +92,18 @@ function fmtDate(s: string) {
 }
 
 function fmtDateInput(s: string) {
-  return s.slice(0, 10);
+  // Extrait la date (YYYY-MM-DD) en fuseau Europe/Paris, cohérent avec
+  // l'affichage de la liste (fmtDate). Un simple slice(0,10) lirait la date
+  // UTC : comme les dates sont stockées à minuit Paris (= 22:00 UTC la veille
+  // en été), on récupérait le jour précédent → décalage d'un jour dans le form.
+  const parts = new Intl.DateTimeFormat("fr-FR", {
+    timeZone: "Europe/Paris",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(s));
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
 }
 
 type FormState = {
@@ -221,8 +232,12 @@ function SessionsPageInner() {
       const payload = {
         formationId: form.formationId,
         code: form.code.trim(),
-        dateDebut: new Date(form.dateDebut + "T00:00:00").toISOString(),
-        dateFin: new Date(form.dateFin + "T23:59:59").toISOString(),
+        // Dates civiles (jour seul) stockées à MIDI UTC : ainsi la date est
+        // identique quel que soit le fuseau de lecture (UTC serveur comme
+        // Europe/Paris) → plus de décalage d'un jour dans le formulaire, les
+        // mails ou les documents générés (convention, contrat, convocation…).
+        dateDebut: new Date(form.dateDebut + "T12:00:00.000Z").toISOString(),
+        dateFin: new Date(form.dateFin + "T12:00:00.000Z").toISOString(),
         capacite: parseInt(form.capacite, 10) || 8,
         lieu: form.lieu.trim(),
         horaires: form.horaires.trim(),

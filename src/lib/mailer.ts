@@ -77,7 +77,15 @@ async function sendEmail(params: SendEmailParams): Promise<SendEmailResult> {
 // === Templates ===
 
 function fmtDateFr(d: Date | string): string {
-  return new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
+  // Fuseau Europe/Paris explicite : les dates de session sont stockées en heure
+  // civile Paris (minuit Paris = 22:00 UTC la veille en été). Le serveur tournant
+  // en UTC, sans ce timeZone on afficherait le jour précédent dans les mails.
+  return new Date(d).toLocaleDateString("fr-FR", {
+    timeZone: "Europe/Paris",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
 }
 
 function escapeHtml(s: string): string {
