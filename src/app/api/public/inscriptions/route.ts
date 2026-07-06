@@ -69,6 +69,7 @@ export async function POST(request: NextRequest) {
       adresseSiege: data.adresseSiege,
       domaineActivite: data.domaineActivite,
       contactAdmin: data.contactAdmin,
+      referentEmail: data.referentEmail,
       adressePostale: data.adressePostale,
       statutActuel: data.statutActuel,
       modeFinancement: data.modeFinancement,

@@ -19,6 +19,7 @@ interface TraineeDetail {
   adresseSiege: string;
   domaineActivite: string;
   contactAdmin: string;
+  referentEmail: string;
   adressePostale: string;
   psh: boolean;
   besoinsAdaptation: string;
@@ -84,6 +85,7 @@ export default function TraineeEditPage({ params }: { params: Promise<{ id: stri
         adresseSiege: trainee.adresseSiege,
         domaineActivite: trainee.domaineActivite,
         contactAdmin: trainee.contactAdmin,
+        referentEmail: trainee.referentEmail,
         adressePostale: trainee.adressePostale,
         psh: trainee.psh,
         besoinsAdaptation: trainee.besoinsAdaptation,
@@ -197,6 +199,9 @@ export default function TraineeEditPage({ params }: { params: Promise<{ id: stri
               </Field>
               <Field label="Contact administratif" hint="Nom, téléphone et email du référent si différent du stagiaire" full>
                 <input type="text" value={trainee.contactAdmin} onChange={(e) => update("contactAdmin", e.target.value)} className="input" />
+              </Field>
+              <Field label="E-mail du référent / commanditaire" hint="Destinataire de l'enquête de satisfaction entreprise (Qualiopi ind. 2)" full>
+                <input type="email" value={trainee.referentEmail} onChange={(e) => update("referentEmail", e.target.value)} className="input" />
               </Field>
             </Grid>
           </Section>

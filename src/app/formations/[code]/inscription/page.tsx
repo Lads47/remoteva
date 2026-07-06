@@ -63,6 +63,7 @@ type FormState = {
   adresseSiege: string;
   domaineActivite: string;
   contactAdmin: string;
+  referentEmail: string;
 
   // 4 - Accessibilité
   psh: boolean;
@@ -93,6 +94,7 @@ const EMPTY_FORM: FormState = {
   adresseSiege: "",
   domaineActivite: "",
   contactAdmin: "",
+  referentEmail: "",
   psh: false,
   aBesoinsAdaptation: false,
   besoinsAdaptation: "",
@@ -530,6 +532,15 @@ export default function PublicInscriptionPage({ params }: { params: Promise<{ co
                       value={form.contactAdmin}
                       onChange={(e) => setForm({ ...form, contactAdmin: e.target.value })}
                       placeholder="Marie Dupont — 06 12 34 56 78 — marie@entreprise.fr"
+                      className="input"
+                    />
+                  </Field>
+                  <Field label="E-mail du référent / commanditaire" hint="Pour recueillir l'avis de l'entreprise sur la formation (satisfaction commanditaire)" full>
+                    <input
+                      type="email"
+                      value={form.referentEmail}
+                      onChange={(e) => setForm({ ...form, referentEmail: e.target.value })}
+                      placeholder="referent@entreprise.fr"
                       className="input"
                     />
                   </Field>

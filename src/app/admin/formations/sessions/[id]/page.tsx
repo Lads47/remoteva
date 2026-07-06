@@ -473,6 +473,23 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
               Voir la synthèse →
             </span>
           </Link>
+
+          {/* 5. Satisfaction entreprise — en même temps que l'éval à froid */}
+          <Link
+            href={`/admin/formations/sessions/${session.id}/sponsor-eval`}
+            className="p-4 rounded-xl border flex flex-col gap-2 hover:shadow-md transition-shadow cursor-pointer"
+            style={{ borderColor: "#e5e7eb", backgroundColor: "#fafbff" }}
+            title="Enquête commanditaire, envoi auto en même temps que l'éval à froid, relances J+7 / J+14"
+          >
+            <div className="text-2xl">🏢</div>
+            <div className="text-sm font-semibold" style={{ color: "#1f2244" }}>Satisfaction entreprise</div>
+            <div className="text-xs font-jetbrains flex-1" style={{ color: "#727485" }}>
+              Avis du commanditaire. Auto (avec l&apos;éval à froid) + relances.
+            </div>
+            <span className="text-xs font-medium self-start" style={{ color: "#1f2244" }}>
+              Voir la synthèse →
+            </span>
+          </Link>
         </div>
       </div>
     </div>

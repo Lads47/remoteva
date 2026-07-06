@@ -242,6 +242,7 @@ model Session {
   satisfactionResponses SatisfactionResponse[]
   coldEvalResponses     ColdEvalResponse[]
   trainerEvalResponses  TrainerEvalResponse[]
+  sponsorEvalResponses  SponsorEvalResponse[]
   complaints            Complaint[]
 
   @@map("formation_sessions")
@@ -276,6 +277,7 @@ model Trainee {
   adresseSiege             String   @default("") @map("adresse_siege")
   domaineActivite          String   @default("") @map("domaine_activite")
   contactAdmin             String   @default("") @map("contact_admin")        // Référent admin si différent du stagiaire
+  referentEmail            String   @default("") @map("referent_email")        // E-mail du référent/commanditaire (enquête satisfaction entreprise)
 
   // Volet particulier
   adressePostale           String   @default("") @map("adresse_postale")
@@ -740,6 +742,49 @@ model ColdEvalAnswer {
   response ColdEvalResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
 
   @@map("cold_eval_answers")
+  @@index([responseId])
+}
+
+// === SATISFACTION COMMANDITAIRE / ENTREPRISE (Qualiopi indicateur 2) ===
+//
+// Recueil des appréciations de l'entreprise commanditaire (le référent qui a
+// inscrit ses salariés). 1 enquête par entreprise (référent) et par session,
+// envoyée en même temps que l'éval à froid stagiaire (même délai), avec
+// relances J+7 / J+14. Pattern identique à ColdEvalResponse mais le
+// destinataire est un contact entreprise (email dénormalisé), pas un Trainee.
+
+model SponsorEvalResponse {
+  id                String    @id @default(cuid())
+  sessionId         String    @map("session_id")
+  companyName       String    @default("") @map("company_name")   // Raison sociale (dénormalisée)
+  contactEmail      String    @map("contact_email")                // E-mail du référent commanditaire
+  contactName       String    @default("") @map("contact_name")    // Nom du référent (si connu)
+  magicToken        String    @unique @map("magic_token")
+  questionsSnapshot String    @map("questions_snapshot")
+  invitedAt         DateTime  @default(now()) @map("invited_at")
+  reminder1At       DateTime? @map("reminder_1_at")
+  reminder2At       DateTime? @map("reminder_2_at")
+  submittedAt       DateTime? @map("submitted_at")
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  answers SponsorEvalAnswer[]
+
+  @@map("sponsor_eval_responses")
+  @@unique([sessionId, contactEmail])
+  @@index([sessionId])
+  @@index([magicToken])
+  @@index([submittedAt])
+}
+
+model SponsorEvalAnswer {
+  id           String @id @default(cuid())
+  responseId   String @map("response_id")
+  questionName String @map("question_name")
+  value        String
+
+  response SponsorEvalResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+
+  @@map("sponsor_eval_answers")
   @@index([responseId])
 }
 

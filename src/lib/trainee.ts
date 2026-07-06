@@ -15,6 +15,7 @@ export interface TraineeInfo {
   adresseSiege: string;
   domaineActivite: string;
   contactAdmin: string;
+  referentEmail: string;
   adressePostale: string;
   statutActuel: string;
   modeFinancement: string;
@@ -54,6 +55,7 @@ export interface TraineeCreateInput {
   adresseSiege?: string;
   domaineActivite?: string;
   contactAdmin?: string;
+  referentEmail?: string;
   adressePostale?: string;
   statutActuel?: string;
   modeFinancement?: string;
@@ -192,6 +194,7 @@ export async function createTrainee(input: TraineeCreateInput): Promise<TraineeI
       adresseSiege: input.adresseSiege ?? "",
       domaineActivite: input.domaineActivite ?? "",
       contactAdmin: input.contactAdmin ?? "",
+      referentEmail: input.referentEmail ?? "",
       adressePostale: input.adressePostale ?? "",
       statutActuel: input.statutActuel ?? "",
       modeFinancement: input.modeFinancement ?? "",
@@ -218,6 +221,7 @@ export interface TraineeUpdateInput {
   adresseSiege?: string;
   domaineActivite?: string;
   contactAdmin?: string;
+  referentEmail?: string;
   adressePostale?: string;
   psh?: boolean;
   besoinsAdaptation?: string;
@@ -250,6 +254,7 @@ export async function updateTrainee(id: string, input: TraineeUpdateInput): Prom
   if (input.adresseSiege !== undefined) data.adresseSiege = input.adresseSiege;
   if (input.domaineActivite !== undefined) data.domaineActivite = input.domaineActivite;
   if (input.contactAdmin !== undefined) data.contactAdmin = input.contactAdmin;
+  if (input.referentEmail !== undefined) data.referentEmail = input.referentEmail;
   // Particulier
   if (input.adressePostale !== undefined) data.adressePostale = input.adressePostale;
   // Accessibilité
@@ -308,6 +313,7 @@ function toInfo(t: TraineeRow): TraineeInfo {
     adresseSiege: t.adresseSiege,
     domaineActivite: t.domaineActivite,
     contactAdmin: t.contactAdmin,
+    referentEmail: t.referentEmail,
     adressePostale: t.adressePostale,
     statutActuel: t.statutActuel,
     modeFinancement: t.modeFinancement,

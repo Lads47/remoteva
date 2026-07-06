@@ -228,6 +228,8 @@ export const publicInscriptionSchema = z
     adresseSiege: z.string().trim().optional().default(""),
     domaineActivite: z.string().trim().optional().default(""),
     contactAdmin: z.string().trim().optional().default(""),
+    // E-mail du référent/commanditaire (pour l'enquête satisfaction entreprise)
+    referentEmail: z.string().trim().toLowerCase().optional().default(""),
 
     // Particulier (requis si inscriptionType === "particulier")
     adressePostale: z.string().trim().optional().default(""),
@@ -328,6 +330,7 @@ export const adminUpdateTraineeSchema = z.object({
   adresseSiege: z.string().trim().optional(),
   domaineActivite: z.string().trim().optional(),
   contactAdmin: z.string().trim().optional(),
+  referentEmail: z.string().trim().toLowerCase().optional(),
 
   // Volet particulier
   adressePostale: z.string().trim().optional(),

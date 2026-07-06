@@ -1264,6 +1264,125 @@ Les Ateliers du Stream`;
 }
 
 /**
+ * Invitation à l'enquête de satisfaction commanditaire/entreprise (Qualiopi
+ * indicateur 2), envoyée au référent qui a inscrit ses salariés, en même temps
+ * que l'éval à froid stagiaire.
+ */
+export async function sendSponsorEvalInvite(params: {
+  to: string;
+  companyName?: string;
+  contactName?: string;
+  formationNomLong: string;
+  surveyUrl: string;            // /eval-commanditaire/[token]
+  replyTo?: string;
+}): Promise<SendEmailResult> {
+  const replyTo = params.replyTo || process.env.ADMIN_NOTIFY_EMAIL;
+  const greeting = params.contactName?.trim() ? escapeHtml(params.contactName.trim()) : "Bonjour";
+  const greetingTxt = params.contactName?.trim() ? params.contactName.trim() : "Bonjour";
+  const safe = {
+    formation: escapeHtml(params.formationNomLong),
+    company: escapeHtml(params.companyName || "votre entreprise"),
+    url: escapeHtml(params.surveyUrl),
+  };
+  const html = `<!DOCTYPE html>
+<html lang="fr">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #1f2244;">
+  <h1 style="font-size: 22px; margin: 0 0 16px;">Votre satisfaction en tant qu'entreprise</h1>
+  <p>Bonjour ${greeting},</p>
+  <p>${safe.company} a récemment inscrit un ou plusieurs salariés à la formation
+  <strong>${safe.formation}</strong>. En tant qu'entreprise commanditaire, votre retour sur
+  <strong>l'organisation, l'adéquation à vos besoins et l'impact</strong> de cette formation nous est
+  précieux pour progresser.</p>
+  <p>Le questionnaire prend environ 3 minutes :</p>
+  <p style="text-align: center; margin: 32px 0;">
+    <a href="${safe.url}" style="display: inline-block; background: #1f2244; color: white; padding: 12px 24px; border-radius: 999px; text-decoration: none; font-weight: 600;">
+      Donner mon avis
+    </a>
+  </p>
+  <p style="font-size: 12px; color: #727485;">Lien : <a href="${safe.url}">${safe.url}</a></p>
+  <p>Merci d&apos;avance !<br/>Noémie Marphay<br/><em>Les Ateliers du Stream</em></p>
+  <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;"/>
+  <p style="font-size: 11px; color: #9ca3af;">
+    Vos données sont utilisées uniquement pour évaluer la qualité de nos formations, conformément au RGPD.
+  </p>
+</body>
+</html>`;
+  const text = `${greetingTxt},
+
+${params.companyName || "Votre entreprise"} a récemment inscrit un ou plusieurs salariés à la formation ${params.formationNomLong}. En tant qu'entreprise commanditaire, votre retour sur l'organisation, l'adéquation à vos besoins et l'impact de cette formation nous est précieux.
+
+Merci de répondre à notre court questionnaire (≈ 3 min) :
+${params.surveyUrl}
+
+Noémie Marphay
+Les Ateliers du Stream`;
+  return sendEmail({
+    to: params.to,
+    subject: `${params.formationNomLong} — votre satisfaction en tant qu'entreprise`,
+    html,
+    text,
+    replyTo,
+  });
+}
+
+/**
+ * Relance (J+7 / J+14) de l'enquête de satisfaction commanditaire.
+ */
+export async function sendSponsorEvalReminder(params: {
+  to: string;
+  contactName?: string;
+  formationNomLong: string;
+  surveyUrl: string;
+  reminderNumber: 1 | 2;
+  replyTo?: string;
+}): Promise<SendEmailResult> {
+  const replyTo = params.replyTo || process.env.ADMIN_NOTIFY_EMAIL;
+  const greeting = params.contactName?.trim() ? escapeHtml(params.contactName.trim()) : "Bonjour";
+  const greetingTxt = params.contactName?.trim() ? params.contactName.trim() : "Bonjour";
+  const safe = {
+    formation: escapeHtml(params.formationNomLong),
+    url: escapeHtml(params.surveyUrl),
+  };
+  const isLast = params.reminderNumber === 2;
+  const subject = isLast
+    ? `Dernière relance — votre avis sur ${params.formationNomLong}`
+    : `Petite relance — votre avis sur ${params.formationNomLong}`;
+  const intro = isLast
+    ? "C&apos;est notre dernier message à ce sujet, nous ne vous solliciterons plus ensuite. "
+    : "Petit rappel amical : ";
+  const introTxt = isLast
+    ? "C'est notre dernier message à ce sujet, nous ne vous solliciterons plus ensuite. "
+    : "Petit rappel amical : ";
+  const html = `<!DOCTYPE html>
+<html lang="fr">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #1f2244;">
+  <h1 style="font-size: 22px; margin: 0 0 16px;">Votre avis nous manque !</h1>
+  <p>Bonjour ${greeting},</p>
+  <p>${intro}nous serions ravis de recueillir votre retour, en tant qu'entreprise, sur la formation
+  <strong>${safe.formation}</strong>. Le questionnaire prend environ 3 minutes :</p>
+  <p style="text-align: center; margin: 32px 0;">
+    <a href="${safe.url}" style="display: inline-block; background: #1f2244; color: white; padding: 12px 24px; border-radius: 999px; text-decoration: none; font-weight: 600;">
+      Donner mon avis
+    </a>
+  </p>
+  <p style="font-size: 12px; color: #727485;">Lien : <a href="${safe.url}">${safe.url}</a></p>
+  <p>Merci !<br/>Noémie Marphay<br/><em>Les Ateliers du Stream</em></p>
+</body>
+</html>`;
+  const text = `${greetingTxt},
+
+${introTxt}nous serions ravis de recueillir votre retour, en tant qu'entreprise, sur la formation ${params.formationNomLong}.
+
+Le questionnaire prend environ 3 minutes :
+${params.surveyUrl}
+
+Merci !
+Noémie Marphay
+Les Ateliers du Stream`;
+  return sendEmail({ to: params.to, subject, html, text, replyTo });
+}
+
+/**
  * Envoi convocation au stagiaire J-15 avant la session.
  * Joint la convocation PDF + le RI (si configuré).
  */

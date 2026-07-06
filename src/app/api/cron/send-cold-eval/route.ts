@@ -23,7 +23,19 @@ import {
   findSessionsDueForColdEval,
   markReminderSent,
 } from "@/lib/cold-eval";
-import { sendColdEvalInvite, sendColdEvalReminder } from "@/lib/mailer";
+import {
+  createSponsorEvalInvitationsForSession,
+  findSessionsDueForSponsorEval,
+  findSponsorResponsesDueForReminder1,
+  findSponsorResponsesDueForReminder2,
+  markSponsorReminderSent,
+} from "@/lib/sponsor-eval";
+import {
+  sendColdEvalInvite,
+  sendColdEvalReminder,
+  sendSponsorEvalInvite,
+  sendSponsorEvalReminder,
+} from "@/lib/mailer";
 
 function authorize(request: NextRequest): boolean {
   const secret = process.env.CRON_SECRET;
@@ -52,16 +64,17 @@ export async function GET(request: NextRequest) {
   const dueSessions = await findSessionsDueForColdEval();
   const dueR1 = await findResponsesDueForReminder1();
   const dueR2 = await findResponsesDueForReminder2();
+  const sponsorDueSessions = await findSessionsDueForSponsorEval();
+  const sponsorDueR1 = await findSponsorResponsesDueForReminder1();
+  const sponsorDueR2 = await findSponsorResponsesDueForReminder2();
   return NextResponse.json({
     mode: "dry-run",
     sessions_to_invite: dueSessions.length,
     reminder_1: dueR1.length,
     reminder_2: dueR2.length,
-    detail: {
-      sessions: dueSessions,
-      r1: dueR1.map((r) => ({ id: r.id, email: r.email, formation: r.formationNomLong })),
-      r2: dueR2.map((r) => ({ id: r.id, email: r.email, formation: r.formationNomLong })),
-    },
+    sponsor_sessions_to_invite: sponsorDueSessions.length,
+    sponsor_reminder_1: sponsorDueR1.length,
+    sponsor_reminder_2: sponsorDueR2.length,
   });
 }
 
@@ -155,8 +168,76 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // ==========================================================================
+  // Satisfaction commanditaire / entreprise (même déclenchement que le froid)
+  // ==========================================================================
+  let sponsorInvitationsSent = 0;
+  let sponsorReminder1Sent = 0;
+  let sponsorReminder2Sent = 0;
+
+  // Passe 4 : invitations initiales par entreprise sur sessions échues
+  const sponsorDueSessions = await findSessionsDueForSponsorEval();
+  for (const sessionId of sponsorDueSessions) {
+    try {
+      const result = await createSponsorEvalInvitationsForSession(sessionId);
+      if (!result) continue;
+      for (const inv of result.created) {
+        try {
+          const r = await sendSponsorEvalInvite({
+            to: inv.email,
+            companyName: inv.companyName,
+            contactName: inv.contactName,
+            formationNomLong: result.formation.nomLong,
+            surveyUrl: `${base}/eval-commanditaire/${inv.magicToken}`,
+          });
+          if (r.success) sponsorInvitationsSent++;
+          else errors.push({ context: `sponsor invite ${inv.email}`, error: r.error || "send failed" });
+        } catch (err) {
+          errors.push({ context: `sponsor invite ${inv.email}`, error: err instanceof Error ? err.message : "Erreur inconnue" });
+        }
+      }
+    } catch (err) {
+      errors.push({ context: `sponsor session ${sessionId}`, error: err instanceof Error ? err.message : "Erreur inconnue" });
+    }
+  }
+
+  // Passe 5 : relance 1 (J+7)
+  for (const r of await findSponsorResponsesDueForReminder1()) {
+    try {
+      const resp = await sendSponsorEvalReminder({
+        to: r.email,
+        contactName: r.contactName,
+        formationNomLong: r.formationNomLong,
+        surveyUrl: `${base}/eval-commanditaire/${r.magicToken}`,
+        reminderNumber: 1,
+      });
+      if (resp.success) { await markSponsorReminderSent(r.id, 1); sponsorReminder1Sent++; }
+      else errors.push({ context: `sponsor r1 ${r.email}`, error: resp.error || "send failed" });
+    } catch (err) {
+      errors.push({ context: `sponsor r1 ${r.email}`, error: err instanceof Error ? err.message : "Erreur inconnue" });
+    }
+  }
+
+  // Passe 6 : relance 2 (J+14)
+  for (const r of await findSponsorResponsesDueForReminder2()) {
+    try {
+      const resp = await sendSponsorEvalReminder({
+        to: r.email,
+        contactName: r.contactName,
+        formationNomLong: r.formationNomLong,
+        surveyUrl: `${base}/eval-commanditaire/${r.magicToken}`,
+        reminderNumber: 2,
+      });
+      if (resp.success) { await markSponsorReminderSent(r.id, 2); sponsorReminder2Sent++; }
+      else errors.push({ context: `sponsor r2 ${r.email}`, error: resp.error || "send failed" });
+    } catch (err) {
+      errors.push({ context: `sponsor r2 ${r.email}`, error: err instanceof Error ? err.message : "Erreur inconnue" });
+    }
+  }
+
   console.log(
-    `[cron/send-cold-eval] ${invitationsSent} invitations, ${reminder1Sent} relances J+7, ${reminder2Sent} relances J+14, ${errors.length} erreur(s)`
+    `[cron/send-cold-eval] froid: ${invitationsSent} inv, ${reminder1Sent} r7, ${reminder2Sent} r14 | ` +
+    `commanditaire: ${sponsorInvitationsSent} inv, ${sponsorReminder1Sent} r7, ${sponsorReminder2Sent} r14 | ${errors.length} erreur(s)`
   );
 
   return NextResponse.json({
@@ -164,6 +245,9 @@ export async function POST(request: NextRequest) {
     invitationsSent,
     reminder1Sent,
     reminder2Sent,
+    sponsorInvitationsSent,
+    sponsorReminder1Sent,
+    sponsorReminder2Sent,
     errors,
   });
 }
