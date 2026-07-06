@@ -238,15 +238,26 @@ export default function EvaluationGridEditorPage({ params }: { params: Promise<{
             </p>
           </div>
           {exercises.length > 0 && (
-            <Link
-              href={`/admin/formations/${id}/evaluation-grid/print`}
-              target="_blank"
-              className="text-sm font-medium px-4 py-2 rounded-full border cursor-pointer whitespace-nowrap"
-              style={{ borderColor: "#1f2244", color: "#1f2244", backgroundColor: "white" }}
-              title="Aperçu A4 imprimable des énoncés à distribuer aux stagiaires"
-            >
-              📄 Énoncés stagiaires
-            </Link>
+            <div className="flex gap-2 flex-wrap">
+              <Link
+                href={`/admin/formations/${id}/evaluation-grid/grille-vierge`}
+                target="_blank"
+                className="text-sm font-medium px-4 py-2 rounded-full border cursor-pointer whitespace-nowrap"
+                style={{ borderColor: "#1f2244", color: "#1f2244", backgroundColor: "white" }}
+                title="Grille d'évaluation vierge (tableau exercices + critères) à présenter à l'auditeur Qualiopi"
+              >
+                📊 Grille vierge (audit)
+              </Link>
+              <Link
+                href={`/admin/formations/${id}/evaluation-grid/print`}
+                target="_blank"
+                className="text-sm font-medium px-4 py-2 rounded-full border cursor-pointer whitespace-nowrap"
+                style={{ borderColor: "#1f2244", color: "#1f2244", backgroundColor: "white" }}
+                title="Aperçu A4 imprimable des énoncés à distribuer aux stagiaires"
+              >
+                📄 Énoncés stagiaires
+              </Link>
+            </div>
           )}
         </div>
       </div>
