@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EVA Formations — Cheatsheet</title>
+<style>
+  :root {
+    --ink: #1f2244;
+    --ink-soft: #33365a;
+    --muted: #6a6c82;
+    --paper: #f6f7fb;
+    --card: #ffffff;
+    --line: #e4e7ef;
+    --line-strong: #d3d7e6;
+    --accent: #7dcef5;
+    --accent-deep: #2f7fab;
+    /* Sémantique automatisation */
+    --evt-fg: #0e7c5a;  --evt-bg: #e3f5ed;  --evt-line: #b6e4d1;
+    --cron-fg: #9a6212; --cron-bg: #fbf0d9; --cron-line: #ecd7ac;
+    --man-fg: #475569;  --man-bg: #eaeef3;  --man-line: #d3dae4;
+
+    --mono: "JetBrains Mono", "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, "Courier New", monospace;
+    --sans: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  .sheet {
+    font-family: var(--sans);
+    color: var(--ink);
+    background: var(--paper);
+    line-height: 1.55;
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 0 20px 72px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---------- Header ---------- */
+  .masthead {
+    background:
+      radial-gradient(120% 140% at 88% -20%, rgba(125,206,245,0.28), transparent 55%),
+      linear-gradient(180deg, #23264d 0%, #1b1e3d 100%);
+    color: #fff;
+    border-radius: 0 0 18px 18px;
+    padding: 34px 34px 26px;
+    margin: 0 -20px 40px;
+  }
+  .masthead .kicker {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 12px;
+  }
+  .masthead h1 {
+    font-size: clamp(28px, 5vw, 42px);
+    line-height: 1.04;
+    letter-spacing: -0.02em;
+    font-weight: 700;
+    margin: 0 0 10px;
+    text-wrap: balance;
+  }
+  .masthead h1 span { color: var(--accent); }
+  .masthead .lede {
+    max-width: 62ch;
+    color: #c9cbe4;
+    font-size: 15px;
+    margin: 0;
+  }
+  .masthead .meta {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: #9497bd;
+    margin-top: 18px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+  }
+
+  /* ---------- Legend ---------- */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+    margin-top: 22px;
+    padding-top: 18px;
+    border-top: 1px solid rgba(255,255,255,0.14);
+  }
+  .legend .lg {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    color: #dfe0f0;
+  }
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .dot.evt { background: #37d39b; }
+  .dot.cron { background: #f0b64e; }
+  .dot.man { background: #93a2b6; }
+
+  /* ---------- Section index ---------- */
+  .toc {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 40px;
+  }
+  .toc a {
+    font-family: var(--mono);
+    font-size: 12px;
+    text-decoration: none;
+    color: var(--ink-soft);
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 6px 13px;
+    transition: border-color .15s, color .15s;
+  }
+  .toc a:hover { border-color: var(--accent-deep); color: var(--accent-deep); }
+  .toc a b { color: var(--muted); font-weight: 600; margin-right: 6px; }
+
+  /* ---------- Section shell ---------- */
+  section { margin: 0 0 52px; scroll-margin-top: 16px; }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent-deep);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 6px;
+  }
+  .eyebrow::after { content: ""; height: 1px; flex: 1; background: var(--line-strong); }
+  h2 {
+    font-size: clamp(21px, 3vw, 27px);
+    letter-spacing: -0.015em;
+    font-weight: 700;
+    margin: 0 0 6px;
+    text-wrap: balance;
+  }
+  .section-note { color: var(--muted); font-size: 14.5px; max-width: 68ch; margin: 0 0 22px; }
+
+  /* ---------- Cards & grids ---------- */
+  .grid { display: grid; gap: 16px; }
+  .g2 { grid-template-columns: repeat(2, 1fr); }
+  .g3 { grid-template-columns: repeat(3, 1fr); }
+  @media (max-width: 760px) { .g2, .g3 { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 13px;
+    padding: 18px 20px;
+  }
+  .card h3 {
+    font-size: 16px;
+    margin: 0 0 4px;
+    letter-spacing: -0.01em;
+  }
+  .card p { margin: 0; color: var(--ink-soft); font-size: 14px; }
+  .card .sub { color: var(--muted); font-size: 12.5px; margin-top: 3px; }
+
+  .card-lead {
+    display: flex;
+    align-items: baseline;
+    gap: 9px;
+    margin-bottom: 8px;
+  }
+  .card-lead .tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent-deep);
+  }
+
+  ul.clean { margin: 8px 0 0; padding: 0 0 0 2px; list-style: none; }
+  ul.clean li {
+    position: relative;
+    padding: 3px 0 3px 18px;
+    font-size: 13.5px;
+    color: var(--ink-soft);
+  }
+  ul.clean li::before {
+    content: "";
+    position: absolute;
+    left: 2px; top: 11px;
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--accent-deep);
+  }
+
+  /* ---------- Badges ---------- */
+  .badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .badge {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.02em;
+    padding: 3px 9px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+  .badge.evt  { color: var(--evt-fg);  background: var(--evt-bg);  border-color: var(--evt-line); }
+  .badge.cron { color: var(--cron-fg); background: var(--cron-bg); border-color: var(--cron-line); }
+  .badge.man  { color: var(--man-fg);  background: var(--man-bg);  border-color: var(--man-line); }
+  .badge.doc  { color: var(--ink-soft); background: #eef1f9; border-color: #dde2f1; }
+
+  .actor {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: #eef0f7;
+    color: var(--ink-soft);
+    border: 1px solid var(--line);
+    white-space: nowrap;
+  }
+
+  /* ---------- Pipeline ---------- */
+  .pipeline { margin-top: 8px; }
+  .step {
+    display: grid;
+    grid-template-columns: 40px 1fr;
+    gap: 18px;
+    margin-bottom: 22px;
+  }
+  .rail { position: relative; display: flex; justify-content: center; }
+  .rail::before {
+    content: "";
+    position: absolute;
+    top: 34px; bottom: -22px;
+    width: 2px;
+    background: linear-gradient(var(--accent) 0%, var(--line-strong) 100%);
+  }
+  .step:last-child .rail::before { display: none; }
+  .step-num {
+    position: relative;
+    z-index: 1;
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    background: var(--ink);
+    color: #fff;
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 600;
+    display: grid;
+    place-items: center;
+  }
+  .step-body {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 15px 18px;
+  }
+  .step-head { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; }
+  .step-head .name {
+    font-size: 16.5px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .step-head .code {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .step-body p { margin: 8px 0 0; font-size: 13.6px; color: var(--ink-soft); }
+  .step-body p strong { color: var(--ink); }
+
+  .branch {
+    margin-top: 4px;
+    border: 1px dashed var(--line-strong);
+    border-radius: 12px;
+    padding: 13px 18px;
+    background: #fbfbfe;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+  }
+  .branch .name { font-weight: 700; }
+  .branch p { margin: 0; font-size: 13.4px; color: var(--muted); }
+
+  /* ---------- Tables ---------- */
+  .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+  table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: 13.5px; }
+  thead th {
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: #f3f5fb;
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  tbody td { padding: 11px 14px; border-bottom: 1px solid #eef0f6; vertical-align: top; color: var(--ink-soft); }
+  tbody tr:last-child td { border-bottom: none; }
+  td.when { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
+  td.name { color: var(--ink); font-weight: 600; }
+  .pill-ind {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent-deep);
+    background: #e9f5fc;
+    border: 1px solid #c8e6f6;
+    border-radius: 6px;
+    padding: 2px 8px;
+    white-space: nowrap;
+  }
+
+  /* ---------- Key facts strip ---------- */
+  .facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  @media (max-width: 760px) { .facts { grid-template-columns: repeat(2, 1fr); } }
+  .fact {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 15px 16px;
+  }
+  .fact .n {
+    font-family: var(--mono);
+    font-size: 21px;
+    font-weight: 700;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
+  }
+  .fact .l { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+
+  .callout {
+    display: flex;
+    gap: 13px;
+    background: #eef8fd;
+    border: 1px solid #cbe7f6;
+    border-radius: 12px;
+    padding: 15px 18px;
+    font-size: 13.6px;
+    color: var(--ink-soft);
+  }
+  .callout .mark { font-family: var(--mono); font-weight: 700; color: var(--accent-deep); flex: none; }
+
+  footer {
+    margin-top: 8px;
+    padding-top: 22px;
+    border-top: 1px solid var(--line-strong);
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+  footer code { font-family: var(--mono); color: var(--ink-soft); }
+
+  a { color: var(--accent-deep); }
+  a:focus-visible, .toc a:focus-visible { outline: 2px solid var(--accent-deep); outline-offset: 2px; border-radius: 4px; }
+
+  /* ---------- Command blocks & troubleshooting ---------- */
+  .cmd {
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.5;
+    background: #1b1e3d;
+    color: #d8dcf6;
+    border-radius: 9px;
+    padding: 11px 13px;
+    overflow-x: auto;
+    white-space: pre;
+    margin-top: 10px;
+  }
+  .cmd .c { color: #7dcef5; }
+  .cmd .k { color: #f0b64e; }
+  .code-inline {
+    font-family: var(--mono);
+    font-size: 12px;
+    background: #eef1f9;
+    border: 1px solid #dde2f1;
+    border-radius: 5px;
+    padding: 1px 6px;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+
+  @page { size: A4; margin: 12mm 11mm; }
+  @media print {
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    .sheet { background: #fff; max-width: none; padding: 0; }
+    .masthead { margin: 0 0 22px; border-radius: 0; }
+    .toc { margin-bottom: 26px; }
+    .toc a { border-color: var(--line-strong); }
+    .card, .step, .step-body, .fact, .table-wrap, .callout, .branch, .cmd { break-inside: avoid; }
+    h2, .eyebrow { break-after: avoid; }
+    section { margin-bottom: 26px; }
+    a { text-decoration: none; }
+  }
+</style>
+</head>
+<body>
+<div class="sheet">
+
+  <header class="masthead">
+    <p class="kicker">Les Ateliers du Stream · Organisme de formation Qualiopi</p>
+    <h1>EVA Formations<br><span>le mode d'emploi</span></h1>
+    <p class="lede">Comment l'outil pilote une formation de bout en bout — de l'inscription en ligne jusqu'à l'évaluation à froid — et surtout <strong style="color:#fff">tout ce qui se déclenche sans que vous ayez à y penser</strong>.</p>
+    <div class="meta">
+      <span>evaremote.com</span>
+      <span>Édition · 7 juillet 2026</span>
+      <span>Portée · module Formations</span>
+    </div>
+    <div class="legend" aria-label="Légende des automatisations">
+      <span class="lg"><span class="dot evt"></span> Automatique — à l'événement</span>
+      <span class="lg"><span class="dot cron"></span> Automatique — planifié (chaque jour)</span>
+      <span class="lg"><span class="dot man"></span> Manuel — action de l'admin</span>
+    </div>
+  </header>
+
+  <nav class="toc" aria-label="Sommaire">
+    <a href="#vue"><b>01</b>Vue d'ensemble</a>
+    <a href="#parcours"><b>02</b>Parcours stagiaire</a>
+    <a href="#auto"><b>03</b>Ce qui tourne tout seul</a>
+    <a href="#emails"><b>04</b>Emails</a>
+    <a href="#evals"><b>05</b>Évaluations</a>
+    <a href="#docs"><b>06</b>Documents</a>
+    <a href="#qualiopi"><b>07</b>Qualiopi</a>
+    <a href="#acces"><b>08</b>Accès &amp; repères</a>
+    <a href="#exploit"><b>09</b>Exploitation &amp; dépannage</a>
+  </nav>
+
+  <!-- 01 -->
+  <section id="vue">
+    <p class="eyebrow">01 — Vue d'ensemble</p>
+    <h2>Un outil, tout le cycle de vie d'une formation</h2>
+    <p class="section-note">EVA Formations gère chaque étape : catalogue et sessions, inscriptions publiques, devis et conventions, convocations, émargement, évaluations, documents de fin, et le suivi Qualiopi. Il s'appuie sur quatre services externes et orchestre quatre types d'acteurs.</p>
+
+    <div class="grid g2">
+      <div class="card">
+        <div class="card-lead"><span class="tag">QUI</span><h3>Les acteurs</h3></div>
+        <ul class="clean">
+          <li><strong>Prospect / Stagiaire</strong> — s'inscrit en ligne, signe ses documents, répond aux évaluations.</li>
+          <li><strong>Admin (vous)</strong> — pilote le catalogue, les sessions, les statuts, les formateurs, le suivi Qualiopi.</li>
+          <li><strong>Formateur</strong> (interne ou externe) — accède à son espace par lien magique : émargement, évaluations, pré-requis.</li>
+          <li><strong>Commanditaire</strong> — le référent de l'entreprise qui inscrit ses salariés (satisfaction entreprise).</li>
+          <li><strong>Le système</strong> — envoie, génère, archive et relance automatiquement (le cœur de cette fiche).</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-lead"><span class="tag">AVEC QUOI</span><h3>Les services connectés</h3></div>
+        <ul class="clean">
+          <li><strong>Sellsy</strong> — CRM &amp; devis. Le pipeline commercial et le statut du stagiaire se synchronisent dans les deux sens.</li>
+          <li><strong>Google Drive / Docs</strong> — modèles de documents, génération PDF et archivage par session.</li>
+          <li><strong>Google Sheets</strong> — export automatique des indicateurs Qualiopi et du BPF.</li>
+          <li><strong>Resend</strong> — l'envoi de tous les emails (confirmations, invitations, documents, alertes).</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 02 -->
+  <section id="parcours">
+    <p class="eyebrow">02 — Le parcours stagiaire</p>
+    <h2>Du premier clic au dernier document</h2>
+    <p class="section-note">Chaque stagiaire avance le long d'un pipeline de 8 statuts. Les étapes en vert se déclenchent toutes seules ; le reste, c'est vous qui l'enclenchez (souvent en un clic ou via Sellsy).</p>
+
+    <div class="pipeline">
+
+      <div class="step">
+        <div class="rail"><span class="step-num">1</span></div>
+        <div class="step-body">
+          <div class="step-head"><span class="name">Inscrit</span><span class="code">inscrit</span><span class="actor">Prospect</span></div>
+          <p>Le prospect remplit le formulaire public de la formation. À la validation, <strong>tout part en même temps</strong> : email de confirmation au stagiaire, alerte à l'admin, détection automatique de l'OPCO (via le SIRET), mise à jour des places de la session, et test du seuil pour le contrat formateur.</p>
+          <div class="badges">
+            <span class="badge evt">confirmation stagiaire</span>
+            <span class="badge evt">alerte admin</span>
+            <span class="badge evt">détection OPCO</span>
+            <span class="badge evt">MAJ places session</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="rail"><span class="step-num">2</span></div>
+        <div class="step-body">
+          <div class="step-head"><span class="name">Devis envoyé</span><span class="code">devis_envoye</span><span class="actor">Admin</span><span class="actor">Sellsy</span></div>
+          <p>Vous générez / envoyez le devis (Sellsy) et passez le statut. La date d'envoi est posée et l'étape Sellsy se synchronise. Un stagiaire qui reste bloqué ici est relancé automatiquement (voir §03).</p>
+          <div class="badges"><span class="badge man">devis via Sellsy</span><span class="badge cron">relance si blocage</span></div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="rail"><span class="step-num">3</span></div>
+        <div class="step-body">
+          <div class="step-head"><span class="name">Devis signé</span><span class="code">devis_signe</span><span class="actor">Admin / Sellsy</span></div>
+          <p>Dès que le devis est signé (statut posé à la main <em>ou</em> via le webhook Sellsy), le système <strong>génère et envoie tout seul la convention</strong> (entreprise) ou le <strong>contrat</strong> (particulier), avec les CGV et le règlement intérieur en pièces jointes — puis bascule le stagiaire en « Convention envoyée ».</p>
+          <div class="badges">
+            <span class="badge evt">convention / contrat auto</span>
+            <span class="badge doc">+ CGV</span>
+            <span class="badge doc">+ Règlement intérieur</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="rail"><span class="step-num">4</span></div>
+        <div class="step-body">
+          <div class="step-head"><span class="name">Convention envoyée</span><span class="code">convention_envoyee</span><span class="actor">Système</span></div>
+          <p>Atteint automatiquement à l'étape précédente. Le stagiaire a reçu sa convention / son contrat et doit le retourner signé. Ici aussi, une relance automatique se déclenche en cas de blocage prolongé.</p>
+          <div class="badges"><span class="badge cron">relance si blocage</span></div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="rail"><span class="step-num">5</span></div>
+        <div class="step-body">
+          <div class="step-head"><span class="name">Convention signée</span><span class="code">convention_signee</span><span class="actor">Admin</span></div>
+          <p>Vous enregistrez le retour signé. Le dossier administratif est complet : le stagiaire est prêt à être convoqué.</p>
+          <div class="badges"><span class="badge man">retour signé enregistré</span></div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="rail"><span class="step-num">6</span></div>
+        <div class="step-body">
+          <div class="step-head"><span class="name">Convoqué</span><span class="code">convoque</span><span class="actor">Système</span></div>
+          <p><strong>15 jours avant le début</strong> de la session, la convocation part toute seule (avec le règlement intérieur), le statut passe à « Convoqué » et la date est posée. Vous pouvez aussi la déclencher manuellement plus tôt.</p>
+          <div class="badges"><span class="badge cron">convocation J-15</span><span class="badge doc">+ Règlement intérieur</span></div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="rail"><span class="step-num">7</span></div>
+        <div class="step-body">
+          <div class="step-head"><span class="name">En formation</span><span class="code">en_formation</span><span class="actor">Formateur</span></div>
+          <p>Pendant la session, le formateur <strong>émarge</strong> (feuille de présence numérique) et remplit la <strong>grille d'évaluation pratique</strong> de chaque stagiaire (Acquis / En cours / Non acquis).</p>
+          <div class="badges"><span class="badge man">émargement</span><span class="badge man">grille d'évaluation</span></div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="rail"><span class="step-num">8</span></div>
+        <div class="step-body">
+          <div class="step-head"><span class="name">Terminé</span><span class="code">termine</span><span class="actor">Admin / Système</span></div>
+          <p>Au passage en « Terminé » (manuellement, ou automatiquement quand le formateur lance l'enquête de satisfaction), le système <strong>génère et envoie les documents de fin</strong> : certificat de réalisation, attestation de fin de formation et synthèse d'évaluation — le tout archivé sur le Drive.</p>
+          <div class="badges">
+            <span class="badge evt">certificat</span>
+            <span class="badge evt">attestation</span>
+            <span class="badge evt">synthèse d'évaluation</span>
+            <span class="badge doc">archivage Drive</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="branch" style="margin-top:2px">
+      <span class="name">Abandonné</span><span class="code" style="font-family:var(--mono);font-size:11px;color:var(--muted)">abandonne</span>
+      <p>Branche de sortie possible à tout moment. Un stagiaire abandonné est <strong>exclu</strong> des statistiques, des relances et du seuil de déclenchement du contrat formateur.</p>
+    </div>
+
+    <div class="callout" style="margin-top:20px">
+      <span class="mark">i</span>
+      <div>Le <strong>mode test</strong> (indicateur « stagiaire de test ») permet de faire passer un dossier fictif dans tout le circuit — génération de documents comprise — tout en l'excluant des stats, du BPF, des relances et des seuils.</div>
+    </div>
+  </section>
+
+  <!-- 03 -->
+  <section id="auto">
+    <p class="eyebrow">03 — Ce qui tourne tout seul</p>
+    <h2>Les automatisations</h2>
+    <p class="section-note">Deux familles : celles qui réagissent <strong>à un événement</strong> (en temps réel) et celles qui tournent <strong>chaque jour</strong> à heure fixe (les « cron »).</p>
+
+    <div class="grid g2" style="margin-bottom:22px">
+      <div class="card">
+        <div class="card-lead"><span class="dot evt" style="align-self:center"></span><h3>Déclenché par un événement</h3></div>
+        <ul class="clean">
+          <li><strong>Nouvelle inscription</strong> → confirmation au stagiaire + alerte admin + détection OPCO + mise à jour des places.</li>
+          <li><strong>Devis signé</strong> → convention / contrat généré et envoyé (CGV + RI joints).</li>
+          <li><strong>Seuil d'inscrits atteint</strong> → contrat de sous-traitance envoyé au formateur externe (si montant saisi et pas déjà envoyé).</li>
+          <li><strong>Passage en « Terminé »</strong> → certificat + attestation + synthèse envoyés.</li>
+          <li><strong>Réclamation reçue</strong> → accusé de réception au demandeur + alerte à l'admin.</li>
+          <li><strong>Étape modifiée dans Sellsy</strong> → le statut du stagiaire se met à jour tout seul (webhook).</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-lead"><span class="dot cron" style="align-self:center"></span><h3>À heure fixe, chaque jour</h3></div>
+        <p class="sub" style="margin-bottom:4px">8 tâches planifiées s'exécutent le matin (une la nuit pour la sauvegarde). Détail ci-dessous.</p>
+        <ul class="clean">
+          <li>Envoi des <strong>convocations</strong> à J-15.</li>
+          <li>Enquêtes <strong>à froid</strong> (stagiaire + entreprise) et <strong>formateur</strong>, avec relances.</li>
+          <li><strong>Clôture</strong> des sessions dont la date est passée.</li>
+          <li>Export <strong>Qualiopi</strong> et <strong>BPF</strong> vers Google Sheets.</li>
+          <li><strong>Relance</strong> des dossiers bloqués et <strong>sauvegarde</strong> de la base.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Heure</th><th>Tâche</th><th>Ce qu'elle fait</th><th>Pour qui</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="when">09:00</td><td class="name">Convocations</td><td>Sessions qui démarrent dans ~15 jours → convocation + règlement intérieur aux stagiaires non encore convoqués.</td><td>Stagiaires</td></tr>
+          <tr><td class="when">09:05</td><td class="name">Éval à froid</td><td>J+90 après la fin de session → invitation, puis relances à J+7 et J+14. Inclut la satisfaction entreprise (commanditaire) au même rythme.</td><td>Stagiaires + entreprises</td></tr>
+          <tr><td class="when">09:10</td><td class="name">Éval formateur</td><td>J+1 après la session → invitation au formateur, relances J+7 et J+14.</td><td>Formateurs</td></tr>
+          <tr><td class="when">09:15</td><td class="name">Clôture des sessions</td><td>Toute session dont la date de fin est passée bascule en « clôturée ».</td><td>Système</td></tr>
+          <tr><td class="when">09:20</td><td class="name">Sync Qualiopi</td><td>Agrège les indicateurs de l'année et les pousse dans le Google Sheet de suivi.</td><td>Google Sheet</td></tr>
+          <tr><td class="when">09:21</td><td class="name">Sync BPF</td><td>Alimente le Google Sheet du Bilan Pédagogique et Financier (Cerfa 10443).</td><td>Google Sheet</td></tr>
+          <tr><td class="when">09:25</td><td class="name">Relance blocages</td><td>Stagiaires bloqués ≥ 14 j sur devis ou convention → relance (max 2, espacées de 7 j).</td><td>Stagiaires</td></tr>
+          <tr><td class="when">04:00</td><td class="name">Sauvegarde</td><td>Snapshot quotidien de la base envoyé sur Google Drive (rotation des anciennes).</td><td>Google Drive</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 04 -->
+  <section id="emails">
+    <p class="eyebrow">04 — Les emails</p>
+    <h2>Qui part tout seul, qui part à la main</h2>
+    <p class="section-note">Tous les emails passent par Resend et, quand c'est pertinent, embarquent les PDF en pièce jointe.</p>
+
+    <div class="grid g3">
+      <div class="card">
+        <div class="card-lead"><span class="dot evt" style="align-self:center"></span><h3>Auto · événement</h3></div>
+        <ul class="clean">
+          <li>Confirmation d'inscription</li>
+          <li>Alerte admin « nouvelle inscription »</li>
+          <li>Convention / contrat (devis signé)</li>
+          <li>Contrat de sous-traitance (seuil atteint)</li>
+          <li>Documents de fin (certificat, attestation, synthèse)</li>
+          <li>Accusé + alerte de réclamation</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-lead"><span class="dot cron" style="align-self:center"></span><h3>Auto · planifié</h3></div>
+        <ul class="clean">
+          <li>Convocation (+ RI)</li>
+          <li>Éval à froid + 2 relances</li>
+          <li>Éval commanditaire + 2 relances</li>
+          <li>Éval formateur + 2 relances</li>
+          <li>Relance des dossiers bloqués</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-lead"><span class="dot man" style="align-self:center"></span><h3>Manuel · admin</h3></div>
+        <ul class="clean">
+          <li>Envoi du devis au stagiaire</li>
+          <li>Invitation satisfaction à chaud</li>
+          <li>Réponse à une réclamation</li>
+          <li>Lien d'accès formateur (magic link)</li>
+          <li>(Re)génération / envoi du contrat ST</li>
+          <li>Prévisualisation du contrat ST</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 -->
+  <section id="evals">
+    <p class="eyebrow">05 — Les évaluations</p>
+    <h2>Quatre regards + la grille pratique</h2>
+    <p class="section-note">Chaque questionnaire est personnalisable dans <em>Paramètres communs</em>. Les invitations et relances sont automatiques (sauf la satisfaction à chaud, lancée par le formateur / l'admin).</p>
+
+    <div class="grid g2">
+      <div class="card">
+        <div class="card-lead"><span class="tag">À chaud</span><h3>Satisfaction à chaud</h3></div>
+        <p>Anonyme, en fin de session, via un lien partagé (ou QR code). Ressenti immédiat sur le contenu, l'animation, la logistique.</p>
+        <div class="badges"><span class="badge man">lancée par le formateur/admin</span></div>
+      </div>
+      <div class="card">
+        <div class="card-lead"><span class="tag">À froid</span><h3>Évaluation à froid — stagiaire</h3></div>
+        <p>À J+90, lien personnel. Mesure l'impact de la formation dans le quotidien professionnel (3 mois après).</p>
+        <div class="badges"><span class="badge cron">J+90 · relances +7 / +14</span><span class="pill-ind">ind. 12</span></div>
+      </div>
+      <div class="card">
+        <div class="card-lead"><span class="tag">Entreprise</span><h3>Satisfaction commanditaire</h3></div>
+        <p>Au même moment que l'éval à froid, envoyée au référent de l'entreprise qui a inscrit ses salariés.</p>
+        <div class="badges"><span class="badge cron">J+90 · relances +7 / +14</span><span class="pill-ind">ind. 2</span></div>
+      </div>
+      <div class="card">
+        <div class="card-lead"><span class="tag">Formateur</span><h3>Évaluation formateur</h3></div>
+        <p>À J+1, lien personnel. Retour du formateur sur le déroulé, la logistique et l'engagement du groupe.</p>
+        <div class="badges"><span class="badge cron">J+1 · relances +7 / +14</span></div>
+      </div>
+    </div>
+
+    <div class="callout" style="margin-top:16px">
+      <span class="mark">+</span>
+      <div><strong>La grille d'évaluation pratique</strong> (remplie par le formateur, notée Acquis / En cours / Non acquis par critère) alimente les objectifs atteints, la synthèse d'évaluation et l'attestation de fin. Une <strong>grille vierge</strong> est téléchargeable en PDF pour l'auditeur Qualiopi.</div>
+    </div>
+  </section>
+
+  <!-- 06 -->
+  <section id="docs">
+    <p class="eyebrow">06 — Les documents</p>
+    <h2>Générés, envoyés, archivés</h2>
+    <p class="section-note">Les documents sont produits à partir de modèles Google Docs (variables remplacées automatiquement), exportés en PDF, envoyés et classés dans le Drive de la session.</p>
+
+    <div class="grid g2">
+      <div class="card">
+        <div class="card-lead"><span class="tag">PRODUITS</span><h3>Les documents automatiques</h3></div>
+        <ul class="clean">
+          <li><strong>Devis</strong> — via Sellsy</li>
+          <li><strong>Convention</strong> (entreprise) / <strong>Contrat</strong> (particulier) + CGV + RI</li>
+          <li><strong>Convocation</strong> + règlement intérieur</li>
+          <li><strong>Certificat</strong> de réalisation</li>
+          <li><strong>Attestation</strong> de fin (compétences + synthèse)</li>
+          <li><strong>Synthèse d'évaluation</strong> pratique</li>
+          <li><strong>Contrat de sous-traitance</strong> (formateur externe)</li>
+          <li><strong>Grille d'évaluation vierge</strong> (audit) — téléchargeable en PDF</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-lead"><span class="tag">RANGÉS</span><h3>L'arborescence Drive (par session)</h3></div>
+        <ul class="clean">
+          <li><code style="font-family:var(--mono);font-size:12.5px">01_INSCRIPTIONS_CONVENTIONS</code> — devis, conventions, convocations (un sous-dossier par stagiaire)</li>
+          <li><code style="font-family:var(--mono);font-size:12.5px">02_SUIVI_ET_INCIDENTS</code> — feuilles de présence, incidents</li>
+          <li><code style="font-family:var(--mono);font-size:12.5px">03_EVALUATIONS</code> — évaluations, synthèses</li>
+          <li><code style="font-family:var(--mono);font-size:12.5px">04_ATTESTATIONS_BILAN</code> — certificats, attestations</li>
+          <li><code style="font-family:var(--mono);font-size:12.5px">05_PROGRAMME_SUPPORTS</code> — programme, supports</li>
+          <li><code style="font-family:var(--mono);font-size:12.5px">07_SOUS-TRAITANCE</code> — contrats formateurs externes</li>
+        </ul>
+        <p class="sub" style="margin-top:10px">La structure se crée toute seule à la première génération, sans jamais dupliquer un dossier existant.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 07 -->
+  <section id="qualiopi">
+    <p class="eyebrow">07 — Conformité Qualiopi</p>
+    <h2>Chaque indicateur a sa fonctionnalité</h2>
+    <p class="section-note">Les indicateurs ci-dessous sont explicitement outillés dans EVA. Le tableau de bord agrège leurs chiffres, et un <strong>dossier d'audit ZIP</strong> + les exports Sheets préparent le passage de l'auditeur.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Indicateur</th><th>Objet</th><th>Où / comment dans l'outil</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="pill-ind">ind. 1</span></td><td class="name">Information du public</td><td>Résultats publics par formation (affichés sur le site vitrine).</td></tr>
+          <tr><td><span class="pill-ind">ind. 2</span></td><td class="name">Appréciation des parties prenantes</td><td>Questionnaire de satisfaction commanditaire / entreprise.</td></tr>
+          <tr><td><span class="pill-ind">ind. 5</span></td><td class="name">Situations de handicap (PSH)</td><td>Drapeau + besoins d'adaptation à l'inscription et sur l'émargement.</td></tr>
+          <tr><td><span class="pill-ind">ind. 6 · 11</span></td><td class="name">Évaluation des acquis</td><td>Grille d'évaluation pratique + alerte « stagiaires non évalués ».</td></tr>
+          <tr><td><span class="pill-ind">ind. 12</span></td><td class="name">Impact à froid</td><td>Enquête à froid à 3 mois, avec relances automatiques.</td></tr>
+          <tr><td><span class="pill-ind">ind. 21</span></td><td class="name">Qualification des formateurs</td><td>Fiche formateur : CV, pièces justificatives, expertise.</td></tr>
+          <tr><td><span class="pill-ind">ind. 22</span></td><td class="name">Développement des compétences</td><td>Champ « actions de maintien &amp; développement » du formateur.</td></tr>
+          <tr><td><span class="pill-ind">ind. 27</span></td><td class="name">Sous-traitance</td><td>Contrat de sous-traitance généré pour chaque formateur externe.</td></tr>
+          <tr><td><span class="pill-ind">ind. 32</span></td><td class="name">Réclamations</td><td>Formulaire public + suivi admin, engagement de réponse sous 30 j.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 08 -->
+  <section id="acces">
+    <p class="eyebrow">08 — Accès &amp; repères</p>
+    <h2>Qui se connecte comment, et les dates clés</h2>
+
+    <div class="grid g3" style="margin-bottom:24px">
+      <div class="card">
+        <div class="card-lead"><span class="tag">ADMIN</span><h3>Espace admin</h3></div>
+        <p>Identifiant + mot de passe. Hub EVA → <strong>EVA Formations</strong> : catalogue, sessions, stagiaires, formateurs, finances, réclamations, paramètres communs.</p>
+      </div>
+      <div class="card">
+        <div class="card-lead"><span class="tag">FORMATEUR</span><h3>Espace formateur</h3></div>
+        <p>Accès par <strong>lien magique</strong>, sans mot de passe. Ses sessions, les pré-requis, l'émargement, les évaluations, la satisfaction.</p>
+      </div>
+      <div class="card">
+        <div class="card-lead"><span class="tag">PUBLIC</span><h3>Pages publiques</h3></div>
+        <p>Sans connexion : inscription (par <strong>code formation</strong>), évaluations et réclamation (par <strong>lien token</strong> personnel).</p>
+      </div>
+    </div>
+
+    <p class="eyebrow" style="margin-bottom:14px">Repères de temps</p>
+    <div class="facts">
+      <div class="fact"><div class="n">J−15</div><div class="l">Envoi de la convocation</div></div>
+      <div class="fact"><div class="n">J+1</div><div class="l">Éval formateur</div></div>
+      <div class="fact"><div class="n">J+90</div><div class="l">Éval à froid + entreprise</div></div>
+      <div class="fact"><div class="n">+7 / +14</div><div class="l">Relances des évaluations</div></div>
+      <div class="fact"><div class="n">14 j</div><div class="l">Blocage → relance (max 2, ×7 j)</div></div>
+      <div class="fact"><div class="n">30 j</div><div class="l">Délai de réponse réclamation</div></div>
+      <div class="fact"><div class="n">04:00</div><div class="l">Sauvegarde quotidienne</div></div>
+      <div class="fact"><div class="n">Seuil</div><div class="l">Contrat ST au nb d'inscrits requis</div></div>
+    </div>
+  </section>
+
+  <!-- 09 -->
+  <section id="exploit">
+    <p class="eyebrow">09 — Exploitation &amp; dépannage</p>
+    <h2>Faire tourner la machine (et la remettre en route)</h2>
+    <p class="section-note">L'essentiel pour opérer l'outil au quotidien : où il vit, comment le mettre à jour, comment relire ce qu'il a fait et comment réagir quand quelque chose ne part pas. <strong>Le jeton <span class="code-inline">$CRON_SECRET</span> et les mots de passe ne se diffusent pas</strong> — ils vivent dans l'environnement du serveur.</p>
+
+    <div class="grid g2">
+      <div class="card">
+        <div class="card-lead"><span class="tag">OÙ</span><h3>Hébergement</h3></div>
+        <ul class="clean">
+          <li>VPS Hostinger — <span class="code-inline">root@82.112.240.219</span></li>
+          <li>Container Docker <span class="code-inline">evaremote</span>, port interne 3001</li>
+          <li>Domaine <span class="code-inline">evaremote.com</span> (via Traefik)</li>
+          <li>Base SQLite dans le container — <span class="code-inline">/app/data/remoteva.db</span></li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-lead"><span class="tag">MAJ</span><h3>Déployer une nouvelle version</h3></div>
+        <p>On pousse sur la branche <span class="code-inline">master</span> (dépôt GitHub <span class="code-inline">Lads47/remoteva</span>), puis on lance le script de déploiement :</p>
+        <div class="cmd"><span class="c"># depuis le poste, à la racine du projet</span>
+bash scripts/deploy-vps.sh</div>
+        <p class="sub" style="margin-top:9px">Il <strong>sauvegarde la base</strong>, reconstruit l'app sur le serveur, applique les migrations (sans risque de doublon), redémarre et vérifie que le site répond.</p>
+      </div>
+    </div>
+
+    <div class="grid g2" style="margin-top:16px">
+      <div class="card">
+        <div class="card-lead"><span class="tag">RELANCER</span><h3>Forcer une tâche planifiée</h3></div>
+        <p>Chaque tâche du matin est un simple appel protégé par un jeton. Pour la déclencher à la demande (ex. les convocations) :</p>
+        <div class="cmd">curl -X POST \
+  -H <span class="k">"Authorization: Bearer $CRON_SECRET"</span> \
+  https://evaremote.com/api/cron/<span class="c">send-convocations</span></div>
+        <p class="sub" style="margin-top:9px">Remplacez le dernier segment par : <span class="code-inline">send-cold-eval</span>, <span class="code-inline">send-trainer-eval</span>, <span class="code-inline">close-past-sessions</span>, <span class="code-inline">sync-qualiopi-sheet</span>, <span class="code-inline">sync-bpf-sheet</span>, <span class="code-inline">send-relance-bloques</span>, <span class="code-inline">backup-db</span>.</p>
+      </div>
+      <div class="card">
+        <div class="card-lead"><span class="tag">LOGS</span><h3>Relire ce qu'il s'est passé</h3></div>
+        <p>Journal des tâches planifiées :</p>
+        <div class="cmd">ssh root@82.112.240.219 \
+  <span class="k">'tail -n 50 /var/log/evaremote-cron.log'</span></div>
+        <p style="margin-top:12px">Journal applicatif (erreurs d'envoi, génération de docs…) :</p>
+        <div class="cmd">ssh root@82.112.240.219 \
+  <span class="k">'docker logs evaremote --tail 50'</span></div>
+      </div>
+    </div>
+
+    <div class="grid g2" style="margin-top:16px">
+      <div class="card">
+        <div class="card-lead"><span class="tag">SAUVEGARDES</span><h3>Sauvegarde &amp; restauration</h3></div>
+        <ul class="clean">
+          <li>Automatique chaque nuit à <strong>04:00</strong> → Google Drive (rotation des anciennes).</li>
+          <li>Une copie locale est aussi faite <strong>avant chaque déploiement</strong> dans <span class="code-inline">/root/evaremote-backups</span>.</li>
+          <li>Restaurer = remettre le fichier <span class="code-inline">.db</span> voulu dans le volume <em>data</em> du container, puis le redémarrer.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-lead"><span class="tag">ENVOIS</span><h3>Un email n'est pas parti ?</h3></div>
+        <ul class="clean">
+          <li>Les envois sont « best-effort » : un échec n'interrompt rien, il est <strong>tracé dans les logs</strong>.</li>
+          <li>Vérifiez le journal applicatif, puis <strong>renvoyez depuis l'admin</strong> : bouton de renvoi sur la fiche stagiaire, ou (re)génération du document.</li>
+          <li><strong>Sellsy désynchronisé ?</strong> La synchro passe par un webhook signé. Re-déclenchez en modifiant l'étape dans Sellsy, ou ajustez le statut côté admin.</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="eyebrow" style="margin:26px 0 14px">Que faire si…</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Symptôme</th><th>Première piste</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="name">Les convocations ne sont pas parties</td><td>Regarder <span class="code-inline">evaremote-cron.log</span> autour de 09:00 ; relancer <span class="code-inline">send-convocations</span> à la main.</td></tr>
+          <tr><td class="name">Un stagiaire n'a pas reçu sa convention</td><td>Journal applicatif, puis renvoyer via la fiche stagiaire (statut « Devis signé »).</td></tr>
+          <tr><td class="name">Le contrat formateur n'est pas parti</td><td>Formateur externe ? montant HT saisi ? seuil d'inscrits atteint ? Sinon, bouton « Contrat ST » sur la session.</td></tr>
+          <tr><td class="name">Une éval à froid manque</td><td>Elle part à J+90 : vérifier la date de fin de session ; les relances +7 / +14 suivent automatiquement.</td></tr>
+          <tr><td class="name">Après un déploiement, le site est en erreur</td><td><span class="code-inline">docker logs evaremote</span> ; au besoin, restaurer le dernier backup et redémarrer.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    <p>Cheatsheet établie à partir du code de production <code>remoteva</code> (evaremote.com) et de la planification réelle des tâches sur le serveur — 7 juillet 2026. Les horaires et délais reflètent la configuration en vigueur ; ils peuvent évoluer avec l'outil.</p>
+  </footer>
+
+</div>
+</body>
+</html>
