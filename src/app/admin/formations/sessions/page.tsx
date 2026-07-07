@@ -349,6 +349,51 @@ function SessionsPageInner() {
     }
   }
 
+  async function handlePreviewTrainerContract(s: Session) {
+    // Génère le contrat SANS l'envoyer au formateur ni marquer comme envoyé :
+    // il part à une adresse de prévisualisation (par défaut l'admin).
+    let amount = s.trainerFeeAmount;
+    if (amount == null || amount <= 0) {
+      const input = prompt(
+        `Montant HT du contrat de sous-traitance pour ${s.trainerNomComplet || "ce formateur"} (€) ?`,
+        ""
+      );
+      if (!input) return;
+      const parsed = parseFloat(input.replace(",", "."));
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        setFeedback({ type: "error", msg: "Montant invalide" });
+        setTimeout(() => setFeedback(null), 4000);
+        return;
+      }
+      amount = parsed;
+    }
+    const to = prompt(
+      "Adresse pour recevoir la prévisualisation du contrat (laisser vide = adresse admin par défaut) :",
+      ""
+    );
+    if (to === null) return; // Annulé
+    try {
+      const data = await apiFetch<{ success?: boolean; previewSentTo?: string; filename?: string; error?: string }>(
+        `/api/admin/sessions/${s.id}/preview-trainer-contract`,
+        {
+          method: "POST",
+          body: { trainerFeeAmount: amount, ...(to.trim() ? { to: to.trim() } : {}) },
+        }
+      );
+      setFeedback({
+        type: data.success ? "success" : "error",
+        msg: data.success
+          ? `Prévisualisation envoyée à ${data.previewSentTo} ✓ (formateur non notifié)`
+          : `Erreur : ${data.error || "?"}`,
+      });
+      setTimeout(() => setFeedback(null), 6000);
+    } catch (err) {
+      console.error(err);
+      setFeedback({ type: "error", msg: apiErrorMessage(err, "Erreur de connexion") });
+      setTimeout(() => setFeedback(null), 5000);
+    }
+  }
+
   async function handleDelete(id: string, traineeCount: number) {
     const msg = traineeCount > 0
       ? `Supprimer cette session ? ${traineeCount} stagiaire(s) liés seront aussi supprimés.`
@@ -728,14 +773,24 @@ function SessionsPageInner() {
                   Détails
                 </Link>
                 {s.trainerIsExternal && (
-                  <button
-                    onClick={() => handleRegenerateTrainerContract(s)}
-                    className="text-xs px-3 py-1.5 rounded-full"
-                    style={{ backgroundColor: "#fef3c7", color: "#92400e" }}
-                    title="(Re)générer + envoyer le contrat de sous-traitance au formateur externe"
-                  >
-                    📎 Contrat ST
-                  </button>
+                  <>
+                    <button
+                      onClick={() => handlePreviewTrainerContract(s)}
+                      className="text-xs px-3 py-1.5 rounded-full"
+                      style={{ backgroundColor: "#e0e7ff", color: "#3730a3" }}
+                      title="Générer le contrat et me l'envoyer pour relecture, SANS l'envoyer au formateur (n'affecte pas l'envoi auto)"
+                    >
+                      👁 Prévisualiser
+                    </button>
+                    <button
+                      onClick={() => handleRegenerateTrainerContract(s)}
+                      className="text-xs px-3 py-1.5 rounded-full"
+                      style={{ backgroundColor: "#fef3c7", color: "#92400e" }}
+                      title="(Re)générer + envoyer le contrat de sous-traitance au formateur externe"
+                    >
+                      📎 Contrat ST
+                    </button>
+                  </>
                 )}
                 <button
                   onClick={() => handleEdit(s)}
