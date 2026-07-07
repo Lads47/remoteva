@@ -25,6 +25,7 @@ import {
   exportDriveDocAsPdf,
   findOrCreateFolder,
   isDriveConfigured,
+  trashFile,
 } from "./google-drive";
 import { replaceTextInDoc } from "./google-docs";
 import { provisionSessionDriveFolder } from "./drive-provisioning";
@@ -52,11 +53,18 @@ export interface TrainerContractResult {
  *   - Le formateur n'est pas externe (isExternal=false)
  *   - Aucun template n'a été configuré pour le contrat formateur externe
  *   - Le montant HT est absent ou ≤ 0 (saisi à l'assignation)
+ *
+ * `opts.persist` (défaut true) : trace l'ID du Doc + la date d'envoi sur la
+ * Session (garde-fou "déjà envoyé"). En mode prévisualisation/test on passe
+ * `persist: false` : aucune écriture BDD et le Doc Drive généré est mis à la
+ * corbeille juste après l'export PDF (pas de fichier orphelin, état intact).
  */
 export async function generateExternalTrainerContract(
   sessionId: string,
-  trainerFeeAmount: number
+  trainerFeeAmount: number,
+  opts: { persist?: boolean } = {}
 ): Promise<TrainerContractResult> {
+  const persist = opts.persist !== false;
   if (!isDriveConfigured()) {
     return { ok: true, skipped: true, skipReason: "Drive non configuré" };
   }
@@ -118,22 +126,30 @@ export async function generateExternalTrainerContract(
     // 6. Export PDF
     const pdf = await exportDriveDocAsPdf(copy.id);
 
-    // 7. Trace en BDD (ID + date d'envoi)
-    await prisma.session.update({
-      where: { id: sessionId },
-      data: {
-        trainerFeeAmount,
-        trainerContractDriveFileId: copy.id,
-        trainerContractSentAt: new Date(),
-      },
-    });
+    // 7. Persistance (ID + date d'envoi) — sauf en mode prévisualisation.
+    if (persist) {
+      await prisma.session.update({
+        where: { id: sessionId },
+        data: {
+          trainerFeeAmount,
+          trainerContractDriveFileId: copy.id,
+          trainerContractSentAt: new Date(),
+        },
+      });
+    } else {
+      // Prévisualisation : on ne garde pas le Doc généré dans le Drive de la
+      // session (il n'est pas tracé en BDD → éviter un fichier orphelin).
+      await trashFile(copy.id).catch((e) =>
+        console.warn(`[trainer-contract] échec corbeille preview doc ${copy.id}:`, e)
+      );
+    }
 
     return {
       ok: true,
       pdfBuffer: pdf.buffer,
       pdfFilename: pdf.name,
-      driveFileId: copy.id,
-      driveWebUrl: copy.webViewLink ?? null,
+      driveFileId: persist ? copy.id : undefined,
+      driveWebUrl: persist ? copy.webViewLink ?? null : null,
     };
   } catch (err) {
     const error = err instanceof Error ? err.message : "Erreur inconnue";
