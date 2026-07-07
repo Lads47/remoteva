@@ -344,6 +344,321 @@ export async function buildGlobalEvaluationPdf(traineeId: string): Promise<PdfBu
 }
 
 // =====================================================================
+// PDF grille d'évaluation VIERGE (à imprimer / présenter à l'auditeur Qualiopi)
+// =====================================================================
+export interface BlankGridPdf {
+  buffer: Buffer;
+  filename: string;
+}
+
+// Génère la grille d'évaluation vierge d'une formation : tous les exercices
+// actifs avec leurs critères, en tableau à 3 colonnes à cocher
+// (Acquis / En cours d'acquisition / Non acquis). Aucune note : c'est le
+// document type que l'on présente à l'auditeur Qualiopi. Reprend la même
+// identité visuelle (logo, footer) que le reste de la suite PDF.
+export async function buildBlankFormationGridPdf(formationId: string): Promise<BlankGridPdf> {
+  const formation = await prisma.formation.findUnique({
+    where: { id: formationId },
+    include: {
+      evaluationExercises: {
+        where: { active: true },
+        orderBy: { ordre: "asc" },
+        include: { criteria: { orderBy: { ordre: "asc" } } },
+      },
+    },
+  });
+  if (!formation) throw new Error("Formation introuvable");
+
+  const exercises = formation.evaluationExercises;
+  const totalCriteria = exercises.reduce((n, e) => n + e.criteria.length, 0);
+
+  const safeCode = sanitizeFilenamePart(formation.code) || "Formation";
+  const filename = `Grille_evaluation_vierge_${safeCode}.pdf`;
+
+  const doc = createPdfDoc({
+    title: `Grille d'évaluation vierge — ${formation.nomLong}`,
+    subject: `Grille d'évaluation des compétences (vierge) — ${formation.nomLong}`,
+  });
+  const { chunks, done } = bindPdfStream(doc);
+
+  drawDocHeader(doc, "Grille d'évaluation des compétences");
+
+  // Sous-titre : intitulé + code formation
+  doc
+    .font("Helvetica-Oblique")
+    .fontSize(11)
+    .fillColor(COLOR_TITLE)
+    .text(formation.nomLong, { width: 495 });
+  doc
+    .font("Helvetica")
+    .fontSize(9)
+    .fillColor(COLOR_MUTED)
+    .text(`Formation ${formation.code} · Les Ateliers du Stream`);
+  doc.moveDown(0.6);
+  doc.x = 50;
+
+  // Bloc d'identification vierge (à remplir à la main)
+  drawBlankIdentBox(doc, ["Stagiaire", "Formateur·rice", "Date"]);
+
+  // Légende / échelle
+  drawLegendBox(
+    doc,
+    `Chaque critère est évalué selon l'échelle : Acquis · En cours d'acquisition · Non acquis. ` +
+      `Grille type : ${exercises.length} exercice${exercises.length > 1 ? "s" : ""}, ` +
+      `${totalCriteria} critère${totalCriteria > 1 ? "s" : ""} au total.`
+  );
+
+  if (exercises.length === 0) {
+    doc
+      .font("Helvetica-Oblique")
+      .fontSize(10)
+      .fillColor(COLOR_MUTED)
+      .text("Aucun exercice actif dans cette grille d'évaluation.");
+  } else {
+    for (const ex of exercises) {
+      // Évite de démarrer un exercice tout en bas de page (titre orphelin).
+      if (doc.y > doc.page.height - 200) doc.addPage();
+
+      drawBlankExerciseHead(doc, ex.ordre, ex.titre, ex.description);
+
+      if (ex.criteria.length === 0) {
+        doc
+          .font("Helvetica-Oblique")
+          .fontSize(9)
+          .fillColor(COLOR_MUTED)
+          .text("Aucun critère défini pour cet exercice.");
+        doc.moveDown(0.4);
+      } else {
+        drawBlankGridTable(
+          doc,
+          ex.criteria.map((c) => c.libelle)
+        );
+        drawAppreciationLine(doc);
+      }
+      doc.x = 50;
+      doc.moveDown(0.8);
+    }
+  }
+
+  drawFooterOnAllPages(doc);
+  doc.end();
+  await done;
+  return { buffer: Buffer.concat(chunks), filename };
+}
+
+// Bloc identification vierge : une ligne "Label ___________" par champ,
+// dans un encadré doux.
+function drawBlankIdentBox(doc: PDFKit.PDFDocument, labels: string[]): void {
+  const x = 50;
+  const width = 495;
+  const padding = 10;
+  const lineHeight = 20;
+  const labelWidth = 100;
+  const top = doc.y;
+  const boxH = padding * 2 + labels.length * lineHeight;
+
+  doc.save();
+  doc.lineWidth(0.5).strokeColor(COLOR_BORDER).fillColor(COLOR_BG_SOFT);
+  doc.roundedRect(x, top, width, boxH, 6).fillAndStroke(COLOR_BG_SOFT, COLOR_BORDER);
+  doc.restore();
+
+  let cursorY = top + padding;
+  for (const label of labels) {
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(9)
+      .fillColor(COLOR_MUTED)
+      .text(label, x + padding, cursorY + 2, { width: labelWidth, lineBreak: false });
+    const lineX1 = x + padding + labelWidth;
+    const lineX2 = x + width - padding;
+    const lineY = cursorY + 12;
+    doc.save();
+    doc.lineWidth(0.6).strokeColor("#9ca3af");
+    doc.moveTo(lineX1, lineY).lineTo(lineX2, lineY).stroke();
+    doc.restore();
+    cursorY += lineHeight;
+  }
+
+  doc.y = top + boxH + 12;
+  doc.x = x;
+}
+
+// Encadré "légende / échelle" avec liseré bleu à gauche.
+function drawLegendBox(doc: PDFKit.PDFDocument, text: string): void {
+  const x = 50;
+  const width = 495;
+  const padding = 8;
+  const accent = 3;
+  const textWidth = width - accent - padding * 2;
+  const textH = doc.font("Helvetica").fontSize(9).heightOfString(text, { width: textWidth });
+  const boxH = textH + padding * 2;
+  const top = doc.y;
+
+  doc.save();
+  doc.rect(x, top, width, boxH).fill("#f8fafc");
+  doc.rect(x, top, accent, boxH).fill("#7dcef5");
+  doc.restore();
+
+  doc
+    .font("Helvetica")
+    .fontSize(9)
+    .fillColor("#374151")
+    .text(text, x + accent + padding, top + padding, { width: textWidth });
+
+  doc.y = top + boxH + 14;
+  doc.x = x;
+}
+
+// En-tête d'un exercice : pastille "Exercice N" + titre, puis énoncé.
+function drawBlankExerciseHead(
+  doc: PDFKit.PDFDocument,
+  ordre: number,
+  titre: string,
+  description: string
+): void {
+  const x = 50;
+  const width = 495;
+  const chipLabel = `Exercice ${ordre}`;
+  doc.font("Helvetica-Bold").fontSize(8);
+  const chipTextW = doc.widthOfString(chipLabel);
+  const chipW = chipTextW + 12;
+  const chipH = 15;
+  const top = doc.y;
+
+  doc.save();
+  doc.fillColor(COLOR_TITLE);
+  doc.roundedRect(x, top, chipW, chipH, 3).fill();
+  doc.restore();
+  doc
+    .fillColor("#ffffff")
+    .font("Helvetica-Bold")
+    .fontSize(8)
+    .text(chipLabel, x + 6, top + 4, { lineBreak: false });
+
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(13)
+    .fillColor(COLOR_TITLE)
+    .text(titre, x + chipW + 8, top - 1, { width: width - chipW - 8 });
+
+  doc.y = Math.max(doc.y, top + chipH);
+  doc.x = x;
+  doc.moveDown(0.3);
+
+  const desc = description?.trim();
+  if (desc) {
+    doc
+      .font("Helvetica")
+      .fontSize(9)
+      .fillColor(COLOR_MUTED)
+      .text(desc, x, doc.y, { width, align: "justify" });
+    doc.moveDown(0.3);
+  }
+  doc.x = x;
+}
+
+// Tableau vierge : colonne critère + 3 colonnes vides à cocher.
+function drawBlankGridTable(doc: PDFKit.PDFDocument, criteria: string[]): void {
+  const x = 50;
+  const width = 495;
+  const padding = 6;
+  const colCrit = 255;
+  const colEval = (width - colCrit) / 3; // 80
+  const cols: { label: string; w: number; align: "left" | "center" }[] = [
+    { label: "Critère évalué", w: colCrit, align: "left" },
+    { label: "Acquis", w: colEval, align: "center" },
+    { label: "En cours d'acquisition", w: colEval, align: "center" },
+    { label: "Non acquis", w: colEval, align: "center" },
+  ];
+
+  // --- En-tête (fond foncé, texte blanc) ---
+  doc.font("Helvetica-Bold").fontSize(8);
+  let headerTextH = 0;
+  for (const c of cols) {
+    headerTextH = Math.max(
+      headerTextH,
+      doc.heightOfString(c.label, { width: c.w - padding * 2, align: c.align })
+    );
+  }
+  const headerH = headerTextH + padding * 2;
+
+  // Assez de place pour l'en-tête + une première ligne, sinon nouvelle page.
+  if (doc.y + headerH + 28 > doc.page.height - 90) doc.addPage();
+
+  const drawHeaderRow = () => {
+    const hy = doc.y;
+    doc.save();
+    doc.fillColor(COLOR_TITLE);
+    doc.rect(x, hy, width, headerH).fill();
+    doc.restore();
+    doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(8);
+    let cx = x;
+    for (const c of cols) {
+      const th = doc.heightOfString(c.label, { width: c.w - padding * 2, align: c.align });
+      doc.text(c.label, cx + padding, hy + (headerH - th) / 2, {
+        width: c.w - padding * 2,
+        align: c.align,
+      });
+      cx += c.w;
+    }
+    doc.y = hy + headerH;
+  };
+  drawHeaderRow();
+
+  // --- Lignes ---
+  for (const libelle of criteria) {
+    doc.font("Helvetica").fontSize(9);
+    const libH = doc.heightOfString(libelle, { width: colCrit - padding * 2 });
+    const rowH = Math.max(28, libH + padding * 2);
+
+    if (doc.y + rowH > doc.page.height - 90) {
+      doc.addPage();
+      drawHeaderRow();
+    }
+    const y = doc.y;
+
+    doc.save();
+    doc.lineWidth(0.5).strokeColor(COLOR_BORDER);
+    doc.rect(x, y, width, rowH).stroke();
+    let vx = x + colCrit;
+    for (let i = 0; i < 3; i++) {
+      doc.moveTo(vx, y).lineTo(vx, y + rowH).stroke();
+      vx += colEval;
+    }
+    doc.restore();
+
+    doc
+      .font("Helvetica")
+      .fontSize(9)
+      .fillColor(COLOR_TITLE)
+      .text(libelle, x + padding, y + padding, { width: colCrit - padding * 2 });
+
+    doc.y = y + rowH;
+  }
+  doc.x = x;
+}
+
+// Ligne "Appréciation globale de l'exercice : ______" sous chaque tableau.
+function drawAppreciationLine(doc: PDFKit.PDFDocument): void {
+  const x = 50;
+  const width = 495;
+  doc.moveDown(0.3);
+  const top = doc.y;
+  const label = "Appréciation globale de l'exercice :";
+  doc.font("Helvetica").fontSize(9).fillColor(COLOR_TITLE).text(label, x, top, { lineBreak: false });
+  const labelW = doc.widthOfString(label);
+  const lineX1 = x + labelW + 6;
+  const lineX2 = x + width;
+  const lineY = top + 9;
+  doc.save();
+  doc.lineWidth(0.6).strokeColor("#9ca3af");
+  doc.moveTo(lineX1, lineY).lineTo(lineX2, lineY).stroke();
+  doc.restore();
+  doc.y = top + 16;
+  doc.x = x;
+}
+
+// =====================================================================
 // Helpers PDFKit factorisés
 // =====================================================================
 

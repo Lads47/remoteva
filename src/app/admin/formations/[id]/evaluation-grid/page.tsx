@@ -248,6 +248,14 @@ export default function EvaluationGridEditorPage({ params }: { params: Promise<{
               >
                 📊 Grille vierge (audit)
               </Link>
+              <a
+                href={`/api/admin/formations/${id}/evaluation-grid-pdf`}
+                className="text-sm font-medium px-4 py-2 rounded-full border cursor-pointer whitespace-nowrap"
+                style={{ borderColor: "#1f2244", color: "#1f2244", backgroundColor: "white", textDecoration: "none" }}
+                title="Télécharger directement la grille vierge en PDF (à présenter à l'auditeur Qualiopi)"
+              >
+                ⬇️ Grille vierge (PDF)
+              </a>
               <Link
                 href={`/admin/formations/${id}/evaluation-grid/print`}
                 target="_blank"

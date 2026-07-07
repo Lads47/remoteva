@@ -76,14 +76,23 @@ export default function EvaluationGridBlankPage({ params }: { params: Promise<{ 
         <Link href={`/admin/formations/${id}/evaluation-grid`} className="text-xs font-jetbrains underline" style={{ color: "#727485" }}>
           ← Retour à la grille
         </Link>
-        <button
-          type="button"
-          onClick={() => window.print()}
-          className="px-4 py-2 rounded-full text-sm font-medium text-white cursor-pointer"
-          style={{ backgroundColor: "#1f2244" }}
-        >
-          🖨️ Imprimer / PDF
-        </button>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <a
+            href={`/api/admin/formations/${id}/evaluation-grid-pdf`}
+            className="px-4 py-2 rounded-full text-sm font-medium cursor-pointer"
+            style={{ backgroundColor: "#f3f4f6", color: "#1f2244", border: "1px solid #e5e7eb", textDecoration: "none" }}
+          >
+            ⬇️ Télécharger PDF
+          </a>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="px-4 py-2 rounded-full text-sm font-medium text-white cursor-pointer"
+            style={{ backgroundColor: "#1f2244" }}
+          >
+            🖨️ Imprimer
+          </button>
+        </div>
       </div>
 
       {/* Contenu imprimable */}
