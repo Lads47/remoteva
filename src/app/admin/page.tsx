@@ -69,6 +69,13 @@ const TILES: Tile[] = [
     description:
       "Scoring beach tennis en direct (API MOVN → vMix / écran LED). Ouvre dans un nouvel onglet.",
   },
+  {
+    universe: "master",
+    href: "/admin/master",
+    title: "EVA Master",
+    description:
+      "Captation → films, shorts, newsletter. Marquage des conférences et gestion des prestas.",
+  },
 ];
 
 export default async function AdminHubPage() {

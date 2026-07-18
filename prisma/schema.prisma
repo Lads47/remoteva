@@ -845,3 +845,64 @@ model TraineeCriterionScore {
   @@map("trainee_criterion_scores")
   @@index([criterionId])
 }
+
+// === EVA MASTER : Prestas de captation → livrables ===
+//
+// Structure PROPRE à EVA MASTER, distincte des tables flow_* (EVA STUDIO).
+// Une presta = un événement filmé (ex "CDC — 20 et 21 juin") qui regroupe
+// plusieurs conférences à marquer (début/fin) puis à transformer en films /
+// shorts / newsletter. La communication avec EVA CORE (transcription, résumés)
+// est stubbée en v1 : ces tables stockent la COPIE serveur ; la source de
+// vérité du marquage reste côté régie (IndexedDB navigateur, hors-ligne).
+
+// Une presta adressable par slug via /admin/master/[slug].
+model MasterPresta {
+  id          String              @id @default(cuid())
+  slug        String              @unique                       // ex "cdc-20-21-juin"
+  name        String                                            // "CDC — 20 et 21 juin"
+  driveUrl    String              @map("drive_url")             // lien du dossier Drive source
+  driveStatus String              @default("pending") @map("drive_status") // pending | read (lu par EVA CORE : lexique + jingles prêts)
+  createdAt   DateTime            @default(now()) @map("created_at")
+
+  conferences MasterConference[]
+  vmixLogs    MasterVmixLog[]
+
+  @@map("master_prestas")
+}
+
+// Une conférence d'une presta. `position` = numéro affiché ; l'ordre réel
+// prime sur l'ordre planifié (confs ajoutées/annulées/déplacées en direct).
+// startedAt / endedAt = copie serveur du marquage (reçue à l'envoi manuel).
+model MasterConference {
+  id        String       @id @default(cuid())
+  prestaId  String       @map("presta_id")
+  position  Int                                                 // numéro affiché (1, 2, 3…)
+  title     String
+  speakers  String       @default("[]")                         // JSON: intervenants (issus du sheet)
+  status    String       @default("pending")                    // pending | recording | done | cancelled
+  startedAt DateTime?    @map("started_at")                     // marquage début (copie serveur)
+  endedAt   DateTime?    @map("ended_at")                       // marquage fin (copie serveur)
+  createdAt DateTime     @default(now()) @map("created_at")
+
+  presta    MasterPresta @relation(fields: [prestaId], references: [id], onDelete: Cascade)
+
+  @@map("master_conferences")
+  @@index([prestaId])
+}
+
+// Fichier .log vMix déposé par l'opérateur, destiné à EVA CORE + module XML.
+// Stocké sur disque ; `sent` passe à true après l'envoi groupé.
+model MasterVmixLog {
+  id          String       @id @default(cuid())
+  prestaId    String       @map("presta_id")
+  filename    String                                            // nom d'origine du .log
+  size        Int                                               // octets
+  storagePath String       @map("storage_path")                // chemin disque côté serveur
+  sent        Boolean      @default(false)                      // envoyé à EVA Core ?
+  uploadedAt  DateTime     @default(now()) @map("uploaded_at")
+
+  presta      MasterPresta @relation(fields: [prestaId], references: [id], onDelete: Cascade)
+
+  @@map("master_vmix_logs")
+  @@index([prestaId])
+}
