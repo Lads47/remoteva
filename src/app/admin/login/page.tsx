@@ -36,7 +36,7 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen flex flex-col" style={{ backgroundColor: "#1f2244" }}>
+    <main className="min-h-screen flex flex-col" data-theme="dark" style={{ backgroundColor: "var(--page)" }}>
       {/* En-tête */}
       <header className="border-b border-white/10">
         <div className="max-w-4xl mx-auto px-4 h-[72px] flex items-center justify-between">
@@ -63,9 +63,9 @@ export default function LoginPage() {
         <div className="w-full text-center">
           {/* Titre */}
           <h1 className="font-[var(--font-montserrat)] font-semibold mb-12 whitespace-nowrap tracking-wide">
-            <span className="text-3xl sm:text-5xl text-white">E</span><span className="text-2xl sm:text-4xl" style={{ color: "#a0a3b5" }}>lectronic</span>{" "}
-            <span className="text-3xl sm:text-5xl text-white">V</span><span className="text-2xl sm:text-4xl" style={{ color: "#a0a3b5" }}>irtual</span>{" "}
-            <span className="text-3xl sm:text-5xl text-white">A</span><span className="text-2xl sm:text-4xl" style={{ color: "#a0a3b5" }}>ssistant</span>
+            <span className="text-3xl sm:text-5xl text-white">E</span><span className="text-2xl sm:text-4xl" style={{ color: "var(--muted)" }}>lectronic</span>{" "}
+            <span className="text-3xl sm:text-5xl text-white">V</span><span className="text-2xl sm:text-4xl" style={{ color: "var(--muted)" }}>irtual</span>{" "}
+            <span className="text-3xl sm:text-5xl text-white">A</span><span className="text-2xl sm:text-4xl" style={{ color: "var(--muted)" }}>ssistant</span>
           </h1>
 
           <div className="max-w-md mx-auto">
@@ -111,14 +111,14 @@ export default function LoginPage() {
                 type="submit"
                 disabled={loading}
                 className="w-full py-4 px-6 text-lg font-medium text-white rounded-full shadow-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ backgroundColor: "#7dcef5", color: "#1f2244" }}
+                style={{ backgroundColor: "var(--accent)", color: "var(--brand)" }}
                 onMouseOver={(e) => {
                   if (!loading) {
                     e.currentTarget.style.backgroundColor = "#ffffff";
                   }
                 }}
                 onMouseOut={(e) => {
-                  e.currentTarget.style.backgroundColor = "#7dcef5";
+                  e.currentTarget.style.backgroundColor = "var(--accent)";
                 }}
               >
                 {loading ? "Connexion..." : "Se connecter"}
@@ -131,7 +131,7 @@ export default function LoginPage() {
               <Link
                 href="/admin/inscription"
                 className="underline hover:text-white"
-                style={{ color: "#7dcef5" }}
+                style={{ color: "var(--accent)" }}
               >
                 S&apos;inscrire
               </Link>
