@@ -18,7 +18,17 @@ import { ApiError, apiFetch, isAbortError } from "@/lib/api-client";
 const UNIVERSE_THEME: Record<string, "light" | "dark"> = {
   master: "dark", // pilote — passer à "light" pour revenir au thème clair
 };
+// Exceptions par page (priment sur le thème d'univers).
+// Ex : l'espace correction de Master reste en clair même si Master est en sombre.
+function pageThemeOverride(pathname: string): "light" | "dark" | null {
+  if (pathname.startsWith("/admin/master/") && pathname.endsWith("/correction")) {
+    return "light";
+  }
+  return null;
+}
 function themeForPath(pathname: string): "light" | "dark" {
+  const override = pageThemeOverride(pathname);
+  if (override) return override;
   const seg = pathname.split("/")[2]; // /admin/<univers>/...
   return UNIVERSE_THEME[seg] ?? "light";
 }
