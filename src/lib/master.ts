@@ -104,6 +104,8 @@ export async function syncConferencesFromCore(prestaId: string, slug: string) {
         data: { title: c.title, speakers: JSON.stringify(c.speakers) },
       });
     } else {
+      // Création : on stocke aussi le contenu EVA CORE (transcription + résumé IA).
+      // Sur les confs déjà présentes, on ne touche PAS summary (corrections préservées).
       await prisma.masterConference.create({
         data: {
           prestaId,
@@ -111,6 +113,8 @@ export async function syncConferencesFromCore(prestaId: string, slug: string) {
           title: c.title,
           speakers: JSON.stringify(c.speakers),
           status: c.status === "cancelled" ? "cancelled" : "pending",
+          transcript: JSON.stringify(c.transcript),
+          summary: c.summaryIa,
         },
       });
     }
@@ -137,7 +141,7 @@ export async function addConference(prestaId: string, title: string) {
   });
 }
 
-// Met à jour une conf (titre, statut, marquage — copie serveur).
+// Met à jour une conf (titre, statut, marquage, + correction EVA NL).
 export async function updateConference(
   id: string,
   data: {
@@ -146,6 +150,8 @@ export async function updateConference(
     startedAt?: Date | null;
     endedAt?: Date | null;
     speakers?: string[];
+    summary?: string;
+    speakerMapping?: Record<string, string>;
   }
 ) {
   const patch: Record<string, unknown> = {};
@@ -154,7 +160,38 @@ export async function updateConference(
   if (data.startedAt !== undefined) patch.startedAt = data.startedAt;
   if (data.endedAt !== undefined) patch.endedAt = data.endedAt;
   if (data.speakers !== undefined) patch.speakers = JSON.stringify(data.speakers);
+  if (data.summary !== undefined) patch.summary = data.summary;
+  if (data.speakerMapping !== undefined) patch.speakerMapping = JSON.stringify(data.speakerMapping);
   return prisma.masterConference.update({ where: { id }, data: patch });
+}
+
+// Parse le champ speakerMapping (JSON) en objet {label: nom}.
+export function parseMapping(json: string): Record<string, string> {
+  try {
+    const obj = JSON.parse(json);
+    return obj && typeof obj === "object" && !Array.isArray(obj) ? obj : {};
+  } catch {
+    return {};
+  }
+}
+
+// Parse le champ transcript (JSON) en segments [{speaker,text}].
+export function parseTranscript(json: string | null): { speaker: string; text: string }[] {
+  if (!json) return [];
+  try {
+    const arr = JSON.parse(json);
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+
+// Liste dédupliquée des intervenants d'une presta (union des speakers de toutes
+// les confs — la source pour le mapping speakers dans EVA NL, §9).
+export function prestaIntervenants(confs: { speakers: string }[]): string[] {
+  const set = new Set<string>();
+  confs.forEach((c) => parseSpeakers(c.speakers).forEach((s) => set.add(s)));
+  return Array.from(set).sort();
 }
 
 // Supprime une conf (annulée / retirée du planning).

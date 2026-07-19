@@ -38,6 +38,11 @@ export async function PATCH(
           ? new Date(body.endedAt)
           : undefined,
       speakers: Array.isArray(body.speakers) ? body.speakers.map(String) : undefined,
+      summary: typeof body.summary === "string" ? body.summary : undefined,
+      speakerMapping:
+        body.speakerMapping && typeof body.speakerMapping === "object"
+          ? (body.speakerMapping as Record<string, string>)
+          : undefined,
     });
     return NextResponse.json({ conference });
   } catch (error) {

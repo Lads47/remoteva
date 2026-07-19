@@ -882,6 +882,10 @@ model MasterConference {
   status    String       @default("pending")                    // pending | recording | done | cancelled
   startedAt DateTime?    @map("started_at")                     // marquage début (copie serveur)
   endedAt   DateTime?    @map("ended_at")                       // marquage fin (copie serveur)
+  // --- EVA NL (espace correction) : contenu issu d'EVA CORE (stub v1) ---
+  transcript     String?  @map("transcript")                    // JSON: segments [{speaker,text}] avec labels Speaker N
+  summary        String?  @map("summary")                       // résumé éditable — SOURCE DE VÉRITÉ des corrections (EVA NL)
+  speakerMapping String   @default("{}") @map("speaker_mapping") // JSON: {"Speaker 1":"Nom réel", …}, mappé par conf
   createdAt DateTime     @default(now()) @map("created_at")
 
   presta    MasterPresta @relation(fields: [prestaId], references: [id], onDelete: Cascade)
