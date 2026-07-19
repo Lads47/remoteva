@@ -1,0 +1,36 @@
+name: CI
+
+# Attrape un univers cassé AVANT le déploiement manuel sur le VPS.
+# Le déploiement (bash scripts/deploy-vps.sh) reste manuel ; cette CI ne
+# déploie rien — elle valide seulement que le build + les tests passent.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      # Le client Prisma est généré (gitignoré) — indispensable avant tsc/build.
+      - name: Prisma generate
+        run: npx prisma generate
+
+      # Tests (gating des univers, utilitaires…).
+      - name: Tests
+        run: npm run test
+
+      # next build = type-check de l'app + ESLint + build de prod (le vrai garde).
+      - name: Build
+        run: npm run build
