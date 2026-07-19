@@ -7,10 +7,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
-const EVA_DARK = "#1f2244";
-const EVA_ACCENT = "#7dcef5";
-const EVA_MUTED = "#727485";
-const BORDER = "#e5e7eb";
+// Couleurs = design tokens (voir globals.css) — clair identique, "dark" bascule.
+const EVA_DARK = "var(--ink)";
+const EVA_ACCENT = "var(--accent)";
+const EVA_MUTED = "var(--muted)";
+const BORDER = "var(--line)";
+const BRAND = "var(--brand)"; // fonds pleins
 
 type Presta = {
   id: string;
@@ -115,7 +117,7 @@ export default function PrestasManager() {
         <button
           onClick={() => setShowForm((v) => !v)}
           className="shrink-0 text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-          style={{ backgroundColor: EVA_ACCENT, color: EVA_DARK }}
+          style={{ backgroundColor: EVA_ACCENT, color: BRAND }}
         >
           {showForm ? "Annuler" : "+ Nouvelle presta"}
         </button>
@@ -125,7 +127,7 @@ export default function PrestasManager() {
       {showForm && (
         <form
           onSubmit={handleCreate}
-          className="p-5 rounded-lg border bg-white space-y-4"
+          className="p-5 rounded-lg border bg-surface space-y-4"
           style={{ borderColor: BORDER }}
         >
           <div>
@@ -160,7 +162,7 @@ export default function PrestasManager() {
               type="submit"
               disabled={submitting}
               className="text-sm font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
-              style={{ backgroundColor: EVA_DARK, color: "white" }}
+              style={{ backgroundColor: BRAND, color: "#fff" }}
             >
               {submitting ? "Création…" : "Créer la presta"}
             </button>
@@ -197,7 +199,7 @@ export default function PrestasManager() {
           {prestas.map((presta) => (
             <div
               key={presta.id}
-              className="group h-full p-5 rounded-lg border bg-white transition-all hover:shadow-md flex flex-col"
+              className="group h-full p-5 rounded-lg border bg-surface transition-all hover:shadow-md flex flex-col"
               style={{ borderColor: BORDER }}
             >
               <div className="flex items-start justify-between gap-2">

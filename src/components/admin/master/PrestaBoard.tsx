@@ -21,13 +21,16 @@ import {
   type LocalMarking,
 } from "@/lib/master-idb";
 
-const EVA_DARK = "#1f2244";
-const EVA_ACCENT = "#7dcef5";
-const EVA_MUTED = "#727485";
-const BORDER = "#e5e7eb";
-const GREEN = "#16a34a";
-const BLUE = "#2563eb";
-const ACTIVE_BG = "#eff6ff";
+// Couleurs = design tokens (voir globals.css). En thème clair, ces variables
+// valent exactement l'ancienne DA → rendu identique ; en "dark" elles basculent.
+const EVA_DARK = "var(--ink)"; // texte principal
+const EVA_ACCENT = "var(--accent)";
+const EVA_MUTED = "var(--muted)";
+const BORDER = "var(--line)";
+const BRAND = "var(--brand)"; // fonds pleins (navy constant)
+const GREEN = "#16a34a"; // feedback (succès) — thème-agnostique
+const BLUE = "#2563eb"; // feedback (info) — thème-agnostique
+const ACTIVE_BG = "var(--surface-2)";
 
 type Presta = {
   id: string;
@@ -417,7 +420,7 @@ export default function PrestaBoard({ presta, initialConferences, initialLogs }:
           </button>
           {menuOpen && (
             <div
-              className="absolute right-0 top-11 z-10 rounded-lg border bg-white shadow-md py-1"
+              className="absolute right-0 top-11 z-10 rounded-lg border bg-surface shadow-md py-1"
               style={{ borderColor: BORDER }}
             >
               <button
@@ -449,7 +452,7 @@ export default function PrestaBoard({ presta, initialConferences, initialLogs }:
       )}
 
       {/* 2. Marquage des conférences (bloc principal) */}
-      <section className="rounded-lg border bg-white" style={{ borderColor: BORDER }}>
+      <section className="rounded-lg border bg-surface" style={{ borderColor: BORDER }}>
         <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: BORDER }}>
           <h2 className="font-semibold flex items-center gap-2" style={{ color: EVA_DARK }}>
             <span aria-hidden>🚩</span> Marquage des conférences
@@ -467,7 +470,7 @@ export default function PrestaBoard({ presta, initialConferences, initialLogs }:
               onClick={loadFromCore}
               disabled={busy}
               className="mt-3 text-sm font-medium px-4 py-2 rounded-lg disabled:opacity-50"
-              style={{ backgroundColor: EVA_ACCENT, color: EVA_DARK }}
+              style={{ backgroundColor: EVA_ACCENT, color: BRAND }}
             >
               Charger depuis EVA CORE
             </button>
@@ -550,7 +553,7 @@ export default function PrestaBoard({ presta, initialConferences, initialLogs }:
                       <button
                         onClick={() => saveEdit(conf)}
                         className="text-sm px-2 py-1 rounded"
-                        style={{ backgroundColor: EVA_DARK, color: "white" }}
+                        style={{ backgroundColor: BRAND, color: "#fff" }}
                       >
                         OK
                       </button>
@@ -623,7 +626,7 @@ export default function PrestaBoard({ presta, initialConferences, initialLogs }:
                       <button
                         onClick={() => markStart(conf)}
                         className="text-sm px-3 py-1.5 rounded-lg font-medium"
-                        style={{ backgroundColor: EVA_ACCENT, color: EVA_DARK }}
+                        style={{ backgroundColor: EVA_ACCENT, color: BRAND }}
                       >
                         ▷ début
                       </button>
@@ -693,7 +696,7 @@ export default function PrestaBoard({ presta, initialConferences, initialLogs }:
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <a
           href={`/admin/master/${presta.slug}/correction`}
-          className="p-5 rounded-lg border bg-white text-center hover:shadow-md transition-all"
+          className="p-5 rounded-lg border bg-surface text-center hover:shadow-md transition-all"
           style={{ borderColor: BORDER }}
         >
           <div className="text-2xl">📄</div>
@@ -706,7 +709,7 @@ export default function PrestaBoard({ presta, initialConferences, initialLogs }:
         </a>
         <button
           onClick={() => downloadStubXml("films")}
-          className="p-5 rounded-lg border bg-white text-center hover:shadow-md transition-all"
+          className="p-5 rounded-lg border bg-surface text-center hover:shadow-md transition-all"
           style={{ borderColor: BORDER }}
         >
           <div className="text-2xl">🎬</div>
@@ -719,7 +722,7 @@ export default function PrestaBoard({ presta, initialConferences, initialLogs }:
         </button>
         <button
           onClick={() => downloadStubXml("shorts")}
-          className="p-5 rounded-lg border bg-white text-center hover:shadow-md transition-all"
+          className="p-5 rounded-lg border bg-surface text-center hover:shadow-md transition-all"
           style={{ borderColor: BORDER }}
         >
           <div className="text-2xl">📱</div>
@@ -734,7 +737,7 @@ export default function PrestaBoard({ presta, initialConferences, initialLogs }:
 
       {/* 4. Source Drive + Flux régie (compact, en bas) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="p-4 rounded-lg border bg-white" style={{ borderColor: BORDER }}>
+        <div className="p-4 rounded-lg border bg-surface" style={{ borderColor: BORDER }}>
           <p className="text-sm font-medium flex items-center gap-2" style={{ color: EVA_DARK }}>
             <span aria-hidden>📁</span> Source Drive
           </p>
@@ -751,7 +754,7 @@ export default function PrestaBoard({ presta, initialConferences, initialLogs }:
             {presta.driveUrl}
           </a>
         </div>
-        <div className="p-4 rounded-lg border bg-white" style={{ borderColor: BORDER }}>
+        <div className="p-4 rounded-lg border bg-surface" style={{ borderColor: BORDER }}>
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium flex items-center gap-2" style={{ color: EVA_DARK }}>
               <span aria-hidden>📶</span> Flux régie · SRT

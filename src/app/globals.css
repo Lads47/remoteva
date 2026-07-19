@@ -5,12 +5,51 @@
   --foreground: #171717;
 }
 
+/* === Design tokens EVA (source de vérité unique de la DA) ============
+ * Rôles SÉMANTIQUES (pas des couleurs littérales) → un univers peut être
+ * clair ou sombre en posant data-theme sur son conteneur (voir admin/layout).
+ * Les valeurs CLAIRES sont identiques à l'ancienne DA en dur (migration invisible).
+ * brand + accent sont CONSTANTS (chrome de marque), le reste bascule.
+ */
+:root,
+[data-theme="light"] {
+  --page: #ffffff;      /* fond de page */
+  --surface: #ffffff;   /* cartes */
+  --surface-2: #eff6ff; /* fond subtil / ligne active */
+  --ink: #1f2244;       /* texte principal */
+  --muted: #727485;     /* texte secondaire */
+  --line: #e5e7eb;      /* bordures */
+  --brand: #1f2244;     /* marque : nav, boutons pleins (constant) */
+  --accent: #7dcef5;    /* accent / pills (constant) */
+}
+
+[data-theme="dark"] {
+  --page: #171a34;
+  --surface: #20244a;
+  --surface-2: #2a2f5c;
+  --ink: #f3f4f6;
+  --muted: #a0a6c0;
+  --line: #343a63;
+  /* --brand et --accent restent constants */
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-jetbrains: var(--font-jetbrains-mono);
+  --font-display: var(--font-montserrat);
+
+  /* Tokens EVA → génèrent bg-page, bg-surface, text-ink, text-muted, border-line, bg-brand, text-accent… */
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-brand: var(--brand);
+  --color-accent: var(--accent);
 }
 
 @media (prefers-color-scheme: dark) {

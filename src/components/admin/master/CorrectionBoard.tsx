@@ -7,12 +7,14 @@
 
 import { useMemo, useState } from "react";
 
-const EVA_DARK = "#1f2244";
-const EVA_ACCENT = "#7dcef5";
-const EVA_MUTED = "#727485";
-const BORDER = "#e5e7eb";
-const BLUE = "#2563eb";
-const GREEN = "#16a34a";
+// Couleurs = design tokens (voir globals.css) — clair identique, "dark" bascule.
+const EVA_DARK = "var(--ink)";
+const EVA_ACCENT = "var(--accent)";
+const EVA_MUTED = "var(--muted)";
+const BORDER = "var(--line)";
+const BRAND = "var(--brand)"; // fonds pleins
+const BLUE = "#2563eb"; // feedback (info)
+const GREEN = "#16a34a"; // feedback (succès)
 
 type TranscriptSegment = { speaker: string; text: string };
 
@@ -160,7 +162,7 @@ ${articles}
           onClick={exportHtml}
           disabled={conferences.length === 0}
           className="shrink-0 text-sm font-medium px-4 py-2 rounded-lg disabled:opacity-40"
-          style={{ backgroundColor: EVA_DARK, color: "white" }}
+          style={{ backgroundColor: BRAND, color: "#fff" }}
         >
           ⬇ Exporter la newsletter (HTML)
         </button>
@@ -202,7 +204,7 @@ ${articles}
             return (
               <section
                 key={conf.id}
-                className="rounded-lg border bg-white"
+                className="rounded-lg border bg-surface"
                 style={{ borderColor: BORDER, opacity: cancelled ? 0.6 : 1 }}
               >
                 <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: BORDER }}>

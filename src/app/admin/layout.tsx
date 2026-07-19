@@ -12,6 +12,17 @@ import Link from "next/link";
 import Image from "next/image";
 import { ApiError, apiFetch, isAbortError } from "@/lib/api-client";
 
+// Thème par univers (design tokens — voir globals.css).
+// "light" = défaut ; passer une valeur à "dark" bascule TOUT l'univers concerné
+// (fond, cartes, texte) sans toucher aux autres. Réversible d'un mot.
+const UNIVERSE_THEME: Record<string, "light" | "dark"> = {
+  master: "dark", // pilote — passer à "light" pour revenir au thème clair
+};
+function themeForPath(pathname: string): "light" | "dark" {
+  const seg = pathname.split("/")[2]; // /admin/<univers>/...
+  return UNIVERSE_THEME[seg] ?? "light";
+}
+
 export default function AdminLayout({
   children,
 }: {
@@ -19,6 +30,7 @@ export default function AdminLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const theme = themeForPath(pathname);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
   // Vérifie l'authentification au chargement
@@ -75,9 +87,10 @@ export default function AdminLayout({
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen" data-theme={theme} style={{ backgroundColor: "var(--page)" }}>
       {/* Bandeau minimaliste : logo (retour au hub) + Mon compte + Déconnexion */}
-      <nav className="border-b border-white/10" style={{ backgroundColor: "#1f2244" }}>
+      {/* Nav = chrome de marque (navy constant), OK sur thème clair comme sombre */}
+      <nav className="border-b border-white/10" style={{ backgroundColor: "var(--brand)" }}>
         <div className="max-w-6xl mx-auto px-4">
           <div className="flex justify-between h-[72px] items-center">
             <Link href="/admin" className="flex items-center" title="Retour au hub">
