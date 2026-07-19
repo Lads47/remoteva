@@ -29,6 +29,7 @@ function pageThemeOverride(pathname: string): "light" | "dark" | null {
 function themeForPath(pathname: string): "light" | "dark" {
   const override = pageThemeOverride(pathname);
   if (override) return override;
+  if (pathname === "/admin") return "dark"; // le hub « Portail EVA » en sombre
   const seg = pathname.split("/")[2]; // /admin/<univers>/...
   return UNIVERSE_THEME[seg] ?? "light";
 }

@@ -10,9 +10,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession, type EvaUniverse } from "@/lib/auth";
 
-const EVA_DARK = "#1f2244";
-const EVA_ACCENT = "#7dcef5";
-const EVA_MUTED = "#727485";
+const EVA_DARK = "var(--ink)";
+const EVA_ACCENT = "var(--accent)";
+const EVA_MUTED = "var(--muted)";
 
 type Tile = {
   // Univers requis pour voir la tuile. Absent = visible par tout compte validé
@@ -119,7 +119,7 @@ export default async function AdminHubPage() {
       )}
 
       {session.isSuperAdmin && (
-        <div className="mt-8 pt-6 border-t" style={{ borderColor: "#e5e7eb" }}>
+        <div className="mt-8 pt-6 border-t" style={{ borderColor: "var(--line)" }}>
           <h2 className="text-sm font-semibold mb-3" style={{ color: EVA_MUTED }}>
             Administration
           </h2>
@@ -127,7 +127,7 @@ export default async function AdminHubPage() {
             <Link
               href="/admin/users"
               className="block p-4 rounded-lg border hover:shadow-md transition-all"
-              style={{ backgroundColor: "white", borderColor: "#e5e7eb" }}
+              style={{ backgroundColor: "var(--surface)", borderColor: "var(--line)" }}
             >
               <h3 className="font-medium" style={{ color: EVA_DARK }}>
                 Utilisateurs
@@ -148,7 +148,7 @@ function HubTile({ tile }: { tile: Tile }) {
   const content = (
     <div
       className="group h-full p-6 rounded-lg border transition-all hover:shadow-md flex flex-col"
-      style={{ backgroundColor: "white", borderColor: "#e5e7eb" }}
+      style={{ backgroundColor: "var(--surface)", borderColor: "var(--line)" }}
     >
       <div className="flex items-start justify-between gap-3">
         <h2 className="text-lg font-semibold" style={{ color: EVA_DARK }}>
