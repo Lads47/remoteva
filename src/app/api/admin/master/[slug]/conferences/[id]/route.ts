@@ -1,17 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import { requireMasterAccess } from "@/lib/master-auth";
+import prisma from "@/lib/db";
 import { updateConference, deleteConference } from "@/lib/master";
 
 async function requireAuth() {
-  const session = await getSession();
-  if (!session) {
-    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-  }
-  return null;
+  return requireMasterAccess();
+}
+
+// Fix E-2 : vérifie que la conf `id` appartient bien à la presta du `slug`.
+// Empêche de modifier/supprimer la conf d'une AUTRE presta via son id.
+// Renvoie true si l'appartenance est confirmée.
+async function confBelongsToPresta(slug: string, id: string): Promise<boolean> {
+  const conf = await prisma.masterConference.findFirst({
+    where: { id, presta: { slug } },
+    select: { id: true },
+  });
+  return conf !== null;
 }
 
 // PATCH /api/admin/master/[slug]/conferences/[id]
-// Édite une conf : titre, statut, marquage (copie serveur), intervenants.
+// Édite une conf : titre, statut, marquage (copie serveur), intervenants, correction.
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string; id: string }> }
@@ -19,7 +27,11 @@ export async function PATCH(
   const authError = await requireAuth();
   if (authError) return authError;
 
-  const { id } = await params;
+  const { slug, id } = await params;
+  if (!(await confBelongsToPresta(slug, id))) {
+    return NextResponse.json({ error: "Conférence introuvable" }, { status: 404 });
+  }
+
   try {
     const body = await request.json();
     const conference = await updateConference(id, {
@@ -59,7 +71,11 @@ export async function DELETE(
   const authError = await requireAuth();
   if (authError) return authError;
 
-  const { id } = await params;
+  const { slug, id } = await params;
+  if (!(await confBelongsToPresta(slug, id))) {
+    return NextResponse.json({ error: "Conférence introuvable" }, { status: 404 });
+  }
+
   try {
     await deleteConference(id);
     return NextResponse.json({ success: true });

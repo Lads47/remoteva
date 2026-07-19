@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import { requireMasterAccess } from "@/lib/master-auth";
 import { listPrestas, createPresta, deletePresta } from "@/lib/master";
 
-// Vérifie l'authentification admin (le proxy gère déjà l'accès à l'univers).
+// Accès : session valide + univers "master" (ou super-admin). Voir master-auth.
 async function requireAuth() {
-  const session = await getSession();
-  if (!session) {
-    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-  }
-  return null;
+  return requireMasterAccess();
 }
 
 // GET /api/admin/master - Liste les prestas

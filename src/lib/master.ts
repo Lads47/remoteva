@@ -1,3 +1,5 @@
+import { rm } from "fs/promises";
+import path from "path";
 import prisma from "./db";
 import {
   fetchConferences,
@@ -71,8 +73,11 @@ export async function getPrestaBySlug(slug: string) {
   });
 }
 
-// Suppression manuelle : efface la presta + confs + logs (cascade Prisma).
+// Suppression manuelle : efface la presta + confs + logs (cascade Prisma) ET
+// les fichiers .log sur disque (fix M-1 : sinon dossier orphelin sur le volume).
 export async function deletePresta(id: string) {
+  const dir = path.join(process.cwd(), "data", "master", id);
+  await rm(dir, { recursive: true, force: true }).catch(() => {});
   return prisma.masterPresta.delete({ where: { id } });
 }
 
@@ -241,11 +246,12 @@ export async function applyMarkingAndSend(
   markings: CoreMarkingItem[],
   logIds: string[]
 ) {
-  // 1. Écrit la copie serveur du marquage.
+  // 1. Écrit la copie serveur du marquage. `updateMany` scopé à `prestaId`
+  //    (fix E-2 : un marquage ciblant la conf d'une AUTRE presta ne matche pas).
   for (const m of markings) {
     await prisma.masterConference
-      .update({
-        where: { id: m.conferenceId },
+      .updateMany({
+        where: { id: m.conferenceId, prestaId },
         data: {
           startedAt: m.startedAt ? new Date(m.startedAt) : null,
           endedAt: m.endedAt ? new Date(m.endedAt) : null,

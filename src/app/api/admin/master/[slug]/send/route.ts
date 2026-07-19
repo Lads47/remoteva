@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import { requireMasterAccess } from "@/lib/master-auth";
 import prisma from "@/lib/db";
 import { applyMarkingAndSend } from "@/lib/master";
 import type { CoreMarkingItem } from "@/lib/eva-core";
 
 async function requireAuth() {
-  const session = await getSession();
-  if (!session) {
-    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-  }
-  return null;
+  return requireMasterAccess();
 }
 
 // POST /api/admin/master/[slug]/send

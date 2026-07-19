@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { writeFile, mkdir, unlink } from "fs/promises";
 import path from "path";
-import { getSession } from "@/lib/auth";
+import { requireMasterAccess } from "@/lib/master-auth";
 import prisma from "@/lib/db";
 
 async function requireAuth() {
-  const session = await getSession();
-  if (!session) {
-    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-  }
-  return null;
+  return requireMasterAccess();
 }
+
+// Limites d'upload (fix M-2) : l'accept=".log" côté client ne protège rien.
+const MAX_FILES = 20;
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 Mo par fichier
 
 async function prestaBySlug(slug: string) {
   return prisma.masterPresta.findUnique({ where: { slug } });
@@ -56,6 +56,27 @@ export async function POST(
     const files = form.getAll("files").filter((f): f is File => f instanceof File);
     if (files.length === 0) {
       return NextResponse.json({ error: "Aucun fichier" }, { status: 400 });
+    }
+    if (files.length > MAX_FILES) {
+      return NextResponse.json(
+        { error: `Trop de fichiers (max ${MAX_FILES})` },
+        { status: 400 }
+      );
+    }
+    // Validation serveur : extension .log + taille par fichier.
+    for (const file of files) {
+      if (!file.name.toLowerCase().endsWith(".log")) {
+        return NextResponse.json(
+          { error: `Fichier refusé (attendu .log) : ${file.name}` },
+          { status: 400 }
+        );
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        return NextResponse.json(
+          { error: `Fichier trop volumineux (max 10 Mo) : ${file.name}` },
+          { status: 400 }
+        );
+      }
     }
 
     const dir = path.join(process.cwd(), "data", "master", presta.id, "logs");

@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import { requireMasterAccess } from "@/lib/master-auth";
 import prisma from "@/lib/db";
 import { syncConferencesFromCore, addConference, moveConference } from "@/lib/master";
 
 async function requireAuth() {
-  const session = await getSession();
-  if (!session) {
-    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-  }
-  return null;
+  return requireMasterAccess();
 }
 
 async function prestaBySlug(slug: string) {
