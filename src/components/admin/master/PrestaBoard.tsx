@@ -165,8 +165,39 @@ export default function PrestaBoard({ presta, initialConferences, initialLogs }:
   function markEnd(conf: Conference) {
     writeLocal(conf, { endedAt: new Date().toISOString(), status: "done" });
   }
+  // Annuler / réactiver = action structurelle SERVEUR immédiate (comme
+  // ajouter/réordonner), pour que la correction et les autres vues la voient.
+  // On efface le marquage local de la conf (elle n'a pas eu lieu / repart à zéro).
+  async function setConfStatus(conf: Conference, status: "cancelled" | "pending") {
+    setBusy(true);
+    try {
+      const res = await fetch(
+        `/api/admin/master/${presta.slug}/conferences/${conf.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status }),
+        }
+      );
+      if (!res.ok) throw new Error();
+      await deleteLocalMarking(conf.id).catch(() => {});
+      setLocal((prev) => {
+        const copy = { ...prev };
+        delete copy[conf.id];
+        return copy;
+      });
+      await reloadConferences();
+    } catch {
+      showFlash("err", "Action impossible.");
+    } finally {
+      setBusy(false);
+    }
+  }
   function cancelConf(conf: Conference) {
-    writeLocal(conf, { status: "cancelled" });
+    setConfStatus(conf, "cancelled");
+  }
+  function reactivateConf(conf: Conference) {
+    setConfStatus(conf, "pending");
   }
 
   function openEdit(conf: Conference) {
@@ -532,9 +563,20 @@ export default function PrestaBoard({ presta, initialConferences, initialLogs }:
                       </button>
                     </div>
                   ) : isCancelled ? (
-                    <span className="text-sm italic" style={{ color: "#c0c0c8" }}>
-                      annulée
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm italic" style={{ color: "#c0c0c8" }}>
+                        annulée
+                      </span>
+                      <button
+                        onClick={() => reactivateConf(conf)}
+                        disabled={busy}
+                        className="text-xs px-2 py-1 rounded-md border disabled:opacity-50"
+                        style={{ borderColor: BORDER, color: EVA_MUTED }}
+                        title="Réactiver cette conférence"
+                      >
+                        réactiver
+                      </button>
+                    </div>
                   ) : v.endedAt && v.startedAt ? (
                     // Terminée
                     <div className="flex items-center gap-2">

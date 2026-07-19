@@ -24,7 +24,10 @@ export default async function CorrectionPage({
 
   const intervenants = prestaIntervenants(presta.conferences);
 
-  const initialConferences = presta.conferences.map((c) => ({
+  // On ne corrige pas les confs annulées (elles restent tracées côté presta).
+  const initialConferences = presta.conferences
+    .filter((c) => c.status !== "cancelled")
+    .map((c) => ({
     id: c.id,
     position: c.position,
     title: c.title,
