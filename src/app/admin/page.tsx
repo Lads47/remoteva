@@ -117,29 +117,6 @@ export default async function AdminHubPage() {
           ))}
         </div>
       )}
-
-      {session.isSuperAdmin && (
-        <div className="mt-8 pt-6 border-t" style={{ borderColor: "var(--line)" }}>
-          <h2 className="text-sm font-semibold mb-3" style={{ color: EVA_MUTED }}>
-            Administration
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Link
-              href="/admin/users"
-              className="block p-4 rounded-lg border hover:shadow-md transition-all"
-              style={{ backgroundColor: "var(--surface)", borderColor: "var(--line)" }}
-            >
-              <h3 className="font-medium" style={{ color: EVA_DARK }}>
-                Utilisateurs
-              </h3>
-              <p className="text-sm mt-1" style={{ color: EVA_MUTED }}>
-                Valider les comptes en attente, attribuer les univers, gérer
-                les super-administrateurs.
-              </p>
-            </Link>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

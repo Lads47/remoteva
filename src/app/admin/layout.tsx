@@ -43,8 +43,9 @@ export default function AdminLayout({
   const router = useRouter();
   const theme = themeForPath(pathname);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
-  // Vérifie l'authentification au chargement
+  // Vérifie l'authentification au chargement + récupère le rôle (super-admin).
   useEffect(() => {
     // Pages publiques (sans auth) : login + inscription
     if (pathname === "/admin/login" || pathname === "/admin/inscription") {
@@ -52,11 +53,12 @@ export default function AdminLayout({
       return;
     }
 
-    // Vérifie si une session existe via un appel API
+    // Vérifie si une session existe via un appel API (renvoie aussi le rôle)
     const ac = new AbortController();
-    apiFetch("/api/admin/links", { signal: ac.signal })
-      .then(() => {
+    apiFetch<{ isSuperAdmin?: boolean }>("/api/admin/session", { signal: ac.signal })
+      .then((data) => {
         setIsAuthenticated(true);
+        setIsSuperAdmin(!!data?.isSuperAdmin);
       })
       .catch((err) => {
         if (isAbortError(err)) return;
@@ -115,6 +117,19 @@ export default function AdminLayout({
             </Link>
 
             <div className="flex items-center gap-2">
+              {isSuperAdmin && (
+                <Link
+                  href="/admin/users"
+                  className={`text-sm px-3 py-2 rounded-full transition-colors ${
+                    pathname.startsWith("/admin/users")
+                      ? "text-white"
+                      : "text-white/70 hover:text-white"
+                  }`}
+                  style={pathname.startsWith("/admin/users") ? { backgroundColor: "var(--accent)", color: "var(--brand)" } : {}}
+                >
+                  Administration
+                </Link>
+              )}
               <Link
                 href="/admin/account"
                 className={`text-sm px-3 py-2 rounded-full transition-colors ${
@@ -122,7 +137,7 @@ export default function AdminLayout({
                     ? "text-white"
                     : "text-white/70 hover:text-white"
                 }`}
-                style={pathname === "/admin/account" ? { backgroundColor: "#7dcef5", color: "#1f2244" } : {}}
+                style={pathname === "/admin/account" ? { backgroundColor: "var(--accent)", color: "var(--brand)" } : {}}
               >
                 Mon compte
               </Link>
