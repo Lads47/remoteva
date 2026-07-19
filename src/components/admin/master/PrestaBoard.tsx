@@ -209,6 +209,24 @@ export default function PrestaBoard({ presta, initialConferences, initialLogs }:
     }
   }
 
+  async function moveConf(conf: Conference, direction: "up" | "down") {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/master/${presta.slug}/conferences`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reorder", id: conf.id, direction }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error();
+      setConferences(data.conferences || []);
+    } catch {
+      showFlash("err", "Impossible de déplacer la conférence.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function addConf() {
     const title = window.prompt("Titre de la nouvelle conférence :", "");
     if (title === null) return;
@@ -425,7 +443,7 @@ export default function PrestaBoard({ presta, initialConferences, initialLogs }:
           </div>
         ) : (
           <ul>
-            {conferences.map((conf) => {
+            {conferences.map((conf, index) => {
               const v = view(conf);
               const isActive = conf.id === activeId;
               const isEditing = editingId === conf.id;
@@ -433,12 +451,33 @@ export default function PrestaBoard({ presta, initialConferences, initialLogs }:
               return (
                 <li
                   key={conf.id}
-                  className="group flex items-center gap-4 px-5 py-3 border-b last:border-b-0"
+                  className="group flex items-center gap-3 px-5 py-3 border-b last:border-b-0"
                   style={{
                     borderColor: BORDER,
                     backgroundColor: isActive ? ACTIVE_BG : "transparent",
                   }}
                 >
+                  {/* Réordonnancement ↑/↓ (l'ordre réel prime sur le planifié) */}
+                  <div className="flex flex-col leading-none opacity-30 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => moveConf(conf, "up")}
+                      disabled={busy || index === 0}
+                      className="text-[10px] leading-none px-1 disabled:opacity-20 disabled:cursor-default hover:text-black"
+                      style={{ color: EVA_MUTED }}
+                      title="Monter"
+                    >
+                      ▲
+                    </button>
+                    <button
+                      onClick={() => moveConf(conf, "down")}
+                      disabled={busy || index === conferences.length - 1}
+                      className="text-[10px] leading-none px-1 disabled:opacity-20 disabled:cursor-default hover:text-black"
+                      style={{ color: EVA_MUTED }}
+                      title="Descendre"
+                    >
+                      ▼
+                    </button>
+                  </div>
                   <span
                     className="w-5 text-sm tabular-nums"
                     style={{ color: isCancelled ? "#c0c0c8" : EVA_MUTED }}

@@ -199,6 +199,37 @@ export async function deleteConference(id: string) {
   return prisma.masterConference.delete({ where: { id } });
 }
 
+// Déplace une conf d'un cran (↑/↓) : échange avec sa voisine puis renumérote
+// toutes les positions 1..N (l'ordre réel prime sur l'ordre planifié, §5.2).
+// Renvoie la liste réordonnée.
+export async function moveConference(
+  prestaId: string,
+  confId: string,
+  direction: "up" | "down"
+) {
+  const confs = await prisma.masterConference.findMany({
+    where: { prestaId },
+    orderBy: { position: "asc" },
+  });
+  const idx = confs.findIndex((c) => c.id === confId);
+  if (idx < 0) return confs;
+  const target = direction === "up" ? idx - 1 : idx + 1;
+  if (target < 0 || target >= confs.length) return confs; // déjà en bout de liste
+
+  // Échange dans le tableau, puis réattribution séquentielle des positions.
+  [confs[idx], confs[target]] = [confs[target], confs[idx]];
+  await prisma.$transaction(
+    confs.map((c, i) =>
+      prisma.masterConference.update({ where: { id: c.id }, data: { position: i + 1 } })
+    )
+  );
+
+  return prisma.masterConference.findMany({
+    where: { prestaId },
+    orderBy: { position: "asc" },
+  });
+}
+
 // === Envoi groupé (marquage + logs) vers EVA CORE ===
 
 // Applique le marquage reçu de la régie (IndexedDB) à la copie serveur, marque

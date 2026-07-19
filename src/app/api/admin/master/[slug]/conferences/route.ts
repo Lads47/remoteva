@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import prisma from "@/lib/db";
-import { syncConferencesFromCore, addConference } from "@/lib/master";
+import { syncConferencesFromCore, addConference, moveConference } from "@/lib/master";
 
 async function requireAuth() {
   const session = await getSession();
@@ -57,6 +57,12 @@ export async function POST(
 
     if (body.action === "load-core") {
       const conferences = await syncConferencesFromCore(presta.id, slug);
+      return NextResponse.json({ conferences });
+    }
+
+    if (body.action === "reorder") {
+      const direction = body.direction === "up" ? "up" : "down";
+      const conferences = await moveConference(presta.id, String(body.id), direction);
       return NextResponse.json({ conferences });
     }
 
