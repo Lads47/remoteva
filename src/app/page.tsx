@@ -68,6 +68,13 @@ const TILES: Tile[] = [
     publicHref: "/admin/login",
     authedHref: "/admin/formations",
   },
+  {
+    title: "EVA Master",
+    description:
+      "Captation → films, shorts, newsletter. Marquage des conférences et gestion des prestas.",
+    publicHref: "/admin/login",
+    authedHref: "/admin/master",
+  },
 ];
 
 export default async function HomePage() {
