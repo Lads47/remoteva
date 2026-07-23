@@ -676,14 +676,21 @@ export async function generateAndMailContract(traineeId: string): Promise<Genera
     }
   );
 
-  // 5. Transition de statut → "convention_envoyee" si le mail est bien parti
-  //    (et si le stagiaire n'y est pas déjà). Best-effort : si l'update BDD
-  //    échoue, on ne bloque pas le retour OK puisque le mail est déjà envoyé.
-  //
+  // 5. Transition de statut → "convention_envoyee" si le mail est bien parti,
+  //    UNIQUEMENT si le stagiaire est en amont de "convention_envoyee" dans le
+  //    pipeline. Un envoi/renvoi manuel depuis un statut plus avancé (convoqué,
+  //    en formation, terminé…) ne doit jamais faire régresser le statut.
+  //    Best-effort : si l'update BDD échoue, on ne bloque pas le retour OK
+  //    puisque le mail est déjà envoyé.
   //    On ne distingue PAS convention/contrat au niveau du statut — les deux
-  //    déclenchent la transition vers "convention_envoyee" (le label inclut
-  //    "Convention/contrat envoyé(e)" — voir EVA_STATUS_LABELS).
-  if (mailRes.success && trainee.status !== "convention_envoyee" && trainee.status !== "convention_signee") {
+  //    déclenchent la transition vers "convention_envoyee".
+  const STATUS_PIPELINE = [
+    "inscrit", "devis_envoye", "devis_signe", "convention_envoyee",
+    "convention_signee", "convoque", "en_formation", "termine",
+  ];
+  const curIdx = STATUS_PIPELINE.indexOf(trainee.status);
+  const conventionIdx = STATUS_PIPELINE.indexOf("convention_envoyee");
+  if (mailRes.success && curIdx >= 0 && curIdx < conventionIdx) {
     try {
       await prisma.trainee.update({
         where: { id: traineeId },

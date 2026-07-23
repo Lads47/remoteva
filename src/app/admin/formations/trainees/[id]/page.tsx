@@ -269,6 +269,41 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
+  async function handleSendConvention() {
+    if (!trainee) return;
+    const docWord = trainee.inscriptionType === "entreprise" ? "convention" : "contrat";
+    const isResend = ["convention_envoyee", "convention_signee", "convoque", "en_formation", "termine"].includes(
+      trainee.status
+    );
+    const verb = isResend ? "Renvoyer" : "Envoyer";
+    if (
+      !confirm(
+        `${verb} la ${docWord} à ${trainee.prenom} ${trainee.nom} (${trainee.email}) ?\n` +
+          `Le document sera généré à partir du template Drive et envoyé par mail (avec CGV + RI en PJ).`
+      )
+    ) {
+      return;
+    }
+    setActionLoading(true);
+    setActionFeedback(null);
+    try {
+      const data = await apiFetch<{ emailSent?: boolean }>(`/api/admin/trainees/${id}/send-convention`, {
+        method: "POST",
+      });
+      setActionFeedback({
+        type: "success",
+        msg: data.emailSent
+          ? `${docWord === "convention" ? "Convention" : "Contrat"} ${isResend ? "renvoyé(e)" : "envoyé(e)"} par email au stagiaire ✓`
+          : "Document généré mais l'envoi du mail a échoué — vérifie les logs.",
+      });
+      await refresh();
+    } catch (err) {
+      setActionFeedback({ type: "error", msg: apiErrorMessage(err, "Erreur de connexion") });
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
   async function handleRegenerateEndOfTraining() {
     if (!trainee) return;
     if (!confirm(
@@ -422,6 +457,51 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
           ✓ Devis Sellsy <strong>#{trainee.sellsyEstimateId}</strong> envoyé. Opportunité Sellsy : #{trainee.sellsyOpportunityId}.
         </div>
       )}
+
+      {/* Bandeau convention/contrat — envoi ou renvoi manuel par mail (avec
+          CGV + RI). Se déclenche aussi automatiquement au passage "Devis signé". */}
+      {(trainee.inscriptionType === "entreprise"
+        ? trainee.formation.hasTemplateConvention
+        : trainee.formation.hasTemplateContrat) &&
+        ["devis_signe", "convention_envoyee", "convention_signee", "convoque", "en_formation"].includes(
+          trainee.status
+        ) &&
+        (() => {
+          const docWord = trainee.inscriptionType === "entreprise" ? "convention" : "contrat";
+          const Doc = docWord === "convention" ? "Convention" : "Contrat";
+          const sent = ["convention_envoyee", "convention_signee", "convoque", "en_formation"].includes(
+            trainee.status
+          );
+          return (
+            <div
+              className="p-5 rounded-xl border flex items-center justify-between gap-3 flex-wrap"
+              style={
+                sent
+                  ? { borderColor: "#bfdbfe", backgroundColor: "#eff6ff" }
+                  : { borderColor: "#fde68a", backgroundColor: "#fffbeb" }
+              }
+            >
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold" style={{ color: sent ? "#1d4ed8" : "#92400e" }}>
+                  {sent ? `${Doc} envoyé(e) — renvoi possible` : `Envoyer la ${docWord} par mail`}
+                </div>
+                <div className="text-xs mt-0.5 font-jetbrains" style={{ color: sent ? "#1e40af" : "#b45309" }}>
+                  {sent
+                    ? `Le stagiaire a déjà reçu sa ${docWord}. Tu peux la renvoyer (correction email, document perdu…).`
+                    : `Génère la ${docWord} depuis le template Drive et l'envoie au stagiaire par mail (avec CGV + RI en PJ).`}
+                </div>
+              </div>
+              <button
+                onClick={handleSendConvention}
+                disabled={actionLoading}
+                className="px-4 py-2 rounded-full text-sm font-medium text-white cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                style={{ backgroundColor: sent ? "#1d4ed8" : "#1f2244" }}
+              >
+                {actionLoading ? "Envoi en cours..." : sent ? `Renvoyer la ${docWord}` : `Envoyer la ${docWord}`}
+              </button>
+            </div>
+          );
+        })()}
 
       {/* Bandeau convocation — disponible dès convention envoyée. Permet
           envoi manuel hors fenêtre normale du cron J-14 (last-minute, ré-envoi). */}
