@@ -124,6 +124,32 @@ function fmtDateFr(s: string) {
   return new Date(s).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
 }
 
+// Résolution de l'URL de retour vers le site vitrine après inscription.
+const LADS_SITE = "https://lesateliersdustream.fr";
+// Page formation du site par code EVA (fallback si le site n'a pas transmis ?retour).
+const LADS_FORMATION_PAGES: Record<string, string> = {
+  vmixv1: `${LADS_SITE}/formations/vmix`,
+  ian1: `${LADS_SITE}/formations/ia`,
+};
+function resolveRetourUrl(code: string): string {
+  // 1) ?retour=<url> transmis par le site (prioritaire), validé sur le domaine LADS.
+  if (typeof window !== "undefined") {
+    const r = new URLSearchParams(window.location.search).get("retour");
+    if (r) {
+      try {
+        const u = new URL(r);
+        if (u.protocol === "https:" && /(^|\.)lesateliersdustream\.fr$/i.test(u.hostname)) {
+          return u.href;
+        }
+      } catch {
+        /* URL invalide : on ignore et on passe au fallback */
+      }
+    }
+  }
+  // 2) mapping code → page formation ; 3) index des formations par défaut.
+  return LADS_FORMATION_PAGES[code.toLowerCase()] ?? `${LADS_SITE}/formations`;
+}
+
 export default function PublicInscriptionPage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
 
@@ -287,12 +313,20 @@ export default function PublicInscriptionPage({ params }: { params: Promise<{ co
               OPCO identifié automatiquement : <strong>{success.opcoDetecte}</strong>
             </p>
           )}
+          <a
+            href={resolveRetourUrl(code)}
+            className="inline-block mt-6 px-5 py-2.5 rounded-full text-sm font-semibold"
+            style={{ backgroundColor: "#1f2244", color: "white", textDecoration: "none" }}
+          >
+            ← Retourner sur le site
+          </a>
         </div>
       </div>
     );
   }
 
   const totalSections = 6;
+  const selectedSession = sessions.find((s) => s.id === form.sessionId) ?? null;
 
   return (
     <div className="min-h-screen py-10 px-4" style={{ backgroundColor: "#f8fafc" }}>
@@ -328,52 +362,63 @@ export default function PublicInscriptionPage({ params }: { params: Promise<{ co
             {/* === Section 1 : Profil + session + financement === */}
             <Section number={1} total={totalSections} title="Votre profil">
               <div className="space-y-5">
-                {/* Session */}
+                {/* Session : on n'affiche que la session choisie ; la liste
+                    déroulante permet d'en changer s'il y en a plusieurs. */}
                 <div>
-                  <Label required>À quelle session souhaitez-vous participer ?</Label>
-                  <div className="space-y-2">
-                    {sessions.map((s) => (
-                      <label
-                        key={s.id}
-                        className="block p-4 rounded-xl border cursor-pointer transition-all hover:bg-gray-50"
-                        style={{
-                          borderColor: form.sessionId === s.id ? "#7dcef5" : "#e5e7eb",
-                          backgroundColor: form.sessionId === s.id ? "#f0f9ff" : "white",
-                        }}
-                      >
-                        <input
-                          type="radio"
-                          name="sessionId"
-                          value={s.id}
-                          checked={form.sessionId === s.id}
-                          onChange={() => setForm({ ...form, sessionId: s.id })}
-                          className="sr-only"
-                        />
-                        <div className="flex justify-between items-start gap-2">
-                          <div>
-                            <div className="font-semibold text-sm" style={{ color: "#1f2244" }}>
-                              Du {fmtDateFr(s.dateDebut)} au {fmtDateFr(s.dateFin)}
-                            </div>
-                            <div className="mt-1 text-xs font-jetbrains" style={{ color: "#727485" }}>
-                              {s.lieu || "Lieu à préciser"}
-                              {s.horaires && ` · ${s.horaires}`}
-                            </div>
+                  <Label required>Votre session</Label>
+                  {selectedSession && (
+                    <div
+                      className="block p-4 rounded-xl border"
+                      style={{ borderColor: "#7dcef5", backgroundColor: "#f0f9ff" }}
+                    >
+                      <div className="flex justify-between items-start gap-2">
+                        <div>
+                          <div className="font-semibold text-sm" style={{ color: "#1f2244" }}>
+                            Du {fmtDateFr(selectedSession.dateDebut)} au {fmtDateFr(selectedSession.dateFin)}
                           </div>
-                          <span
-                            className="text-xs font-jetbrains px-2 py-0.5 rounded-full whitespace-nowrap"
-                            style={{
-                              backgroundColor: s.placesRestantes > 0 ? "#dcfce7" : "#fee2e2",
-                              color: s.placesRestantes > 0 ? "#166534" : "#991b1b",
-                            }}
-                          >
+                          <div className="mt-1 text-xs font-jetbrains" style={{ color: "#727485" }}>
+                            {selectedSession.lieu || "Lieu à préciser"}
+                            {selectedSession.horaires && ` · ${selectedSession.horaires}`}
+                          </div>
+                        </div>
+                        <span
+                          className="text-xs font-jetbrains px-2 py-0.5 rounded-full whitespace-nowrap"
+                          style={{
+                            backgroundColor: selectedSession.placesRestantes > 0 ? "#dcfce7" : "#fee2e2",
+                            color: selectedSession.placesRestantes > 0 ? "#166534" : "#991b1b",
+                          }}
+                        >
+                          {selectedSession.placesRestantes > 0
+                            ? `${selectedSession.placesRestantes} place${selectedSession.placesRestantes > 1 ? "s" : ""}`
+                            : "Complète"}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  {sessions.length > 1 && (
+                    <div className="mt-2">
+                      <label className="block text-xs font-medium mb-1" style={{ color: "#374151" }}>
+                        Une autre date vous conviendrait mieux ? Choisissez votre session
+                      </label>
+                      <select
+                        value={form.sessionId}
+                        onChange={(e) => setForm({ ...form, sessionId: e.target.value })}
+                        className="input"
+                        aria-label="Choisir une autre session"
+                      >
+                        {sessions.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            Du {fmtDateFr(s.dateDebut)} au {fmtDateFr(s.dateFin)}
+                            {s.lieu ? ` — ${s.lieu}` : ""}
+                            {" — "}
                             {s.placesRestantes > 0
                               ? `${s.placesRestantes} place${s.placesRestantes > 1 ? "s" : ""}`
-                              : "Complète"}
-                          </span>
-                        </div>
-                      </label>
-                    ))}
-                  </div>
+                              : "complète"}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
 
                 {/* Identité */}
