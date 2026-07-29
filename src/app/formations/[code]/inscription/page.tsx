@@ -183,11 +183,14 @@ export default function PublicInscriptionPage({ params }: { params: Promise<{ co
         setPrerequisSchema(Array.isArray(data.prerequisSchema) ? data.prerequisSchema : []);
         if (data.sessions.length > 0) {
           // Si l'URL a un ?session=<id> et que cette session est dans la liste,
-          // on la pré-sélectionne. Sinon on prend la première par défaut.
+          // on la pré-sélectionne. Sinon on prend la première session DISPONIBLE
+          // (places restantes > 0), à défaut la première chronologiquement.
+          // Les sessions arrivent déjà triées par date croissante (API publique).
           const fromUrl = preselectSessionId
             ? data.sessions.find((s: PublicSession) => s.id === preselectSessionId)
             : null;
-          const chosen = fromUrl ?? data.sessions[0];
+          const premiereDispo = data.sessions.find((s: PublicSession) => s.placesRestantes > 0);
+          const chosen = fromUrl ?? premiereDispo ?? data.sessions[0];
           setForm((prev) => ({ ...prev, sessionId: chosen.id }));
         }
       })

@@ -25,7 +25,10 @@ export async function GET(_request: NextRequest, ctx: { params: Promise<{ code: 
         horaires: s.horaires,
         capacite: s.capacite,
         placesRestantes: Math.max(0, s.capacite - s.traineeCount),
-      }));
+      }))
+      // Vue publique : ordre chronologique (la prochaine session d'abord).
+      // getSessionsByFormation trie en desc pour l'admin, on inverse ici.
+      .sort((a, b) => new Date(a.dateDebut).getTime() - new Date(b.dateDebut).getTime());
 
     const prerequisSchema = resolvePrerequisForFormation({
       code: formation.code,
