@@ -26,6 +26,7 @@ export const EVA_UNIVERSES = [
   "formations",
   "scoring",
   "master",
+  "pilot",
 ] as const;
 export type EvaUniverse = (typeof EVA_UNIVERSES)[number];
 
@@ -155,5 +156,6 @@ export function universeForPath(pathname: string): EvaUniverse | null {
   if (pathname.startsWith("/admin/formations")) return "formations";
   if (pathname.startsWith("/admin/reclamations")) return "formations";
   if (pathname.startsWith("/admin/master")) return "master";
+  if (pathname.startsWith("/admin/pilot")) return "pilot";
   return null;
 }

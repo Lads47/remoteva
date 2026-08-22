@@ -23,6 +23,7 @@ const PROTECTED_ROUTES = [
   "/admin/pending",
   "/admin/formations",
   "/admin/master",
+  "/admin/pilot",
 ];
 
 // Routes API protégées
@@ -41,6 +42,7 @@ function universeForPath(pathname: string): string | null {
   if (pathname.startsWith("/admin/formations")) return "formations";
   if (pathname.startsWith("/admin/reclamations")) return "formations";
   if (pathname.startsWith("/admin/master")) return "master";
+  if (pathname.startsWith("/admin/pilot")) return "pilot";
   return null;
 }
 
@@ -174,6 +176,7 @@ export const config = {
     "/admin/flow/:path*",
     "/admin/formations/:path*",
     "/admin/master/:path*",
+    "/admin/pilot/:path*",
     "/admin/pending/:path*",
     // API admin
     "/api/admin/:path*",

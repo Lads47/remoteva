@@ -76,6 +76,13 @@ const TILES: Tile[] = [
     description:
       "Captation → films, shorts, newsletter. Marquage des conférences et gestion des prestas.",
   },
+  {
+    universe: "pilot",
+    href: "/admin/pilot",
+    title: "EVA Pilot",
+    description:
+      "Diffusion sur vidéoprojecteur : images, vidéos, PowerPoint. Téléchargement du logiciel et notes de version.",
+  },
 ];
 
 export default async function AdminHubPage() {

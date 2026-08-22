@@ -75,6 +75,13 @@ const TILES: Tile[] = [
     publicHref: "/admin/login",
     authedHref: "/admin/master",
   },
+  {
+    title: "EVA Pilot",
+    description:
+      "Diffusion sur vidéoprojecteur : images, vidéos, PowerPoint. Téléchargement du logiciel et notes de version.",
+    publicHref: "/admin/login",
+    authedHref: "/admin/pilot",
+  },
 ];
 
 export default async function HomePage() {

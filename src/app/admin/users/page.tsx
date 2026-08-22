@@ -32,6 +32,8 @@ const ALL_UNIVERSES = [
   { id: "stream", label: "EVA Stream" },
   { id: "formations", label: "EVA Formations" },
   { id: "scoring", label: "EVA Scoring (studio)" },
+  { id: "master", label: "EVA Master" },
+  { id: "pilot", label: "EVA Pilot (téléchargement)" },
 ];
 
 export default function UsersPage() {
