@@ -176,10 +176,9 @@ function DerniereVersion({ release }: { release: Release }) {
   );
 }
 
-// Ce que l'opérateur doit faire du fichier reçu. Tant qu'il n'y a ni installeur
-// ni signature, l'installation est manuelle — et une mise à jour partielle
-// (l'application sans son processus de rendu, ou sans FFmpeg) casse une machine
-// qui marchait. D'où l'insistance sur « remplacez tout ».
+// Cette page ne sert qu'à la PREMIÈRE installation. Ensuite, EVA Pilot va
+// chercher ses mises à jour lui-même et se remplace tout seul : personne n'a
+// plus à repasser par ici.
 function Installation() {
   return (
     <div
@@ -187,27 +186,37 @@ function Installation() {
       style={{ backgroundColor: "var(--surface)", borderColor: "var(--line)" }}
     >
       <h2 className="text-lg font-semibold" style={{ color: "var(--ink)" }}>
-        Installer ou mettre à jour
+        Installer, la première fois
       </h2>
       <ol
         className="mt-3 space-y-2 text-sm list-decimal list-inside"
         style={{ color: "var(--muted)" }}
       >
-        <li>Fermez EVA Pilot s&apos;il est ouvert.</li>
+        <li>Décompressez l&apos;archive, n&apos;importe où.</li>
         <li>
-          Décompressez l&apos;archive dans le dossier de votre choix — pour une
-          mise à jour, par-dessus le dossier existant,{" "}
-          <strong style={{ color: "var(--ink)" }}>en remplaçant tout</strong>.
-        </li>
-        <li>
-          Lancez <code>EvaPilot.exe</code>. Aucun prérequis à installer :
+          Double-cliquez sur{" "}
+          <strong style={{ color: "var(--ink)" }}>
+            Installer EVA Pilot.cmd
+          </strong>
+          . Il pose un dossier, une icône sur le Bureau, et associe les fichiers{" "}
+          <code>.evapilot</code>. Aucun droit administrateur, aucun prérequis :
           l&apos;archive contient tout.
         </li>
+        <li>Lancez EVA Pilot par l&apos;icône du Bureau.</li>
       </ol>
-      <p className="mt-4 text-sm" style={{ color: "var(--muted)" }}>
-        Ne mettez jamais à jour pendant un direct. L&apos;application vérifie
-        aussi le canal elle-même, par{" "}
-        <strong style={{ color: "var(--ink)" }}>Fichier → Mise à jour</strong>.
+
+      <h2 className="text-lg font-semibold mt-6" style={{ color: "var(--ink)" }}>
+        Ensuite, les mises à jour se font toutes seules
+      </h2>
+      <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
+        Dans EVA Pilot :{" "}
+        <strong style={{ color: "var(--ink)" }}>Fichier → Mise à jour</strong>,
+        puis <strong style={{ color: "var(--ink)" }}>Télécharger</strong> et{" "}
+        <strong style={{ color: "var(--ink)" }}>
+          Mettre à jour et redémarrer
+        </strong>
+        . L&apos;application se ferme, se remplace et se rouvre. Comptez une
+        minute — et jamais pendant un direct.
       </p>
     </div>
   );
