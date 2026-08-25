@@ -21,6 +21,11 @@ type Tile = {
   authedHref: string;
   // EVA Stream : externe pour les connectés (cohérent avec le hub)
   external?: boolean;
+  // EVA Planning : autre application, mais servie sous le MÊME domaine
+  // (evaremote.com/planning via Traefik). Il faut donc un <a> classique — un
+  // <Link> Next tenterait une navigation côté client et tomberait en 404 —
+  // mais ni nouvel onglet ni badge « externe », puisqu'on ne quitte pas le site.
+  sameDomainApp?: boolean;
 };
 
 const TILES: Tile[] = [
@@ -81,6 +86,14 @@ const TILES: Tile[] = [
       "Diffusion sur vidéoprojecteur : images, vidéos, PowerPoint. Téléchargement du logiciel et notes de version.",
     publicHref: "/admin/login",
     authedHref: "/admin/pilot",
+  },
+  {
+    title: "EVA Planning",
+    description:
+      "Planning des prestations et disponibilité du parc : caméras, pupitres, régies, personnel, véhicules.",
+    publicHref: "/admin/login",
+    authedHref: "/planning",
+    sameDomainApp: true,
   },
 ];
 
@@ -229,6 +242,14 @@ function VitrineTile({
       </div>
     </div>
   );
+
+  if (isLoggedIn && tile.sameDomainApp) {
+    return (
+      <a href={href} className="block h-full">
+        {content}
+      </a>
+    );
+  }
 
   if (opensExternal) {
     return (

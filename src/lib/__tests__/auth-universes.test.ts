@@ -7,7 +7,7 @@ import { EVA_UNIVERSES, isEvaUniverse, universeForPath } from "@/lib/auth";
 
 describe("EVA_UNIVERSES", () => {
   it("contient les univers attendus", () => {
-    for (const u of ["lien", "newsletter", "flow", "stream", "formations", "scoring", "master", "pilot"]) {
+    for (const u of ["lien", "newsletter", "flow", "stream", "formations", "scoring", "master", "pilot", "planning"]) {
       expect(EVA_UNIVERSES).toContain(u);
     }
   });

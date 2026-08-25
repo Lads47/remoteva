@@ -20,6 +20,10 @@ type Tile = {
   universe?: EvaUniverse;
   href: string;
   external?: boolean;
+  // Autre application servie sous le MÊME domaine (evaremote.com/planning) :
+  // <a> classique obligatoire, un <Link> Next tenterait une navigation côté
+  // client et tomberait en 404. Ni nouvel onglet, ni badge « externe ».
+  sameDomainApp?: boolean;
   title: string;
   description: string;
 };
@@ -82,6 +86,14 @@ const TILES: Tile[] = [
     title: "EVA Pilot",
     description:
       "Diffusion sur vidéoprojecteur : images, vidéos, PowerPoint. Téléchargement du logiciel et notes de version.",
+  },
+  {
+    universe: "planning",
+    href: "/planning",
+    sameDomainApp: true,
+    title: "EVA Planning",
+    description:
+      "Planning des prestations et disponibilité du parc : caméras, pupitres, régies, personnel, véhicules.",
   },
 ];
 
@@ -150,6 +162,14 @@ function HubTile({ tile }: { tile: Tile }) {
       </div>
     </div>
   );
+
+  if (tile.sameDomainApp) {
+    return (
+      <a href={tile.href} className="block h-full">
+        {content}
+      </a>
+    );
+  }
 
   if (tile.external) {
     return (

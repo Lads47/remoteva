@@ -27,6 +27,12 @@ export const EVA_UNIVERSES = [
   "scoring",
   "master",
   "pilot",
+  // Planning : application separee servie sous evaremote.com/planning.
+  // Comme "stream", l'univers est declare ici pour figurer dans le JWT et
+  // dans /admin/users, mais n'apparait PAS dans universeForPath() ni dans
+  // proxy.ts : la route est servie par un autre container, remoteva ne la
+  // voit jamais. C'est l'app Planning qui verifie ce droit elle-meme.
+  "planning",
 ] as const;
 export type EvaUniverse = (typeof EVA_UNIVERSES)[number];
 
