@@ -176,9 +176,15 @@ function DerniereVersion({ release }: { release: Release }) {
   );
 }
 
-// Cette page ne sert qu'à la PREMIÈRE installation. Ensuite, EVA Pilot va
-// chercher ses mises à jour lui-même et se remplace tout seul : personne n'a
-// plus à repasser par ici.
+// Cette page sert à la PREMIÈRE installation, et à rien d'autre : ensuite EVA
+// Pilot signale elle-même les nouvelles versions.
+//
+// ⚠ TOUT CE BLOC A ÉTÉ FAUX PENDANT DEUX JOURS. Il décrivait une archive à
+// décompresser et un .cmd à lancer, alors que le canal sert un INSTALLEUR
+// depuis la 0.2.0 (eva-pilot, décision 0042). L'installeur existait depuis le
+// 24/08 sans être publié : on fabriquait une chose et on en distribuait une
+// autre, et c'est ici — la seule page que le client lit — que l'écart se
+// voyait. Quand la forme de distribution change, cette page change avec.
 function Installation() {
   return (
     <div
@@ -192,31 +198,56 @@ function Installation() {
         className="mt-3 space-y-2 text-sm list-decimal list-inside"
         style={{ color: "var(--muted)" }}
       >
-        <li>Décompressez l&apos;archive, n&apos;importe où.</li>
         <li>
-          Double-cliquez sur{" "}
-          <strong style={{ color: "var(--ink)" }}>
-            Installer EVA Pilot.cmd
-          </strong>
-          . Il pose un dossier, une icône sur le Bureau, et associe les fichiers{" "}
-          <code>.evapilot</code>. Aucun droit administrateur, aucun prérequis :
-          l&apos;archive contient tout.
+          Téléchargez le fichier ci-dessus et{" "}
+          <strong style={{ color: "var(--ink)" }}>double-cliquez dessus</strong>.
         </li>
-        <li>Lancez EVA Pilot par l&apos;icône du Bureau.</li>
+        <li>
+          Windows affiche{" "}
+          <em>« Windows a protégé votre ordinateur »</em> : cliquez sur{" "}
+          <strong style={{ color: "var(--ink)" }}>
+            Informations complémentaires
+          </strong>
+          , puis <strong style={{ color: "var(--ink)" }}>Exécuter quand même</strong>.
+          C&apos;est normal tant que le programme n&apos;est pas signé.
+        </li>
+        <li>
+          Laissez l&apos;installation se faire. Elle pose EVA Pilot, un raccourci
+          sur le Bureau, une entrée au menu Démarrer, et associe les fichiers{" "}
+          <code>.evapilot</code>. Aucun droit administrateur, aucun prérequis :
+          tout est dans le fichier.
+        </li>
       </ol>
 
       <h2 className="text-lg font-semibold mt-6" style={{ color: "var(--ink)" }}>
-        Ensuite, les mises à jour se font toutes seules
+        Ensuite, les mises à jour
       </h2>
       <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
-        Dans EVA Pilot :{" "}
+        EVA Pilot vous signale les nouvelles versions. Dans{" "}
         <strong style={{ color: "var(--ink)" }}>Fichier → Mise à jour</strong>,
-        puis <strong style={{ color: "var(--ink)" }}>Télécharger</strong> et{" "}
+        cliquez sur <strong style={{ color: "var(--ink)" }}>Télécharger</strong> :
+        le programme d&apos;installation arrive dans votre dossier{" "}
+        <strong style={{ color: "var(--ink)" }}>Téléchargements</strong>, qui
+        s&apos;ouvre devant vous. Double-cliquez dessus, et vous avez la nouvelle
+        version. Si EVA Pilot est encore ouverte, l&apos;installation vous
+        demandera de la fermer.
+      </p>
+      <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
+        Comptez une minute — et{" "}
+        <strong style={{ color: "var(--ink)" }}>jamais pendant un direct</strong>.
+      </p>
+
+      <h2 className="text-lg font-semibold mt-6" style={{ color: "var(--ink)" }}>
+        Désinstaller
+      </h2>
+      <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
+        Par{" "}
         <strong style={{ color: "var(--ink)" }}>
-          Mettre à jour et redémarrer
+          Paramètres → Applications → Applications installées
         </strong>
-        . L&apos;application se ferme, se remplace et se rouvre. Comptez une
-        minute — et jamais pendant un direct.
+        , comme n&apos;importe quel logiciel. Vos présentations et vos médias ne
+        sont pas touchés : ils vivent dans vos dossiers, pas dans celui du
+        programme.
       </p>
     </div>
   );
