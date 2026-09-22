@@ -219,19 +219,12 @@ export default function PublicInscriptionPage({ params }: { params: Promise<{ co
   const reco = recommendedFinancement(form.inscriptionType, form.statutActuel);
 
   function validateClientSide(): string | null {
+    // Formulaire volontairement peu bloquant : on n'exige que la session,
+    // l'identité (via `required` HTML sur prénom/nom/email) et le consentement
+    // RGPD. Le reste (téléphone, statut, financement, infos entreprise,
+    // pré-requis…) peut être laissé vide et complété plus tard avec le stagiaire.
     if (!form.sessionId) return "Choisissez une session";
-    if (!form.statutActuel) return "Votre statut actuel est requis";
-    if (!form.modeFinancement) return "Mode de financement requis";
     if (!form.consentementRgpd) return "Vous devez accepter le traitement de vos données (RGPD)";
-
-    // Pré-requis required
-    for (const field of prerequisSchema) {
-      if (!field.required) continue;
-      const v = form.prerequis[field.name];
-      if (v === undefined || v === "" || v === null) {
-        return `Réponse manquante : ${field.label}`;
-      }
-    }
     return null;
   }
 
@@ -459,7 +452,7 @@ export default function PublicInscriptionPage({ params }: { params: Promise<{ co
                       required
                     />
                   </Field>
-                  <Field label="Téléphone" error={fieldErrors.telephone} required>
+                  <Field label="Téléphone" error={fieldErrors.telephone}>
                     <input
                       type="tel"
                       autoComplete="tel"
@@ -467,7 +460,6 @@ export default function PublicInscriptionPage({ params }: { params: Promise<{ co
                       onChange={(e) => setForm({ ...form, telephone: e.target.value })}
                       placeholder="06 12 34 56 78"
                       className="input"
-                      required
                     />
                   </Field>
                 </div>
@@ -493,7 +485,7 @@ export default function PublicInscriptionPage({ params }: { params: Promise<{ co
 
                 {/* Statut actuel */}
                 <div>
-                  <Label required>Quel est votre statut actuel ?</Label>
+                  <Label>Quel est votre statut actuel ?</Label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {STATUTS_ACTUELS.map((s) => (
                       <RadioCard
@@ -511,7 +503,7 @@ export default function PublicInscriptionPage({ params }: { params: Promise<{ co
 
                 {/* Financement */}
                 <div>
-                  <Label required>Comment envisagez-vous de financer cette formation ?</Label>
+                  <Label>Comment envisagez-vous de financer cette formation ?</Label>
                   <div className="space-y-2">
                     {MODES_FINANCEMENT.map((m) => (
                       <RadioCard
@@ -544,8 +536,12 @@ export default function PublicInscriptionPage({ params }: { params: Promise<{ co
               total={totalSections}
               title={form.inscriptionType === "entreprise" ? "Informations de facturation entreprise" : "Informations de facturation"}
             >
+              <p className="text-xs font-jetbrains mb-4 p-3 rounded-lg" style={{ color: "#727485", backgroundColor: "#f8fafc" }}>
+                Pas de souci si vous n&apos;avez pas toutes ces informations sous la main (SIRET, adresse du siège…) :
+                laissez le champ vide, nous les compléterons ensemble par la suite.
+              </p>
               {form.inscriptionType === "particulier" ? (
-                <Field label="Adresse postale complète" error={fieldErrors.adressePostale} required full>
+                <Field label="Adresse postale complète" error={fieldErrors.adressePostale} full>
                   <input
                     type="text"
                     value={form.adressePostale}
@@ -556,10 +552,10 @@ export default function PublicInscriptionPage({ params }: { params: Promise<{ co
                 </Field>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <Field label="Raison sociale" error={fieldErrors.raisonSociale} required>
+                  <Field label="Raison sociale" error={fieldErrors.raisonSociale}>
                     <input type="text" value={form.raisonSociale} onChange={(e) => setForm({ ...form, raisonSociale: e.target.value })} className="input" />
                   </Field>
-                  <Field label="Numéro SIRET (14 chiffres)" error={fieldErrors.siret} required>
+                  <Field label="Numéro SIRET (14 chiffres)" hint="Si vous ne le connaissez pas, laissez vide" error={fieldErrors.siret}>
                     <input
                       type="text"
                       value={form.siret}
@@ -568,10 +564,10 @@ export default function PublicInscriptionPage({ params }: { params: Promise<{ co
                       className="input font-jetbrains"
                     />
                   </Field>
-                  <Field label="Adresse postale complète du siège" error={fieldErrors.adresseSiege} required full>
+                  <Field label="Adresse postale complète du siège" error={fieldErrors.adresseSiege} full>
                     <input type="text" value={form.adresseSiege} onChange={(e) => setForm({ ...form, adresseSiege: e.target.value })} className="input" />
                   </Field>
-                  <Field label="Domaine d'activité" error={fieldErrors.domaineActivite} required full>
+                  <Field label="Domaine d'activité" error={fieldErrors.domaineActivite} full>
                     <input type="text" value={form.domaineActivite} onChange={(e) => setForm({ ...form, domaineActivite: e.target.value })} className="input" />
                   </Field>
                   <Field label="Contact administratif (si différent du stagiaire)" hint="Nom, téléphone et email du référent qui gère le dossier" full>

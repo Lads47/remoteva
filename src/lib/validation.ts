@@ -211,16 +211,19 @@ export const publicInscriptionSchema = z
     nom: z.string().trim().min(1, "Nom requis"),
     prenom: z.string().trim().min(1, "Prénom requis"),
     email: emailSchema,
-    telephone: z.string().trim().min(1, "Téléphone requis"),
+    // Formulaire volontairement peu bloquant : hors identité + session + RGPD,
+    // tout est optionnel. Les infos manquantes (téléphone, SIRET, adresses…)
+    // seront complétées plus tard par l'OF avec le stagiaire.
+    telephone: z.string().trim().optional().default(""),
 
     // Type
     inscriptionType: z.enum(VALID_INSCRIPTION_TYPES),
 
-    // Statut professionnel (commun à tous)
-    statutActuel: z.enum(VALID_STATUTS_ACTUELS),
+    // Statut professionnel (optionnel)
+    statutActuel: z.union([z.enum(VALID_STATUTS_ACTUELS), z.literal("")]).default(""),
 
-    // Financement (commun à tous)
-    modeFinancement: z.enum(VALID_MODES_FINANCEMENT),
+    // Financement (optionnel)
+    modeFinancement: z.union([z.enum(VALID_MODES_FINANCEMENT), z.literal("")]).default(""),
 
     // Entreprise (requis si inscriptionType === "entreprise")
     raisonSociale: z.string().trim().optional().default(""),
@@ -244,30 +247,8 @@ export const publicInscriptionSchema = z
     // Pré-requis : objet libre (clés/valeurs spécifiques à la formation)
     prerequis: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional().default({}),
 
-    // Consentement RGPD (obligatoire, Qualiopi)
+    // Consentement RGPD (seul élément vraiment obligatoire avec identité + session)
     consentementRgpd: z.literal(true, { message: "Consentement RGPD requis" }),
-  })
-  .superRefine((data, ctx) => {
-    if (data.inscriptionType === "entreprise") {
-      if (!data.raisonSociale)
-        ctx.addIssue({ code: "custom", path: ["raisonSociale"], message: "Raison sociale requise" });
-      if (!data.siret || !/^\d{14}$/.test(data.siret.replace(/\s+/g, "")))
-        ctx.addIssue({ code: "custom", path: ["siret"], message: "SIRET (14 chiffres) requis" });
-      if (!data.adresseSiege)
-        ctx.addIssue({ code: "custom", path: ["adresseSiege"], message: "Adresse du siège requise" });
-      if (!data.domaineActivite)
-        ctx.addIssue({ code: "custom", path: ["domaineActivite"], message: "Domaine d'activité requis" });
-    } else {
-      if (!data.adressePostale)
-        ctx.addIssue({ code: "custom", path: ["adressePostale"], message: "Adresse postale requise" });
-    }
-    if (data.aBesoinsAdaptation && !data.besoinsAdaptation) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["besoinsAdaptation"],
-        message: "Merci de préciser vos besoins",
-      });
-    }
   });
 
 // Trainers (formateurs)
