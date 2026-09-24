@@ -11,7 +11,8 @@
 // Logique :
 //   - Cible les sessions dont dateDebut tombe dans [aujourd'hui+14j, aujourd'hui+16j]
 //     (fenêtre de 2 jours pour rattraper un éventuel jour manqué)
-//   - Pour chaque session, parcourt les stagiaires actifs (statut != abandonne/termine)
+//   - Pour chaque session, parcourt les stagiaires "assurés" (devis signé et +),
+//     hors stagiaires de test
 //   - Skip ceux qui ont déjà dateConvocation
 //   - Génère + envoie la convocation pour les autres
 //   - Réponse : récap des envois (succès/échecs)
@@ -19,6 +20,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { generateAndMailConvocation } from "@/lib/trainee-documents";
+import { ASSURED_STATUSES } from "@/lib/trainee";
 
 function authorize(request: NextRequest): boolean {
   const secret = process.env.CRON_SECRET;
@@ -128,7 +130,10 @@ async function findCandidates() {
     where: {
       sessionId: { in: sessionIds },
       dateConvocation: null,
-      status: { notIn: ["abandonne", "termine"] },
+      // Seuls les stagiaires "assurés" (devis signé et au-delà) sont convoqués
+      // automatiquement — pas les inscrits/devis_envoye pas encore confirmés.
+      status: { in: ASSURED_STATUSES },
+      isTest: false,
     },
     include: { session: { select: { id: true, code: true, dateDebut: true } } },
   });

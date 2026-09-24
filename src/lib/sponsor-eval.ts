@@ -12,6 +12,7 @@
 import { randomBytes } from "crypto";
 import { getConfig, setConfig } from "./appConfig";
 import prisma from "./db";
+import { ASSURED_STATUSES } from "./trainee";
 import type { SatisfactionQuestion } from "./satisfaction";
 import { COLD_EVAL_DELAY_DAYS, COLD_EVAL_REMINDER_1_DAYS, COLD_EVAL_REMINDER_2_DAYS } from "./cold-eval";
 
@@ -136,7 +137,12 @@ interface SessionSponsorContact {
  */
 async function getSessionSponsorContacts(sessionId: string): Promise<SessionSponsorContact[]> {
   const trainees = await prisma.trainee.findMany({
-    where: { sessionId, inscriptionType: "entreprise", isTest: false },
+    where: {
+      sessionId,
+      inscriptionType: "entreprise",
+      isTest: false,
+      status: { in: ASSURED_STATUSES },
+    },
     select: { referentEmail: true, raisonSociale: true, contactAdmin: true },
   });
   const byEmail = new Map<string, SessionSponsorContact>();
@@ -281,7 +287,14 @@ export async function findSessionsDueForSponsorEval(now: Date = new Date()): Pro
   const sessions = await prisma.session.findMany({
     where: {
       dateFin: { lte: cutoff },
-      trainees: { some: { inscriptionType: "entreprise", isTest: false, referentEmail: { not: "" } } },
+      trainees: {
+        some: {
+          inscriptionType: "entreprise",
+          isTest: false,
+          referentEmail: { not: "" },
+          status: { in: ASSURED_STATUSES },
+        },
+      },
     },
     select: { id: true },
   });

@@ -19,6 +19,7 @@
 import { randomBytes } from "crypto";
 import { getConfig, setConfig } from "./appConfig";
 import prisma from "./db";
+import { ASSURED_STATUSES } from "./trainee";
 import type { SatisfactionQuestion } from "./satisfaction";
 
 // Délai par défaut entre dateFin de session et envoi de l'invitation initiale.
@@ -331,7 +332,12 @@ export async function createColdEvalInvitationsForSession(
     where: { id: sessionId },
     include: {
       formation: { select: { id: true, nomLong: true } },
-      trainees: { select: { id: true, prenom: true, nom: true, email: true } },
+      // On n'invite que les stagiaires "assurés" (devis signé et au-delà) et
+      // pas les stagiaires de test — jamais un inscrit fantôme non confirmé.
+      trainees: {
+        where: { status: { in: ASSURED_STATUSES }, isTest: false },
+        select: { id: true, prenom: true, nom: true, email: true },
+      },
       coldEvalResponses: { select: { traineeId: true } },
     },
   });

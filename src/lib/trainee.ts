@@ -1,6 +1,19 @@
 import { getDriveDefaultTemplates } from "./appConfig";
 import prisma from "./db";
 
+// Statuts où le stagiaire est considéré "assuré" (engagement pris, au moins le
+// devis signé). Seuls ces stagiaires reçoivent les envois automatiques tournés
+// vers l'avenir : convocation, évaluation à froid, satisfaction commanditaire.
+// Exclut "inscrit" et "devis_envoye" (pas encore engagés) ainsi que "abandonne".
+export const ASSURED_STATUSES: string[] = [
+  "devis_signe",
+  "convention_envoyee",
+  "convention_signee",
+  "convoque",
+  "en_formation",
+  "termine",
+];
+
 export interface TraineeInfo {
   id: string;
   sessionId: string;
