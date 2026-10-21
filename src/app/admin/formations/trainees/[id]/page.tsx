@@ -430,6 +430,17 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
         </div>
       </div>
 
+      <MoveSessionControl
+        traineeId={trainee.id}
+        currentSessionId={trainee.session.id}
+        formationId={trainee.formation.id}
+        onMoved={() => refresh()}
+        onFeedback={(f) => {
+          setActionFeedback(f);
+          setTimeout(() => setActionFeedback(null), f.type === "error" ? 7000 : 5000);
+        }}
+      />
+
       {/* Bandeau d'action — uniquement si statut = inscrit */}
       {trainee.status === "inscrit" && (
         <div className="p-5 rounded-xl border flex items-center justify-between gap-3 flex-wrap" style={{ borderColor: "#fde68a", backgroundColor: "#fffbeb" }}>
@@ -1041,4 +1052,111 @@ function formatPrerequisAnswer(field: PrerequisField, raw: unknown): string {
     return `${n}/5 (${field.leftLabel} → ${field.rightLabel})`;
   }
   return String(raw);
+}
+
+interface SessionOption {
+  id: string;
+  code: string;
+  dateDebut: string;
+  dateFin: string;
+  capacite: number;
+  traineeCount: number;
+  status: string;
+}
+
+// Contrôle de déplacement d'un stagiaire vers une autre session de la même
+// formation. Charge les sessions candidates et déclenche /move-session.
+function MoveSessionControl({
+  traineeId,
+  currentSessionId,
+  formationId,
+  onMoved,
+  onFeedback,
+}: {
+  traineeId: string;
+  currentSessionId: string;
+  formationId: string;
+  onMoved: () => void;
+  onFeedback: (f: { type: "success" | "error"; msg: string }) => void;
+}) {
+  const [sessions, setSessions] = useState<SessionOption[]>([]);
+  const [target, setTarget] = useState("");
+  const [moving, setMoving] = useState(false);
+
+  useEffect(() => {
+    const ac = new AbortController();
+    apiFetch<{ sessions?: SessionOption[] }>(
+      `/api/admin/sessions?formationId=${encodeURIComponent(formationId)}`,
+      { signal: ac.signal }
+    )
+      .then((d) => setSessions(Array.isArray(d.sessions) ? d.sessions : []))
+      .catch(() => {});
+    return () => ac.abort();
+  }, [formationId]);
+
+  const candidates = sessions.filter((s) => s.id !== currentSessionId && s.status !== "cancelled");
+  if (candidates.length === 0) return null;
+
+  async function handleMove() {
+    const t = candidates.find((s) => s.id === target);
+    if (!t) return;
+    if (
+      !confirm(
+        `Déplacer ce stagiaire vers la session ${t.code} (du ${fmtDate(t.dateDebut)} au ${fmtDate(t.dateFin)}) ?\n\n` +
+          "Les documents déjà générés (devis, convocation…) référencent encore l'ancienne session : pense à les régénérer si besoin."
+      )
+    ) {
+      return;
+    }
+    setMoving(true);
+    try {
+      const data = await apiFetch<{ to?: string }>(`/api/admin/trainees/${traineeId}/move-session`, {
+        method: "POST",
+        body: { sessionId: target },
+      });
+      onFeedback({ type: "success", msg: `Stagiaire déplacé vers la session ${data.to} ✓` });
+      setTarget("");
+      onMoved();
+    } catch (err) {
+      onFeedback({ type: "error", msg: apiErrorMessage(err, "Erreur lors du déplacement") });
+    } finally {
+      setMoving(false);
+    }
+  }
+
+  return (
+    <div
+      className="p-3 rounded-xl border flex items-center gap-3 flex-wrap"
+      style={{ borderColor: "#e5e7eb", backgroundColor: "#fafbff" }}
+    >
+      <span className="text-xs font-jetbrains" style={{ color: "#727485" }}>
+        Changer de session :
+      </span>
+      <select
+        value={target}
+        onChange={(e) => setTarget(e.target.value)}
+        className="text-sm border rounded-lg px-2 py-1"
+        style={{ borderColor: "#d1d5db", backgroundColor: "white", color: "#1f2244" }}
+      >
+        <option value="">— choisir une autre session —</option>
+        {candidates.map((s) => {
+          const places = Math.max(0, s.capacite - s.traineeCount);
+          return (
+            <option key={s.id} value={s.id}>
+              {s.code} · du {fmtDate(s.dateDebut)} au {fmtDate(s.dateFin)} ·{" "}
+              {places > 0 ? `${places} place${places > 1 ? "s" : ""}` : "complète"}
+            </option>
+          );
+        })}
+      </select>
+      <button
+        onClick={handleMove}
+        disabled={!target || moving}
+        className="text-xs px-3 py-1.5 rounded-full text-white cursor-pointer disabled:opacity-50"
+        style={{ backgroundColor: "#1f2244" }}
+      >
+        {moving ? "Déplacement..." : "Déplacer"}
+      </button>
+    </div>
+  );
 }

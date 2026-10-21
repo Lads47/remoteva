@@ -391,6 +391,52 @@ export async function generateSessionCode(
   return candidate;
 }
 
+/**
+ * Déplace un stagiaire vers une autre session de la MÊME formation, et recompte
+ * les places (statut open/full) des deux sessions concernées.
+ *
+ * On ne touche volontairement ni au statut du stagiaire ni à ses documents déjà
+ * générés (devis, convocation…) : ces derniers référencent encore l'ancienne
+ * session et sont à régénérer si besoin depuis la fiche.
+ */
+export async function moveTraineeToSession(
+  traineeId: string,
+  newSessionId: string
+): Promise<
+  | { ok: true; fromSessionCode: string; toSessionCode: string }
+  | { ok: false; error: string }
+> {
+  const trainee = await prisma.trainee.findUnique({
+    where: { id: traineeId },
+    select: { id: true, sessionId: true, session: { select: { code: true, formationId: true } } },
+  });
+  if (!trainee) return { ok: false, error: "Stagiaire introuvable" };
+  if (trainee.sessionId === newSessionId) {
+    return { ok: false, error: "Le stagiaire est déjà sur cette session." };
+  }
+
+  const target = await prisma.session.findUnique({
+    where: { id: newSessionId },
+    select: { id: true, code: true, formationId: true, status: true },
+  });
+  if (!target) return { ok: false, error: "Session cible introuvable." };
+  if (target.formationId !== trainee.session.formationId) {
+    return { ok: false, error: "Déplacement impossible : la session cible appartient à une autre formation." };
+  }
+  if (target.status === "cancelled") {
+    return { ok: false, error: "La session cible est annulée." };
+  }
+
+  const oldSessionId = trainee.sessionId;
+  await prisma.trainee.update({ where: { id: traineeId }, data: { sessionId: newSessionId } });
+
+  // Recompte places / statut des deux sessions (best-effort — ne bloque pas le déplacement).
+  await syncSessionStatusOnRosterChange(oldSessionId).catch(() => {});
+  await syncSessionStatusOnRosterChange(newSessionId).catch(() => {});
+
+  return { ok: true, fromSessionCode: trainee.session.code, toSessionCode: target.code };
+}
+
 export async function createSession(input: SessionCreateInput): Promise<SessionInfo> {
   const s = await prisma.session.create({
     data: {
