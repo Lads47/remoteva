@@ -288,6 +288,7 @@ export async function POST(_request: NextRequest, ctx: { params: Promise<{ id: s
       sessionDateFin: trainee.session.dateFin,
       sessionLieu: trainee.session.lieu,
       modeFinancement: trainee.modeFinancement,
+      kairosId: trainee.kairosId,
       pdfBuffer: pdf.buffer,
       pdfFilename: pdf.filename,
       programmeBuffer,

@@ -53,6 +53,7 @@ type FormState = {
   inscriptionType: "particulier" | "entreprise";
   statutActuel: StatutActuel | "";
   modeFinancement: ModeFinancement | "";
+  kairosId: string;
 
   // 2 - Facturation particulier
   adressePostale: string;
@@ -88,6 +89,7 @@ const EMPTY_FORM: FormState = {
   inscriptionType: "entreprise",
   statutActuel: "",
   modeFinancement: "",
+  kairosId: "",
   adressePostale: "",
   raisonSociale: "",
   siret: "",
@@ -525,6 +527,23 @@ export default function PublicInscriptionPage({ params }: { params: Promise<{ co
                     <p className="text-xs mt-2 font-jetbrains" style={{ color: "#727485" }}>
                       Nous avons pré-sélectionné le mode le plus probable pour votre profil. Vous pouvez le modifier.
                     </p>
+                  )}
+                  {form.modeFinancement === "France Travail" && (
+                    <div className="mt-3 p-3 rounded-xl" style={{ backgroundColor: "#f0f9ff", border: "1px solid #bae6fd" }}>
+                      <Field
+                        label="Identifiant Kairos (France Travail)"
+                        hint="Votre n° de dossier Kairos / AIF, si vous l'avez déjà. Sinon laissez vide : nous vous le demanderons. La prise en charge France Travail se fait en ligne sur Kairos (pas de devis à nous retourner signé)."
+                        full
+                      >
+                        <input
+                          type="text"
+                          value={form.kairosId}
+                          onChange={(e) => setForm({ ...form, kairosId: e.target.value })}
+                          placeholder="Ex : votre n° de dossier Kairos"
+                          className="input"
+                        />
+                      </Field>
+                    </div>
                   )}
                 </div>
               </div>

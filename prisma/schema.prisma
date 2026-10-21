@@ -288,6 +288,7 @@ model Trainee {
   // Via un OPCO | Fonds propres entreprise | AFDAS (Intermittents) | France Travail | Financement personnel
   opcoDetecte              String   @default("") @map("opco_detecte")          // AFDAS | ATLAS | AKTO | ...
   idOpco                   String   @default("") @map("id_opco")               // N° dossier OPCO
+  kairosId                 String   @default("") @map("kairos_id")             // N° dossier Kairos (AIF, France Travail)
   statutDossierFinancement String   @default("") @map("statut_dossier_financement")
   montantHT                Float?   @map("montant_ht")
 

@@ -119,7 +119,7 @@ function financementGuide(mode: string): { title: string; paragraph: string } {
       return {
         title: "Demande d'AIF (France Travail)",
         paragraph:
-          "Nous vous accompagnons dans la constitution du dossier d'Aide Individuelle à la Formation (AIF). Comptez environ 15 jours de délai de traitement après dépôt. Nous vous transmettrons les pièces nécessaires avec le devis.",
+          "La prise en charge passe par la plateforme Kairos. Nous vous demanderons votre identifiant Kairos (numéro de dossier AIF), puis nous déposerons le devis sur Kairos : vous le signerez directement en ligne depuis votre espace France Travail — inutile donc de nous le renvoyer signé par mail. Comptez environ 15 jours de traitement après dépôt, pensez à anticiper.",
       };
     case "Fonds propres entreprise":
       return {
@@ -140,6 +140,31 @@ function financementGuide(mode: string): { title: string; paragraph: string } {
           "Nous reviendrons vers vous sous quelques jours avec le devis et les démarches à suivre en fonction de votre mode de financement.",
       };
   }
+}
+
+/**
+ * Étapes « après réception du devis », adaptées au mode de financement.
+ * France Travail (AIF) passe par la plateforme Kairos : le devis n'est PAS
+ * retourné signé par mail, il est déposé sur Kairos puis signé en ligne.
+ */
+function devisNextSteps(mode: string, kairosId?: string): string[] {
+  if (mode === "France Travail") {
+    const kairos = (kairosId || "").trim();
+    const kairosStep = kairos
+      ? `Nous utilisons votre identifiant Kairos (${kairos}) pour déposer le devis sur la plateforme.`
+      : "Communiquez-nous votre identifiant Kairos (numéro de dossier AIF), si ce n'est pas déjà fait.";
+    return [
+      "Ne signez pas et ne renvoyez pas le devis vous-même.",
+      kairosStep,
+      "Le devis est déposé sur la plateforme Kairos : vous le signez directement en ligne depuis votre espace France Travail.",
+      "Dès l'accord de prise en charge, votre place est définitivement confirmée et vous recevez votre convocation.",
+    ];
+  }
+  return [
+    "Vérifiez le devis ci-joint et retournez-le signé.",
+    "Dès la signature reçue (et l'accord de prise en charge le cas échéant), votre place sera définitivement validée.",
+    "Vous recevrez ensuite votre convocation et le programme détaillé.",
+  ];
 }
 
 /**
@@ -236,6 +261,7 @@ export async function sendDevisToStagiaire(params: {
   sessionDateFin: Date | string;
   sessionLieu: string;
   modeFinancement: string;
+  kairosId?: string;              // France Travail : n° de dossier Kairos (AIF), si connu
   contactAdminEmail?: string;     // CC vers le contact admin si différent du stagiaire
   pdfBuffer: Buffer;
   pdfFilename: string;
@@ -261,6 +287,15 @@ export async function sendDevisToStagiaire(params: {
   const guide = financementGuide(params.modeFinancement);
   const guideTitleSafe = escapeHtml(guide.title);
   const guideParaSafe = escapeHtml(guide.paragraph);
+  const steps = devisNextSteps(params.modeFinancement, params.kairosId);
+  const stepsHtml = steps.map((s) => `<li>${escapeHtml(s)}</li>`).join("\n    ");
+  const stepsText = steps.map((s, i) => `${i + 1}. ${s}`).join("\n");
+  const devisBulletHtml =
+    params.modeFinancement === "France Travail"
+      ? "Votre <strong>devis personnalisé</strong>"
+      : "Votre <strong>devis personnalisé</strong> à signer";
+  const devisBulletText =
+    params.modeFinancement === "France Travail" ? "Votre devis personnalisé" : "Votre devis personnalisé à signer";
 
   const html = `<!DOCTYPE html>
 <html lang="fr">
@@ -270,7 +305,7 @@ export async function sendDevisToStagiaire(params: {
   <p>Suite à votre demande d'inscription pour la formation <strong>${safe.formation}</strong>
   (session du ${dateDebut} au ${dateFin}), vous trouverez ci-joint :</p>
   <ul style="padding-left: 20px;">
-    <li>Votre <strong>devis personnalisé</strong> à signer</li>
+    <li>${devisBulletHtml}</li>
     ${params.programmeBuffer ? `<li>Le <strong>programme détaillé</strong> de la formation</li>` : ""}
     ${params.financementGuideBuffer ? `<li>Le <strong>guide de financement</strong> pour vous aider dans vos démarches de prise en charge</li>` : ""}
   </ul>
@@ -287,10 +322,7 @@ export async function sendDevisToStagiaire(params: {
 
   <p><strong>Prochaines étapes :</strong></p>
   <ol style="padding-left: 20px;">
-    <li>Vérifiez le devis ci-joint et retournez-le signé.</li>
-    <li>Dès la signature reçue (et l'accord de prise en charge le cas échéant), votre place sera
-    définitivement validée.</li>
-    <li>Vous recevrez ensuite votre convocation et le programme détaillé.</li>
+    ${stepsHtml}
   </ol>
 
   <p>Pour toute question, vous pouvez simplement répondre à ce mail.</p>
@@ -305,7 +337,7 @@ export async function sendDevisToStagiaire(params: {
   const text = `Bonjour ${params.prenom},
 
 Suite à votre demande d'inscription à la formation ${params.formationNomLong} (session du ${dateDebut} au ${dateFin}), vous trouverez ci-joint :
-- Votre devis personnalisé à signer${params.programmeBuffer ? `
+- ${devisBulletText}${params.programmeBuffer ? `
 - Le programme détaillé de la formation` : ""}${params.financementGuideBuffer ? `
 - Le guide de financement (démarches de prise en charge)` : ""}
 
@@ -316,9 +348,7 @@ Mode de financement : ${params.modeFinancement}
 ${guide.title} : ${guide.paragraph}
 
 Prochaines étapes :
-1. Vérifiez le devis ci-joint et retournez-le signé.
-2. Dès la signature reçue (et l'accord de prise en charge le cas échéant), votre place sera définitivement validée.
-3. Vous recevrez ensuite votre convocation détaillée.
+${stepsText}
 
 Pour toute question, répondez à ce mail.
 

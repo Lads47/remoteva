@@ -224,6 +224,8 @@ export const publicInscriptionSchema = z
 
     // Financement (optionnel)
     modeFinancement: z.union([z.enum(VALID_MODES_FINANCEMENT), z.literal("")]).default(""),
+    // Identifiant Kairos (France Travail / AIF) — optionnel, souvent fourni plus tard
+    kairosId: z.string().trim().optional().default(""),
 
     // Entreprise (requis si inscriptionType === "entreprise")
     raisonSociale: z.string().trim().optional().default(""),
@@ -304,6 +306,7 @@ export const adminUpdateTraineeSchema = z.object({
   telephone: z.string().trim().optional(),
   statutActuel: z.string().trim().optional(),
   modeFinancement: z.enum(VALID_MODES_FINANCEMENT).optional(),
+  kairosId: z.string().trim().optional(),
 
   // Volet entreprise
   raisonSociale: z.string().trim().optional(),

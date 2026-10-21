@@ -73,6 +73,7 @@ export async function POST(request: NextRequest) {
       adressePostale: data.adressePostale,
       statutActuel: data.statutActuel,
       modeFinancement: data.modeFinancement,
+      kairosId: data.kairosId,
       opcoDetecte,
       psh: data.psh,
       besoinsAdaptation: besoinsAdaptationStored,

@@ -14,6 +14,7 @@ interface TraineeDetail {
   telephone: string;
   statutActuel: string;
   modeFinancement: string;
+  kairosId: string;
   raisonSociale: string;
   siret: string;
   adresseSiege: string;
@@ -80,6 +81,7 @@ export default function TraineeEditPage({ params }: { params: Promise<{ id: stri
         telephone: trainee.telephone,
         statutActuel: trainee.statutActuel,
         modeFinancement: trainee.modeFinancement,
+        kairosId: trainee.kairosId,
         raisonSociale: trainee.raisonSociale,
         siret: trainee.siret,
         adresseSiege: trainee.adresseSiege,
@@ -224,6 +226,21 @@ export default function TraineeEditPage({ params }: { params: Promise<{ id: stri
               ))}
             </select>
           </Field>
+          {trainee.modeFinancement === "France Travail" && (
+            <div className="mt-3">
+              <Field
+                label="Identifiant Kairos (AIF)"
+                hint="N° de dossier Kairos / France Travail. Sert à déposer le devis sur la plateforme pour signature en ligne."
+              >
+                <input
+                  type="text"
+                  value={trainee.kairosId}
+                  onChange={(e) => update("kairosId", e.target.value)}
+                  className="input font-jetbrains"
+                />
+              </Field>
+            </div>
+          )}
         </Section>
 
         <Section title="Accessibilité">

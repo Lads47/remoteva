@@ -34,6 +34,7 @@ export interface TraineeInfo {
   modeFinancement: string;
   opcoDetecte: string;
   idOpco: string;
+  kairosId: string;
   statutDossierFinancement: string;
   montantHT: number | null;
   psh: boolean;
@@ -73,6 +74,7 @@ export interface TraineeCreateInput {
   statutActuel?: string;
   modeFinancement?: string;
   opcoDetecte?: string;
+  kairosId?: string;
   psh?: boolean;
   besoinsAdaptation?: string;
   evalEntree?: string;
@@ -212,6 +214,7 @@ export async function createTrainee(input: TraineeCreateInput): Promise<TraineeI
       statutActuel: input.statutActuel ?? "",
       modeFinancement: input.modeFinancement ?? "",
       opcoDetecte: input.opcoDetecte ?? "",
+      kairosId: input.kairosId ?? "",
       psh: input.psh ?? false,
       besoinsAdaptation: input.besoinsAdaptation ?? "",
       evalEntree: input.evalEntree ?? "{}",
@@ -229,6 +232,7 @@ export interface TraineeUpdateInput {
   telephone?: string;
   statutActuel?: string;
   modeFinancement?: string;
+  kairosId?: string;
   raisonSociale?: string;
   siret?: string;
   adresseSiege?: string;
@@ -261,6 +265,7 @@ export async function updateTrainee(id: string, input: TraineeUpdateInput): Prom
   if (input.telephone !== undefined) data.telephone = input.telephone;
   if (input.statutActuel !== undefined) data.statutActuel = input.statutActuel;
   if (input.modeFinancement !== undefined) data.modeFinancement = input.modeFinancement;
+  if (input.kairosId !== undefined) data.kairosId = input.kairosId;
   // Entreprise
   if (input.raisonSociale !== undefined) data.raisonSociale = input.raisonSociale;
   if (input.siret !== undefined) data.siret = input.siret;
@@ -332,6 +337,7 @@ function toInfo(t: TraineeRow): TraineeInfo {
     modeFinancement: t.modeFinancement,
     opcoDetecte: t.opcoDetecte,
     idOpco: t.idOpco,
+    kairosId: t.kairosId,
     statutDossierFinancement: t.statutDossierFinancement,
     montantHT: t.montantHT,
     psh: t.psh,
