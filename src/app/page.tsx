@@ -9,6 +9,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { getSession } from "@/lib/auth";
 import LogoutButton from "@/components/LogoutButton";
+import SocialFeed from "@/components/SocialFeed";
+import { latestPosts } from "@/lib/social/feed";
 
 // Menu de l'utilisateur connecté, dans le style des lettres grises du titre
 // (« lectronic ») : même police, semi-gras, gris qui passe au blanc au survol.
@@ -26,6 +28,8 @@ const SITES: Site[] = [
 export default async function HomePage() {
   const session = await getSession();
   const isLoggedIn = !!session && session.status === "validated";
+  // Un incident côté réseaux sociaux ne doit jamais faire tomber l'accueil.
+  const posts = await latestPosts().catch(() => []);
 
   return (
     <main className="min-h-screen flex flex-col" data-theme="dark" style={{ backgroundColor: "var(--page)" }}>
@@ -98,6 +102,8 @@ export default async function HomePage() {
             </a>
           ))}
         </div>
+
+        <SocialFeed posts={posts} />
       </div>
 
       <footer className="border-t border-white/10">

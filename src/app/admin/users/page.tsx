@@ -7,6 +7,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import AdminTabs from "@/components/admin/AdminTabs";
 import { ApiError, apiFetch, apiErrorMessage, isAbortError } from "@/lib/api-client";
 
 interface AdminUser {
@@ -145,6 +146,8 @@ export default function UsersPage() {
           Valider les inscriptions, attribuer les univers EVA, gérer les super-administrateurs.
         </p>
       </div>
+
+      <AdminTabs current="/admin/users" />
 
       {feedback && (
         <div
