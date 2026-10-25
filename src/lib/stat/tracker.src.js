@@ -7,6 +7,13 @@
   var site = me.getAttribute("data-site");
   if (!site) return;
   var api = new URL(me.src).origin + "/api/public/e";
+  // data-exclude="/live,/dashboard" : préfixes de chemins jamais mesurés (pages d'application).
+  var excluded = (me.getAttribute("data-exclude") || "").split(",").map(function (p) {
+    return p.trim().replace(/\/$/, "");
+  }).filter(Boolean);
+  function isExcluded(u) {
+    return excluded.some(function (p) { return u === p || u.indexOf(p + "/") === 0; });
+  }
   var nav = w.navigator;
   var L, S;
   try { L = w.localStorage; S = w.sessionStorage; } catch (e) {}
@@ -71,6 +78,8 @@
     if (u === last) return;
     ping("heartbeat");
     last = u;
+    pid = null;
+    if (isExcluded(u)) return;
     pid = uid();
     acc = since = 0;
     resume();
@@ -85,7 +94,7 @@
   }
 
   function track(name, props) {
-    if (typeof name != "string") return;
+    if (typeof name != "string" || isExcluded(location.pathname)) return;
     var o = { t: "event", n: name.slice(0, 64), u: location.pathname };
     if (props && typeof props == "object") o.pr = props;
     send(o);

@@ -15,7 +15,7 @@ describe("fichier généré", () => {
 type Sent = Record<string, unknown>;
 
 // Faux navigateur minimal : assez pour faire tourner le script et lire ce qu'il envoie.
-function browser(opts: { dnt?: boolean; gpc?: boolean; storage?: Map<string, string>; beacon?: boolean } = {}) {
+function browser(opts: { dnt?: boolean; gpc?: boolean; storage?: Map<string, string>; beacon?: boolean; exclude?: string; path?: string } = {}) {
   const sent: Sent[] = [];
   const fetched: Sent[] = [];
   const listeners: Record<string, (() => void)[]> = {};
@@ -26,9 +26,10 @@ function browser(opts: { dnt?: boolean; gpc?: boolean; storage?: Map<string, str
     removeItem: (k: string) => void m.delete(k),
   });
   const local = opts.storage ?? new Map<string, string>();
-  const location = { pathname: "/", search: "?utm_source=newsletter&utm_campaign=rentree" };
+  const location = { pathname: opts.path ?? "/", search: "?utm_source=newsletter&utm_campaign=rentree" };
+  const attrs: Record<string, string | undefined> = { "data-site": "lads", "data-exclude": opts.exclude };
   const document = {
-    currentScript: { src: "https://evaremote.com/e.js", getAttribute: () => "lads" },
+    currentScript: { src: "https://evaremote.com/e.js", getAttribute: (n: string) => attrs[n] ?? null },
     visibilityState: "visible",
     title: "Accueil",
     referrer: "https://www.google.com/",
@@ -127,6 +128,21 @@ describe("comportement du script", () => {
     const b = browser();
     b.run("window.evaStat=function(){(window.evaStat.q=window.evaStat.q||[]).push(arguments)};window.evaStat('clic_telephone',{page:'contact'});");
     expect(b.sent.at(-1)).toMatchObject({ t: "event", n: "clic_telephone", pr: { page: "contact" } });
+  });
+
+  it("ne mesure jamais les chemins exclus, ni leurs sous-chemins, ni leurs événements", () => {
+    const b = browser({ exclude: "/live, /dashboard/", path: "/live/abc123" });
+    b.run();
+    expect(b.sent).toHaveLength(0);
+    (b.window.evaStat as (n: string) => void)("clic");
+    b.timers[0]();
+    expect(b.sent).toHaveLength(0);
+    b.history.pushState({}, "", "/pricing");
+    expect(b.sent.map((m) => `${m.t}:${m.u}`)).toEqual(["pageview:/pricing"]);
+    b.history.pushState({}, "", "/dashboard");
+    b.history.pushState({}, "", "/dashboard/events");
+    b.history.pushState({}, "", "/livestream");
+    expect(b.sent.filter((m) => m.t === "pageview").map((m) => m.u)).toEqual(["/pricing", "/livestream"]);
   });
 
   it("se replie sur fetch sans sendBeacon", () => {
