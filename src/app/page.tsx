@@ -2,7 +2,7 @@
 // un bouton Connexion, puis nos trois sites. Les univers ne sont plus exposés ici :
 // on les retrouve après connexion, sur le hub /admin.
 //
-// Server component : un utilisateur déjà connecté voit « Univers » (le hub /admin)
+// Server component : un utilisateur déjà connecté voit « Univers EVA » (le hub /admin)
 // à la place de « Connexion ». Le logo de toutes les pages admin ramène ici.
 
 import Link from "next/link";
@@ -49,18 +49,21 @@ export default async function HomePage() {
       </header>
 
       <div className="flex-1 flex flex-col items-center px-4 pt-8 sm:pt-12 pb-16">
-        <h1 className="font-[var(--font-montserrat)] font-semibold mb-12 whitespace-nowrap tracking-wide text-center">
+        <h1 className="font-[var(--font-montserrat)] font-semibold mb-4 whitespace-nowrap tracking-wide text-center">
           <span className="text-3xl sm:text-5xl text-white">E</span><span className="text-2xl sm:text-4xl" style={{ color: "var(--muted)" }}>lectronic</span>{" "}
           <span className="text-3xl sm:text-5xl text-white">V</span><span className="text-2xl sm:text-4xl" style={{ color: "var(--muted)" }}>irtual</span>{" "}
           <span className="text-3xl sm:text-5xl text-white">A</span><span className="text-2xl sm:text-4xl" style={{ color: "var(--muted)" }}>ssistant</span>
         </h1>
+        <p className="mb-12 text-center text-base sm:text-lg text-white/70">
+          Services et espaces dédiés des Ateliers du Stream
+        </p>
 
         <div className="w-full max-w-md">
           <Link
             href={isLoggedIn ? "/admin" : "/admin/login"}
             className="block w-full py-4 px-6 text-lg font-medium text-center rounded-full shadow-lg transition-colors bg-accent text-brand hover:bg-white"
           >
-            {isLoggedIn ? "Univers" : "Connexion"}
+            {isLoggedIn ? "Univers EVA" : "Connexion"}
           </Link>
         </div>
 
