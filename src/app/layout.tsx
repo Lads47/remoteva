@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, JetBrains_Mono, Montserrat } from "next/font/google";
 import "./globals.css";
 
@@ -26,7 +26,18 @@ const montserrat = Montserrat({
 export const metadata: Metadata = {
   title: "EVA — Les Ateliers du Stream",
   description: "Outils internes Les Ateliers du Stream : gestion des prestataires, captation et formations.",
+  // Raccourci sur l'écran d'accueil de l'iPhone (le manifeste sert Android et Chrome).
+  appleWebApp: { capable: true, title: "EVA", statusBarStyle: "black-translucent" },
 };
+
+export const viewport: Viewport = {
+  themeColor: "#1f2244",
+};
+
+// Android déclenche « beforeinstallprompt » parfois avant que React soit monté :
+// on le garde de côté pour le bouton de /raccourci (même mécanique que wisio).
+const CAPTURE_INSTALLATION =
+  "(function(){window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__evaInstallPrompt=e;window.dispatchEvent(new Event('eva-install-ready'));});window.addEventListener('appinstalled',function(){window.__evaInstallPrompt=null;});})();";
 
 export default function RootLayout({
   children,
@@ -35,6 +46,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: CAPTURE_INSTALLATION }} />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${jetbrainsMono.variable} ${montserrat.variable} antialiased`}
       >
