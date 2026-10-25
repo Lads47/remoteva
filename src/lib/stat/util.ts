@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
+import { TZ } from "./tz";
 
-export const TZ = "Europe/Paris";
+export { TZ };
 export const RETENTION_MONTHS = 13;
 
 // Ids stockés = empreinte (site + uuid du navigateur) : jamais l'uuid brut,

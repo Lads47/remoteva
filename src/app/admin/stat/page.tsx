@@ -3,6 +3,7 @@
 
 import { notFound } from "next/navigation";
 import Flag from "@/components/admin/stat/Flag";
+import LivePanel from "@/components/admin/stat/LivePanel";
 import VisitsChart from "@/components/admin/stat/VisitsChart";
 import { Empty, Panel, RankList, Segmented, td, th } from "@/components/admin/stat/ui";
 import { countryName, fmtDec, fmtDuration, fmtInt, fmtPct } from "@/lib/stat/format";
@@ -132,6 +133,8 @@ export default async function StatPage({ searchParams }: { searchParams: Promise
         </Panel>
         <Panel title="Événements"><RankList rows={data.events} unit="événements" /></Panel>
       </div>
+
+      <LivePanel site={site.slug} bots={bots} />
 
       <footer className="text-xs pt-2" style={{ color: "var(--muted)" }}>
         Robots {bots ? "inclus" : "exclus"} · heures de Paris · conservation 13 mois ·{" "}

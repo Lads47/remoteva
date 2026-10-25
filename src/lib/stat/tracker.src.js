@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars -- catch (e) gardé : vieux navigateurs */
 // EVA Stat — script de suivi servi sur /e.js.
 // Source lisible ; la version minifiée servie est régénérée par
 // `node scripts/stat-build-tracker.mjs` (un test vérifie qu'elle est à jour).

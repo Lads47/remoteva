@@ -1,4 +1,4 @@
-import { TZ } from "./util";
+import { TZ } from "./tz";
 
 const int = new Intl.NumberFormat("fr-FR");
 const pct = new Intl.NumberFormat("fr-FR", { style: "percent", maximumFractionDigits: 0 });
