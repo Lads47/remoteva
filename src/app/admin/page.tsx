@@ -24,6 +24,8 @@ type Tile = {
   // <a> classique obligatoire, un <Link> Next tenterait une navigation côté
   // client et tomberait en 404. Ni nouvel onglet, ni badge « externe ».
   sameDomainApp?: boolean;
+  // Rangée sous la ligne « Univers en développement ».
+  enDeveloppement?: boolean;
   title: string;
   description: string;
 };
@@ -120,6 +122,8 @@ export default async function AdminHubPage() {
   const visibleTiles = session.isSuperAdmin
     ? TILES
     : TILES.filter((t) => !t.universe || allowed.has(t.universe));
+  const enService = visibleTiles.filter((t) => !t.enDeveloppement);
+  const enDeveloppement = visibleTiles.filter((t) => t.enDeveloppement);
 
   return (
     <div className="space-y-8">
@@ -136,13 +140,29 @@ export default async function AdminHubPage() {
         </p>
       </div>
 
-      {visibleTiles.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {visibleTiles.map((tile) => (
-            <HubTile key={tile.href} tile={tile} />
-          ))}
-        </div>
+      {enService.length > 0 && <TileGrid tiles={enService} />}
+
+      {/* Vide, la section n'est montrée qu'aux super-administrateurs. */}
+      {(enDeveloppement.length > 0 || session.isSuperAdmin) && (
+        <section className="space-y-4">
+          <div className="border-t pt-6" style={{ borderColor: "var(--line)" }}>
+            <p className="text-sm" style={{ color: EVA_MUTED }}>
+              Univers en développement
+            </p>
+          </div>
+          {enDeveloppement.length > 0 && <TileGrid tiles={enDeveloppement} />}
+        </section>
       )}
+    </div>
+  );
+}
+
+function TileGrid({ tiles }: { tiles: Tile[] }) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {tiles.map((tile) => (
+        <HubTile key={tile.href} tile={tile} />
+      ))}
     </div>
   );
 }
