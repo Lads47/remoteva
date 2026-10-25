@@ -84,7 +84,15 @@ export async function getOverview(siteId: string, period: Period, bots: boolean,
     return { day, visits: values[i], avg7: win.reduce((s, v) => s + v, 0) / win.length };
   });
 
-  const visitWhere = { siteId, day: { gte: from }, ...(bots ? {} : { isBot: false }) };
+  return { cards, series, ...(await getBreakdown(siteId, from, today, bots)) };
+}
+
+export type Breakdown = Omit<Overview, "cards" | "series">;
+
+// Tableaux détaillés sur une plage de jours (YYYY-MM-DD inclus), lus dans les
+// tables brutes : sert au tableau de bord et aux archives mensuelles.
+export async function getBreakdown(siteId: string, from: string, to: string, bots: boolean, limit = 15): Promise<Breakdown> {
+  const visitWhere = { siteId, day: { gte: from, lte: to }, ...(bots ? {} : { isBot: false }) };
   const visits = await db.statVisit.findMany({
     where: visitWhere,
     select: {
@@ -129,7 +137,7 @@ export async function getOverview(siteId: string, period: Period, bots: boolean,
     _count: { _all: true },
     _avg: { durationSec: true },
     orderBy: { _count: { path: "desc" } },
-    take: 15,
+    take: limit,
   });
 
   const eventGroups = await db.statEvent.groupBy({
@@ -137,13 +145,11 @@ export async function getOverview(siteId: string, period: Period, bots: boolean,
     where: { siteId, visit: visitWhere },
     _count: { _all: true },
     orderBy: { _count: { name: "desc" } },
-    take: 15,
+    take: limit,
   });
   const totalEvents = eventGroups.reduce((s, e) => s + e._count._all, 0);
 
   return {
-    cards,
-    series,
     totals: {
       visits: totalVisits,
       pageviews,
@@ -159,7 +165,7 @@ export async function getOverview(siteId: string, period: Period, bots: boolean,
     })),
     countries: [...byCountry.entries()]
       .sort((a, b) => b[1].visits - a[1].visits)
-      .slice(0, 15)
+      .slice(0, limit)
       .map(([code, c]) => ({
         code: code || null,
         visitors: c.visitors.size,

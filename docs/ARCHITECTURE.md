@@ -1,8 +1,12 @@
 # Architecture evaremote — modèle & garde-fous
 
 > Site interne (evaremote.com) hébergeant plusieurs **univers** (outils) : Lien, Newsletter,
-> Flow, Formations, Master, Pilot + les univers externes (Stream, Scoring). Ce doc fixe le
+> Flow, Formations, Master, Pilot, Stat + les univers externes (Stream, Scoring). Ce doc fixe le
 > modèle pour continuer à développer **sans casser la prod**.
+>
+> **Stat a sa propre base** (`data/stat/stat.db`, schéma `prisma/stat/`) : c'est le premier
+> pas du Palier 2 ci-dessous. Un univers qui écrit beaucoup ou dont les données n'ont pas la
+> même durée de vie que la base métier ne va pas dans `remoteva.db`. Voir [STAT.md](./STAT.md).
 >
 > **Pilot est d'une troisième espèce** : ni univers interne, ni application sur un
 > sous-domaine. EVA Pilot est un **logiciel Windows** ; sa page ici n'est qu'une vitrine de
