@@ -59,7 +59,7 @@ fait une copie dans `/root/evaremote-backups/stat-*.db` avant chaque déploiemen
 - Sous Next.js : `next/script` avec `strategy="afterInteractive"` transmet bien les
   attributs `data-*` (vérifié sur evadif et wisio).
 
-Le script (`src/lib/stat/tracker.src.js`, 2,8 Ko minifié) : visiteur = UUID en
+Le script (`src/lib/stat/tracker.src.js`, 2,9 Ko minifié, écrit en fonctions fléchées pour tenir sous 3 Ko) : visiteur = UUID en
 `localStorage` **propre au site**, renouvelé après 13 mois ; session = `sessionStorage`,
 nouvelle après 30 min d'inactivité ; heartbeat 15 s onglet visible ; `pagehide` envoie le
 départ ; `pushState` / `replaceState` / `popstate` suivis. Après modification :
@@ -78,28 +78,30 @@ evaStat("inscription_formation", { formation: "ia" });
 Nom : lettres, chiffres, `_ . : -`, 64 caractères. Propriétés : 10 au plus, texte (200
 caractères), nombre ou booléen. **Aucune donnée personnelle dans les propriétés.**
 
-Événements prévus, **à brancher sur les sites** (pas encore fait) :
+Le script gère lui-même les clics (écouteur en phase de capture) :
 
-| Événement | Site | Où le déclencher |
+- **`data-liens`** sur la balise : `clic_telephone` (`tel:`), `clic_email` (`mailto:`),
+  `clic_sortant` avec `{ domaine }` pour un lien vers un autre site (`www.` ignoré des
+  deux côtés).
+- **`data-eva-event="nom"`** sur un lien (+ `data-eva-props='{"k":"v"}'` facultatif) :
+  envoie cet événement **à la place** du clic générique — un clic d'inscription vers
+  evaremote.com ne compte donc pas aussi comme lien sortant.
+
+Événements branchés le 25/10/2026 :
+
+| Événement | Site | Déclencheur |
 |---|---|---|
-| `inscription_formation` | lads | clic sur une date de session (`formations-sessions.js`), props `{ formation: "vMixV1" }` |
-| `formulaire_contact` | wisio, evadif | envoi réussi du formulaire de contact |
-| `clic_telephone` | tous | clic sur un lien `tel:` |
-| `clic_email` | tous | clic sur un lien `mailto:` |
-| `clic_sortant` | tous | clic vers un autre domaine, props `{ domaine: "vimeo.com" }` |
-| `demande_demo` | wisio, evadif | demande de démo / de devis envoyée |
+| `clic_telephone`, `clic_email`, `clic_sortant` | les trois | `data-liens` sur la balise |
+| `inscription_formation` | lads | clic sur une date de session : `data-eva-event` posé par `formations-sessions.js`, props `{ formation: "vMixV1" }` |
+| `formulaire_contact` | evadif | message **arrivé** (prop `evenement` de `components/Formulaire.tsx`), pas au clic |
+| `demande_devis` | evadif | devis **établi** (numéro attribué), props `{ postes }` — evadif n'a pas de démo, c'est sa demande commerciale |
+| `clic_inscription` | wisio | tout lien vers `/register` depuis la vitrine (`components/landing/StatEvents.tsx`) : seul signal de conversion, `/register` n'étant pas mesurée |
 
-Les trois clics génériques se branchent en un seul écouteur :
-
-```js
-document.addEventListener("click", function (e) {
-  var a = e.target.closest && e.target.closest("a[href]");
-  if (!a || !window.evaStat) return;
-  if (a.protocol === "tel:") evaStat("clic_telephone");
-  else if (a.protocol === "mailto:") evaStat("clic_email");
-  else if (a.host && a.host !== location.host) evaStat("clic_sortant", { domaine: a.hostname });
-});
-```
+Non branchés, faute de déclencheur : `formulaire_contact` et `demande_demo` sur wisio (la
+vitrine n'a ni formulaire de contact ni demande de démo), `formulaire_contact` sur LADS
+(contact par téléphone et e-mail, déjà comptés). Côté Next.js, `src/lib/evaStat.ts`
+(evadif) et `frontend/lib/evaStat.ts` (wisio) mettent l'événement en file si le script
+n'est pas encore chargé.
 
 ## RGPD — dispense de consentement CNIL
 
