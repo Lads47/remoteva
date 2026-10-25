@@ -1,107 +1,20 @@
-// Vitrine publique evaremote.com — page d'accueil.
-// Audit §4.3 : les 5 univers EVA restent visibles de tous comme une vitrine,
-// mais l'accès réel dépend de la validation du compte.
+// Accueil public evaremote.com : le haut de la page de connexion (logo + titre EVA),
+// un bouton Connexion, puis nos trois sites. Les univers ne sont plus exposés ici :
+// on les retrouve après connexion, sur le hub /admin.
 //
-// Server component : lit la session pour adapter les CTA (Se connecter /
-// Créer un compte si visiteur, Mon espace si connecté) et la cible des
-// tuiles (vraies routes si connecté, /admin/login sinon).
+// Server component : un utilisateur déjà connecté voit « Mon espace » à la place
+// de « Connexion ».
 
 import Link from "next/link";
 import Image from "next/image";
 import { getSession } from "@/lib/auth";
 
-const EVA_ACCENT = "#7dcef5";
+type Site = { name: string; tagline: string; domain: string; image: string };
 
-type Tile = {
-  title: string;
-  description: string;
-  // Cible pour un visiteur non connecté (q1a + q2b : tout vers /admin/login)
-  publicHref: string;
-  // Cible pour un user connecté (proxy filtrera selon univers autorisés)
-  authedHref: string;
-  // EVA Stream : externe pour les connectés (cohérent avec le hub)
-  external?: boolean;
-  // EVA Planning : autre application, mais servie sous le MÊME domaine
-  // (evaremote.com/planning via Traefik). Il faut donc un <a> classique — un
-  // <Link> Next tenterait une navigation côté client et tomberait en 404 —
-  // mais ni nouvel onglet ni badge « externe », puisqu'on ne quitte pas le site.
-  sameDomainApp?: boolean;
-};
-
-const TILES: Tile[] = [
-  {
-    title: "EVA Lien",
-    description:
-      "Partage et téléchargement de fichiers volumineux via lien d'accès unique.",
-    publicHref: "/admin/login",
-    authedHref: "/admin/lien",
-  },
-  {
-    title: "EVA Newsletter",
-    description:
-      "Résumés de conférences en direct, génération HTML, lexiques de préparation.",
-    publicHref: "/admin/login",
-    authedHref: "/admin/newsletter",
-  },
-  {
-    title: "EVA Flow",
-    description:
-      "Captation vidéo : événements, conférences, réalisateurs, clés API.",
-    publicHref: "/admin/login",
-    authedHref: "/admin/flow",
-  },
-  {
-    title: "EVA Stream",
-    description:
-      "Accès à Gate SRT (hébergé séparément). Ouvre dans un nouvel onglet.",
-    publicHref: "/admin/login",
-    authedHref: "https://gatesrt.evaremote.com",
-    external: true,
-  },
-  {
-    title: "EVA Scoring",
-    description:
-      "Scoring beach tennis en direct (API MOVN → vMix / écran LED). Ouvre dans un nouvel onglet.",
-    publicHref: "/admin/login",
-    authedHref: "https://scoring.evaremote.com",
-    external: true,
-  },
-  {
-    title: "EVA Formations",
-    description:
-      "Gestion Qualiopi complète : catalogue, sessions, stagiaires, formateurs, évaluations.",
-    publicHref: "/admin/login",
-    authedHref: "/admin/formations",
-  },
-  {
-    title: "EVA Master",
-    description:
-      "Captation → films, shorts, newsletter. Marquage des conférences et gestion des prestas.",
-    publicHref: "/admin/login",
-    authedHref: "/admin/master",
-  },
-  {
-    title: "EVA Pilot",
-    description:
-      "Diffusion sur vidéoprojecteur : images, vidéos, PowerPoint. Téléchargement du logiciel et notes de version.",
-    publicHref: "/admin/login",
-    authedHref: "/admin/pilot",
-  },
-  {
-    title: "EVA Planning",
-    description:
-      "Planning des prestations et disponibilité du parc : caméras, pupitres, régies, personnel, véhicules.",
-    publicHref: "/admin/login",
-    authedHref: "/planning",
-    sameDomainApp: true,
-  },
-  {
-    title: "EVA Stat",
-    description:
-      "Audience de nos sites : LADS, wisio, evadif. Visites, pages, pays, référents, visiteurs en direct.",
-    publicHref: "/admin/login",
-    authedHref: "/admin/stat",
-  },
+const SITES: Site[] = [
+  { name: "wisio", tagline: "Interactions live pour vos événements", domain: "wisio.io", image: "/sites/wisio.png" },
+  { name: "Les Ateliers du Stream", tagline: "Captation vidéo et diffusion en direct", domain: "lesateliersdustream.fr", image: "/sites/lads.webp" },
+  { name: "EVADIF", tagline: "EVA Pilot, la diffusion de vos médias", domain: "evadif.com", image: "/sites/evadif.png" },
 ];
 
 export default async function HomePage() {
@@ -109,171 +22,70 @@ export default async function HomePage() {
   const isLoggedIn = !!session && session.status === "validated";
 
   return (
-    <main
-      className="min-h-screen flex flex-col"
-      style={{ backgroundColor: "#1f2244" }}
-    >
-      {/* En-tête */}
+    <main className="min-h-screen flex flex-col" data-theme="dark" style={{ backgroundColor: "var(--page)" }}>
+      {/* En-tête : celui de la page de connexion, sans le lien Accueil */}
       <header className="border-b border-white/10">
-        <div className="max-w-6xl mx-auto px-4 h-[72px] flex items-center justify-between">
+        <div className="max-w-4xl mx-auto px-4 h-[72px] flex items-center">
           <Link href="/" className="flex items-center">
-            <Image
-              src="/logo-eva-v2.png"
-              alt="EVA"
-              width={40}
-              height={40}
-              className="h-10 w-auto"
-            />
+            <Image src="/logo-eva-v2.png" alt="EVA" width={40} height={40} className="h-10 w-auto" />
           </Link>
-
-          {/* CTA top-right */}
-          {isLoggedIn ? (
-            <Link
-              href="/admin"
-              className="px-4 py-2 rounded-full text-sm font-medium transition-colors"
-              style={{ backgroundColor: EVA_ACCENT, color: "#1f2244" }}
-            >
-              Mon espace
-            </Link>
-          ) : (
-            <div className="flex items-center gap-2">
-              <Link
-                href="/admin/login"
-                className="text-sm text-white/70 hover:text-white transition-colors px-3 py-2"
-              >
-                Se connecter
-              </Link>
-              <Link
-                href="/admin/inscription"
-                className="px-4 py-2 rounded-full text-sm font-medium transition-colors"
-                style={{ backgroundColor: EVA_ACCENT, color: "#1f2244" }}
-              >
-                Créer un compte
-              </Link>
-            </div>
-          )}
         </div>
       </header>
 
-      {/* Branding + vitrine */}
-      <div className="flex-1 flex flex-col items-center px-4 py-10 sm:py-14">
-        <div className="text-center mb-10">
-          <h1 className="font-[var(--font-montserrat)] font-semibold whitespace-nowrap tracking-wide">
-            <span className="text-3xl sm:text-5xl text-white">E</span>
-            <span className="text-2xl sm:text-4xl" style={{ color: "#a0a3b5" }}>lectronic</span>{" "}
-            <span className="text-3xl sm:text-5xl text-white">V</span>
-            <span className="text-2xl sm:text-4xl" style={{ color: "#a0a3b5" }}>irtual</span>{" "}
-            <span className="text-3xl sm:text-5xl text-white">A</span>
-            <span className="text-2xl sm:text-4xl" style={{ color: "#a0a3b5" }}>ssistant</span>
-          </h1>
-          <p className="text-sm sm:text-base text-white/60 mt-4">
-            Le portail interne des{" "}
-            <a
-              href="https://lesateliersdustream.fr/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:underline"
-              style={{ color: EVA_ACCENT }}
-            >
-              Ateliers du Stream
-            </a>
-            .
-          </p>
+      <div className="flex-1 flex flex-col items-center px-4 pt-8 sm:pt-12 pb-16">
+        <h1 className="font-[var(--font-montserrat)] font-semibold mb-12 whitespace-nowrap tracking-wide text-center">
+          <span className="text-3xl sm:text-5xl text-white">E</span><span className="text-2xl sm:text-4xl" style={{ color: "var(--muted)" }}>lectronic</span>{" "}
+          <span className="text-3xl sm:text-5xl text-white">V</span><span className="text-2xl sm:text-4xl" style={{ color: "var(--muted)" }}>irtual</span>{" "}
+          <span className="text-3xl sm:text-5xl text-white">A</span><span className="text-2xl sm:text-4xl" style={{ color: "var(--muted)" }}>ssistant</span>
+        </h1>
+
+        <div className="w-full max-w-md">
+          <Link
+            href={isLoggedIn ? "/admin" : "/admin/login"}
+            className="block w-full py-4 px-6 text-lg font-medium text-center rounded-full shadow-lg transition-colors bg-accent text-brand hover:bg-white"
+          >
+            {isLoggedIn ? "Mon espace" : "Connexion"}
+          </Link>
         </div>
 
-        {/* Grille des 5 univers (glassmorphism) */}
-        <div className="w-full max-w-6xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-          {TILES.map((tile) => (
-            <VitrineTile key={tile.title} tile={tile} isLoggedIn={isLoggedIn} />
+        {/* Nos trois sites */}
+        <div className="w-full max-w-6xl grid grid-cols-1 md:grid-cols-3 gap-6 mt-16">
+          {SITES.map((site) => (
+            <a
+              key={site.domain}
+              href={`https://${site.domain}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group block rounded-2xl overflow-hidden border border-white/10 transition-all hover:border-white/40 hover:-translate-y-1 hover:shadow-2xl"
+              style={{ backgroundColor: "var(--surface)" }}
+              aria-label={`${site.name} — ${site.domain} (nouvel onglet)`}
+            >
+              <div className="relative aspect-[2/1] overflow-hidden bg-white">
+                <Image
+                  src={site.image}
+                  alt={`Page d'accueil de ${site.domain}`}
+                  fill
+                  sizes="(min-width: 768px) 33vw, 100vw"
+                  className="object-cover object-top transition-transform duration-300 group-hover:scale-[1.03]"
+                />
+              </div>
+              <div className="px-5 py-4">
+                <div className="font-semibold text-white">{site.name}</div>
+                <div className="text-sm mt-0.5" style={{ color: "var(--muted)" }}>{site.tagline}</div>
+                <div className="text-sm mt-2 transition-colors group-hover:text-white" style={{ color: "var(--accent)" }}>
+                  {site.domain} ↗
+                </div>
+              </div>
+            </a>
           ))}
         </div>
       </div>
 
-      {/* Pied de page sobre */}
       <footer className="border-t border-white/10">
         <div className="max-w-6xl mx-auto px-4 py-6 text-center text-sm text-white/50">
-          <p>
-            Une production des{" "}
-            <a
-              href="https://lesateliersdustream.fr/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:underline"
-              style={{ color: EVA_ACCENT }}
-            >
-              Ateliers du Stream
-            </a>{" "}
-            — evaremote.com © {new Date().getFullYear()}
-          </p>
+          Une production des Ateliers du Stream — evaremote.com © {new Date().getFullYear()}
         </div>
       </footer>
     </main>
-  );
-}
-
-function VitrineTile({
-  tile,
-  isLoggedIn,
-}: {
-  tile: Tile;
-  isLoggedIn: boolean;
-}) {
-  const href = isLoggedIn ? tile.authedHref : tile.publicHref;
-  const opensExternal = isLoggedIn && tile.external;
-
-  const content = (
-    <div
-      className="group h-full p-6 rounded-xl border backdrop-blur-sm transition-all hover:bg-white/10 hover:border-white/30 flex flex-col"
-      style={{
-        backgroundColor: "rgba(255,255,255,0.05)",
-        borderColor: "rgba(255,255,255,0.15)",
-      }}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <h2 className="text-lg font-semibold text-white">{tile.title}</h2>
-        {opensExternal && (
-          <span
-            className="text-xs px-2 py-1 rounded-full font-medium whitespace-nowrap"
-            style={{ backgroundColor: EVA_ACCENT, color: "#1f2244" }}
-          >
-            ↗ externe
-          </span>
-        )}
-      </div>
-      <p className="text-sm mt-3 flex-1 text-white/70">{tile.description}</p>
-      <div
-        className="mt-4 text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity"
-        style={{ color: EVA_ACCENT }}
-      >
-        {isLoggedIn ? "Entrer →" : "Se connecter →"}
-      </div>
-    </div>
-  );
-
-  if (isLoggedIn && tile.sameDomainApp) {
-    return (
-      <a href={href} className="block h-full">
-        {content}
-      </a>
-    );
-  }
-
-  if (opensExternal) {
-    return (
-      <a
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="block h-full"
-      >
-        {content}
-      </a>
-    );
-  }
-
-  return (
-    <Link href={href} className="block h-full">
-      {content}
-    </Link>
   );
 }

@@ -14,9 +14,10 @@
 - [ ] `src/proxy.ts` → ajouter dans **`PROTECTED_ROUTES`**, dans **`universeForPath()`** (⚠️ duplicata à garder synchro avec auth.ts), et dans le **`matcher`** (`export const config`).
 - [ ] Mettre à jour les tests : `src/lib/__tests__/auth-universes.test.ts` + `proxy-gating.test.ts`.
 
-## 2. La tuile (2 endroits)
+## 2. La tuile
 - [ ] `src/app/admin/page.tsx` (hub admin) — ajouter la tuile.
-- [ ] `src/app/page.tsx` (accueil public) — ajouter la tuile (publicHref/authedHref).
+- [ ] `src/app/admin/users/page.tsx` — ajouter l'univers à `ALL_UNIVERSES`, sinon impossible de l'attribuer à un compte.
+- L'accueil public (`src/app/page.tsx`) ne liste plus les univers depuis le 25/10/2026 : connexion + nos trois sites.
 
 ## 3. Données (structure propre à l'univers)
 - [ ] Modèles Prisma **préfixés `<univers>_`** (ex. `master_prestas`). Ne PAS réutiliser les tables d'un autre univers.
