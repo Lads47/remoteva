@@ -34,6 +34,7 @@ const ALL_UNIVERSES = [
   { id: "scoring", label: "EVA Scoring (studio)" },
   { id: "master", label: "EVA Master" },
   { id: "pilot", label: "EVA Pilot (téléchargement)" },
+  { id: "stat", label: "EVA Stat (audience des sites)" },
   { id: "planning", label: "EVA Planning (parc & prestations)" },
 ];
 

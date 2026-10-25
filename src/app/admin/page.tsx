@@ -95,6 +95,13 @@ const TILES: Tile[] = [
     description:
       "Planning des prestations et disponibilité du parc : caméras, pupitres, régies, personnel, véhicules.",
   },
+  {
+    universe: "stat",
+    href: "/admin/stat",
+    title: "EVA Stat",
+    description:
+      "Audience de nos sites : LADS, wisio, evadif. Visites, pages, pays, référents, visiteurs en direct.",
+  },
 ];
 
 export default async function AdminHubPage() {

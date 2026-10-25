@@ -61,6 +61,14 @@ mkdir -p "$BACKUP_DIR"
 TS=\$(date +%Y%m%d-%H%M%S)
 cp "$DATA_VOLUME_PATH/remoteva.db" "$BACKUP_DIR/db-\$TS.db"
 echo "  ✓ DB backup : $BACKUP_DIR/db-\$TS.db (\$(du -h $BACKUP_DIR/db-\$TS.db | cut -f1))"
+# EVA Stat : base en WAL → snapshot cohérent via VACUUM INTO (une simple copie raterait le -wal)
+if [ -f "$DATA_VOLUME_PATH/stat/stat.db" ]; then
+  mkdir -p "$DATA_VOLUME_PATH/stat/backups"
+  docker exec "$CONTAINER" sqlite3 /app/data/stat/stat.db "VACUUM INTO '/app/data/stat/backups/predeploy-\$TS.db'" 2>/dev/null \
+    && mv "$DATA_VOLUME_PATH/stat/backups/predeploy-\$TS.db" "$BACKUP_DIR/stat-\$TS.db" \
+    && echo "  ✓ Stat backup : $BACKUP_DIR/stat-\$TS.db" \
+    || echo "  ⚠ Stat backup impossible (container arrêté ?) — on continue"
+fi
 EOF
 
 # === Étape 2 : Préparer le dossier de build ===
@@ -87,7 +95,7 @@ docker run --rm \
   -v "$WORK_DIR":/build \
   -w /build \
   node:20-slim \
-  bash -c "npm ci --no-audit --no-fund && npx prisma generate && npx next build"
+  bash -c "npm ci --no-audit --no-fund && npx prisma generate && npx prisma generate --config prisma.stat.config.ts && npx next build"
 echo "  ✓ Build OK : \$(ls -la .next/standalone/server.js | awk '{print \$5}') octets pour server.js"
 EOF
 
@@ -164,6 +172,27 @@ for dir in "$APP"/prisma/migrations/*/; do
     echo "    ✓ appliquée"
   fi
 done
+
+# EVA Stat : base dédiée /app/data/stat/stat.db, migrations dans prisma/stat/migrations.
+STAT_DB=/app/data/stat/stat.db
+docker exec "$CONTAINER" mkdir -p /app/data/stat/geo /app/data/stat/archives /app/data/stat/backups
+docker exec "$CONTAINER" sqlite3 "$STAT_DB" 'CREATE TABLE IF NOT EXISTS "_prisma_migrations" ("id" TEXT PRIMARY KEY NOT NULL, "checksum" TEXT NOT NULL, "finished_at" DATETIME, "migration_name" TEXT NOT NULL, "logs" TEXT, "rolled_back_at" DATETIME, "started_at" DATETIME NOT NULL DEFAULT current_timestamp, "applied_steps_count" INTEGER UNSIGNED NOT NULL DEFAULT 0);'
+STAT_APPLIED=$(docker exec "$CONTAINER" sqlite3 "$STAT_DB" \
+  "SELECT migration_name FROM _prisma_migrations WHERE finished_at IS NOT NULL;")
+for dir in "$APP"/prisma/stat/migrations/*/; do
+  name=$(basename "$dir")
+  if echo "$STAT_APPLIED" | grep -q "^$name$"; then
+    echo "  → stat/$name : déjà appliquée"
+  else
+    echo "  → stat/$name : application…"
+    cat "$dir/migration.sql" | docker exec -i "$CONTAINER" sqlite3 -bail "$STAT_DB"
+    docker exec "$CONTAINER" sqlite3 "$STAT_DB" \
+      "INSERT INTO _prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) \
+       VALUES ('manual-$name', 'manual', datetime('now'), '$name', NULL, NULL, datetime('now'), 1);"
+    echo "    ✓ appliquée"
+  fi
+done
+docker exec "$CONTAINER" sqlite3 "$STAT_DB" "PRAGMA journal_mode=WAL;" >/dev/null
 EOF
 
 # === Étape 7 : Restart final + health check ===
@@ -190,6 +219,8 @@ test_route "/admin/dashboard" "307"   # redirect to login (no session)
 test_route "/admin/flow"      "307"   # désormais protégé par proxy (Phase 1 EVA)
 test_route "/admin"           "307"   # nouveau hub EVA, protégé par proxy
 test_route "/presta"          "200"
+test_route "/admin/stat"      "307"   # EVA Stat, protégé par proxy
+test_route "/e.js"            "200"   # script de suivi EVA Stat (public)
 test_route "/api/flow/projects?date=2026-04-20" "401"  # missing X-Api-Key
 EOF
 

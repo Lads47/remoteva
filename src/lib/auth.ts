@@ -27,6 +27,7 @@ export const EVA_UNIVERSES = [
   "scoring",
   "master",
   "pilot",
+  "stat",
   // Planning : application separee servie sous evaremote.com/planning.
   // Comme "stream", l'univers est declare ici pour figurer dans le JWT et
   // dans /admin/users, mais n'apparait PAS dans universeForPath() ni dans
@@ -163,5 +164,6 @@ export function universeForPath(pathname: string): EvaUniverse | null {
   if (pathname.startsWith("/admin/reclamations")) return "formations";
   if (pathname.startsWith("/admin/master")) return "master";
   if (pathname.startsWith("/admin/pilot")) return "pilot";
+  if (pathname.startsWith("/admin/stat")) return "stat";
   return null;
 }

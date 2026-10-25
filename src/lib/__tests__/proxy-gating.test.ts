@@ -9,7 +9,7 @@ describe("proxy matcher", () => {
   const matcher = config.matcher as string[];
 
   it("couvre chaque univers admin ayant des pages", () => {
-    for (const u of ["lien", "newsletter", "flow", "formations", "master", "pilot"]) {
+    for (const u of ["lien", "newsletter", "flow", "formations", "master", "pilot", "stat"]) {
       expect(matcher).toContain(`/admin/${u}/:path*`);
     }
   });

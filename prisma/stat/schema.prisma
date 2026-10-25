@@ -1,0 +1,146 @@
+// EVA Stat — base dédiée data/stat/stat.db (séparée de remoteva.db).
+// Pourquoi à part : écritures fréquentes (heartbeat 15 s), conservation propre
+// (13 mois pour le brut), sauvegarde et purge sans toucher à la base métier.
+//
+// Ids visiteur/visite/page vue = sha256(siteId + uuid aléatoire du navigateur) :
+// un heartbeat retrouve sa ligne sans recherche, et un navigateur n'a jamais
+// le même id d'un site à l'autre. Les sites sont insérés par la migration
+// stat_init (le déploiement ne lance pas de seed).
+//
+// Commandes : npm run db:stat:migrate / npm run db:stat:generate
+
+generator client {
+  provider = "prisma-client"
+  output   = "../../src/generated/prisma-stat"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model StatSite {
+  id        String   @id
+  slug      String   @unique
+  name      String
+  domains   String                                              // JSON : ["lesateliersdustream.fr", …]
+  createdAt DateTime @default(now()) @map("created_at")
+
+  visitors  StatVisitor[]
+  visits    StatVisit[]
+  pageviews StatPageview[]
+  events    StatEvent[]
+  daily     StatDaily[]
+
+  @@map("sites")
+}
+
+model StatVisitor {
+  id          String   @id
+  siteId      String   @map("site_id")
+  firstSeenAt DateTime @map("first_seen_at")
+  lastSeenAt  DateTime @map("last_seen_at")
+  visitCount  Int      @default(0) @map("visit_count")
+
+  site   StatSite    @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  visits StatVisit[]
+
+  @@index([siteId, lastSeenAt])
+  @@map("visitors")
+}
+
+model StatVisit {
+  id           String   @id
+  siteId       String   @map("site_id")
+  visitorId    String   @map("visitor_id")
+  visitNumber  Int      @map("visit_number")
+  day          String                                           // YYYY-MM-DD Europe/Paris
+  startedAt    DateTime @map("started_at")
+  lastSeenAt   DateTime @map("last_seen_at")
+  entryPath    String   @map("entry_path")
+  exitPath     String   @map("exit_path")
+  referrer     String?
+  referrerHost String?  @map("referrer_host")
+  utmSource    String?  @map("utm_source")
+  utmMedium    String?  @map("utm_medium")
+  utmCampaign  String?  @map("utm_campaign")
+  country      String?                                          // ISO 3166-1, ex. "FR"
+  region       String?
+  city         String?
+  lat          Float?                                           // arrondi 2 décimales
+  lon          Float?
+  isp          String?
+  ipTruncated  String?  @map("ip_truncated")                    // /24 ou /48, jamais l'IP complète
+  os           String?
+  browser      String?
+  deviceType   String   @default("desktop") @map("device_type") // desktop | mobile | tablette
+  screenWidth  Int?     @map("screen_width")
+  language     String?
+  pageCount    Int      @default(0) @map("page_count")
+  durationSec  Int      @default(0) @map("duration_sec")
+  isBot        Boolean  @default(false) @map("is_bot")
+
+  site      StatSite       @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  visitor   StatVisitor    @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+  pageviews StatPageview[]
+  events    StatEvent[]
+
+  @@index([siteId, startedAt])
+  @@index([siteId, lastSeenAt])
+  @@index([siteId, day])
+  @@index([visitorId])
+  @@map("visits")
+}
+
+model StatPageview {
+  id          String   @id
+  siteId      String   @map("site_id")
+  visitId     String   @map("visit_id")
+  path        String
+  title       String?
+  createdAt   DateTime @map("created_at")
+  durationSec Int      @default(0) @map("duration_sec")
+
+  site  StatSite  @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  visit StatVisit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+
+  @@index([siteId, createdAt])
+  @@index([visitId])
+  @@map("pageviews")
+}
+
+model StatEvent {
+  id        String   @id @default(cuid())
+  siteId    String   @map("site_id")
+  visitId   String   @map("visit_id")
+  name      String
+  props     String?                                             // JSON
+  path      String
+  createdAt DateTime @map("created_at")
+
+  site  StatSite  @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  visit StatVisit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+
+  @@index([siteId, createdAt])
+  @@index([visitId])
+  @@map("events")
+}
+
+// Agrégat anonyme : conservé sans limite (la purge des 13 mois ne le touche pas).
+model StatDaily {
+  id               String @id @default(cuid())
+  siteId           String @map("site_id")
+  date             String                                       // YYYY-MM-DD Europe/Paris
+  visits           Int    @default(0)                           // humains seulement
+  pageviews        Int    @default(0)
+  visitors         Int    @default(0)
+  newVisitors      Int    @default(0) @map("new_visitors")
+  bounces          Int    @default(0)                           // visites d'une seule page
+  totalDurationSec Int    @default(0) @map("total_duration_sec")
+  botVisits        Int    @default(0) @map("bot_visits")
+  botPageviews     Int    @default(0) @map("bot_pageviews")
+
+  site StatSite @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@unique([siteId, date])
+  @@map("daily")
+}

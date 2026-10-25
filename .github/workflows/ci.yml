@@ -25,7 +25,7 @@ jobs:
 
       # Le client Prisma est généré (gitignoré) — indispensable avant tsc/build.
       - name: Prisma generate
-        run: npx prisma generate
+        run: npx prisma generate && npx prisma generate --config prisma.stat.config.ts
 
       # Tests (gating des univers, utilitaires…).
       - name: Tests

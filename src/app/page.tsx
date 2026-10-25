@@ -95,6 +95,13 @@ const TILES: Tile[] = [
     authedHref: "/planning",
     sameDomainApp: true,
   },
+  {
+    title: "EVA Stat",
+    description:
+      "Audience de nos sites : LADS, wisio, evadif. Visites, pages, pays, référents, visiteurs en direct.",
+    publicHref: "/admin/login",
+    authedHref: "/admin/stat",
+  },
 ];
 
 export default async function HomePage() {
