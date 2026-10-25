@@ -1,19 +1,17 @@
 # Architecture evaremote — modèle & garde-fous
 
 > Site interne (evaremote.com) hébergeant plusieurs **univers** (outils) : Lien, Newsletter,
-> Flow, Formations, Master, Pilot, Stat + les univers externes (Stream, Scoring). Ce doc fixe le
+> Flow, Formations, Master, Stat + les univers externes (Stream, Scoring, Planning). Ce doc fixe le
 > modèle pour continuer à développer **sans casser la prod**.
 >
 > **Stat a sa propre base** (`data/stat/stat.db`, schéma `prisma/stat/`) : c'est le premier
 > pas du Palier 2 ci-dessous. Un univers qui écrit beaucoup ou dont les données n'ont pas la
 > même durée de vie que la base métier ne va pas dans `remoteva.db`. Voir [STAT.md](./STAT.md).
 >
-> **Pilot est d'une troisième espèce** : ni univers interne, ni application sur un
-> sous-domaine. EVA Pilot est un **logiciel Windows** ; sa page ici n'est qu'une vitrine de
-> téléchargement, qui lit le manifest publié par le canal de mise à jour. Ce canal est servi
-> par un container nginx à lui (`eva-pilot-dl`), routé par Traefik sur
-> `evaremote.com/eva-pilot/` — **hors de cette application** : envoyer 190 Mo de binaire ne
-> doit rien pouvoir casser du site.
+> **EVA Pilot n'est plus ici** (retiré le 25/10/2026) : le logiciel a son site, evadif.com,
+> qui sert son téléchargement et son canal de mise à jour (`evadif.com/eva-pilot/`, container
+> `evadif-canal`). L'univers `pilot`, sa page `/admin/pilot` et l'ancien canal
+> `evaremote.com/eva-pilot/` (container `eva-pilot-dl`) ont été supprimés.
 
 ## Le modèle : monolithe modulaire
 evaremote est un **monolithe modulaire** (Next.js + Prisma/SQLite), et c'est un choix **assumé** :

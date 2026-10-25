@@ -87,14 +87,6 @@ const TILES: Tile[] = [
       "Captation → films, shorts, newsletter. Marquage des conférences et gestion des prestas.",
   },
   {
-    universe: "pilot",
-    enDeveloppement: true,
-    href: "/admin/pilot",
-    title: "EVA Pilot",
-    description:
-      "Diffusion sur vidéoprojecteur : images, vidéos, PowerPoint. Téléchargement du logiciel et notes de version.",
-  },
-  {
     universe: "planning",
     href: "/planning",
     sameDomainApp: true,
