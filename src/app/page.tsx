@@ -2,8 +2,8 @@
 // un bouton Connexion, puis nos trois sites. Les univers ne sont plus exposés ici :
 // on les retrouve après connexion, sur le hub /admin.
 //
-// Server component : un utilisateur déjà connecté voit « Mon espace » à la place
-// de « Connexion ».
+// Server component : un utilisateur déjà connecté voit « Univers » (le hub /admin)
+// à la place de « Connexion ». Le logo de toutes les pages admin ramène ici.
 
 import Link from "next/link";
 import Image from "next/image";
@@ -44,7 +44,7 @@ export default async function HomePage() {
             href={isLoggedIn ? "/admin" : "/admin/login"}
             className="block w-full py-4 px-6 text-lg font-medium text-center rounded-full shadow-lg transition-colors bg-accent text-brand hover:bg-white"
           >
-            {isLoggedIn ? "Mon espace" : "Connexion"}
+            {isLoggedIn ? "Univers" : "Connexion"}
           </Link>
         </div>
 

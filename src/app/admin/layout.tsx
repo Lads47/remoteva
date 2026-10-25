@@ -106,7 +106,7 @@ export default function AdminLayout({
       <nav className="border-b border-white/10" style={{ backgroundColor: "var(--brand)" }}>
         <div className="max-w-6xl mx-auto px-4">
           <div className="flex justify-between h-[72px] items-center">
-            <Link href="/admin" className="flex items-center" title="Retour au hub">
+            <Link href="/" className="flex items-center" title="Accueil">
               <Image
                 src="/logo-eva-v2.png"
                 alt="EVA"
