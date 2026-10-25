@@ -8,6 +8,12 @@
 import Link from "next/link";
 import Image from "next/image";
 import { getSession } from "@/lib/auth";
+import LogoutButton from "@/components/LogoutButton";
+
+// Menu de l'utilisateur connecté, dans le style des lettres grises du titre
+// (« lectronic ») : même police, semi-gras, gris qui passe au blanc au survol.
+// Classe text-muted plutôt qu'un style en ligne : un style en ligne bloquerait hover:text-white.
+const MENU_CLASS = "text-sm font-semibold px-2 sm:px-3 py-2 text-muted transition-colors hover:text-white";
 
 type Site = { name: string; tagline: string; domain: string; image: string };
 
@@ -23,12 +29,22 @@ export default async function HomePage() {
 
   return (
     <main className="min-h-screen flex flex-col" data-theme="dark" style={{ backgroundColor: "var(--page)" }}>
-      {/* En-tête : celui de la page de connexion, sans le lien Accueil */}
+      {/* En-tête : celui de la page de connexion ; connecté, le menu de l'admin en plus */}
       <header className="border-b border-white/10">
-        <div className="max-w-4xl mx-auto px-4 h-[72px] flex items-center">
-          <Link href="/" className="flex items-center">
+        <div className="max-w-4xl mx-auto px-4 min-h-[72px] py-3 flex items-center justify-between gap-4">
+          <Link href="/" className="flex items-center shrink-0">
             <Image src="/logo-eva-v2.png" alt="EVA" width={40} height={40} className="h-10 w-auto" />
           </Link>
+          {isLoggedIn && (
+            <nav className="flex flex-wrap items-center justify-end">
+              <Link href="/admin" className={MENU_CLASS}>Univers EVA</Link>
+              {session?.isSuperAdmin && (
+                <Link href="/admin/users" className={MENU_CLASS}>Administration</Link>
+              )}
+              <Link href="/admin/account" className={MENU_CLASS}>Mon compte</Link>
+              <LogoutButton className={`${MENU_CLASS} cursor-pointer`} />
+            </nav>
+          )}
         </div>
       </header>
 
