@@ -64,6 +64,9 @@ echo "  ✓ DB backup : $BACKUP_DIR/db-\$TS.db (\$(du -h $BACKUP_DIR/db-\$TS.db 
 # EVA Stat : base en WAL → snapshot cohérent via VACUUM INTO (une simple copie raterait le -wal)
 if [ -f "$DATA_VOLUME_PATH/stat/stat.db" ]; then
   mkdir -p "$DATA_VOLUME_PATH/stat/backups"
+  # sqlite3 vit dans la couche du container : il disparaît quand le container est recréé.
+  docker exec "$CONTAINER" which sqlite3 >/dev/null 2>&1 || \
+    docker exec "$CONTAINER" bash -c 'apt-get update -qq && apt-get install -y -qq sqlite3' >/dev/null 2>&1 || true
   docker exec "$CONTAINER" sqlite3 /app/data/stat/stat.db "VACUUM INTO '/app/data/stat/backups/predeploy-\$TS.db'" 2>/dev/null \
     && mv "$DATA_VOLUME_PATH/stat/backups/predeploy-\$TS.db" "$BACKUP_DIR/stat-\$TS.db" \
     && echo "  ✓ Stat backup : $BACKUP_DIR/stat-\$TS.db" \

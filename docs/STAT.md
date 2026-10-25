@@ -223,10 +223,10 @@ navigateur, agrégats, direct, entretien) et `src/lib/__tests__/stat-gating.test
 - **Lock npm** : un `npm install` sous Windows (npm 11) retire des entrées optionnelles
   `wasm32` que le `npm ci` du build Linux (node:20, npm 10) refuse. Régénérer le lock
   dans un conteneur `node:20-slim` (`npm install --package-lock-only`).
-- **IP derrière Traefik** : lue dans `x-real-ip` (vérifié en prod). ⚠️ Le conteneur publie
+- **IP derrière Traefik** : lue dans `x-real-ip` (vérifié en prod). Le port 3001 du conteneur est lié à `127.0.0.1` depuis le 25/10/2026 (`/docker/evaremote/docker-compose.yml`) : seul Traefik sert le public. Avant, le conteneur publiait
   aussi le port **3001 sur toutes les interfaces** et `ufw` est inactif : l'application
   est joignable en HTTP direct, sans Traefik, où ces en-têtes peuvent être forgés. À corriger
-  dans le compose (`127.0.0.1:3001:3000`).
+  dans le compose (`127.0.0.1:3001:3000`) — fait.
 - **Infobulles de la carte** : construites en `textContent` (chemin, ville, FAI viennent des
   visiteurs). Ne jamais passer à du HTML.
 - Une nouvelle route d'application wisio doit rejoindre `STAT_EXCLUDE`.
