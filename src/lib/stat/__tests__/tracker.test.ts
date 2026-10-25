@@ -15,10 +15,12 @@ describe("fichier généré", () => {
 type Sent = Record<string, unknown>;
 
 // Faux navigateur minimal : assez pour faire tourner le script et lire ce qu'il envoie.
-function browser(opts: { dnt?: boolean; gpc?: boolean; storage?: Map<string, string>; beacon?: boolean; exclude?: string; path?: string } = {}) {
+type Anchor = { protocol: string; hostname: string; attrs?: Record<string, string> };
+
+function browser(opts: { dnt?: boolean; gpc?: boolean; storage?: Map<string, string>; beacon?: boolean; exclude?: string; path?: string; liens?: boolean } = {}) {
   const sent: Sent[] = [];
   const fetched: Sent[] = [];
-  const listeners: Record<string, (() => void)[]> = {};
+  const listeners: Record<string, ((e?: unknown) => void)[]> = {};
   const timers: (() => void)[] = [];
   const storage = (m: Map<string, string>) => ({
     getItem: (k: string) => m.get(k) ?? null,
@@ -26,8 +28,8 @@ function browser(opts: { dnt?: boolean; gpc?: boolean; storage?: Map<string, str
     removeItem: (k: string) => void m.delete(k),
   });
   const local = opts.storage ?? new Map<string, string>();
-  const location = { pathname: opts.path ?? "/", search: "?utm_source=newsletter&utm_campaign=rentree" };
-  const attrs: Record<string, string | undefined> = { "data-site": "lads", "data-exclude": opts.exclude };
+  const location = { pathname: opts.path ?? "/", search: "?utm_source=newsletter&utm_campaign=rentree", hostname: "www.lesateliersdustream.fr" };
+  const attrs: Record<string, string | undefined> = { "data-site": "lads", "data-exclude": opts.exclude, "data-liens": opts.liens ? "" : undefined };
   const document = {
     currentScript: { src: "https://evaremote.com/e.js", getAttribute: (n: string) => attrs[n] ?? null },
     visibilityState: "visible",
@@ -64,6 +66,11 @@ function browser(opts: { dnt?: boolean; gpc?: boolean; storage?: Map<string, str
     run: (prelude = "") => vm.runInContext(prelude + TRACKER_JS, ctx),
     window, document, location, history, sent, fetched, listeners, timers, local,
     fire: (t: string) => (listeners[t] || []).forEach((f) => f()),
+    // Clic sur un lien (ou sur un élément sans lien si `a` est null).
+    click: (a: Anchor | null) => {
+      const anchor = a && { ...a, getAttribute: (n: string) => a.attrs?.[n] ?? null };
+      (listeners.click || []).forEach((f) => f({ target: { closest: () => anchor } }));
+    },
   };
 }
 
@@ -143,6 +150,49 @@ describe("comportement du script", () => {
     b.history.pushState({}, "", "/dashboard/events");
     b.history.pushState({}, "", "/livestream");
     expect(b.sent.filter((m) => m.t === "pageview").map((m) => m.u)).toEqual(["/pricing", "/livestream"]);
+  });
+
+  it("la clé d'opposition est evaStat_off : celle qu'écrivent les boutons des trois sites", () => {
+    const storage = new Map([["evaStat_off", "1"]]);
+    const b = browser({ storage });
+    b.run();
+    expect(b.sent).toHaveLength(0);
+  });
+
+  it("data-liens : téléphone, e-mail et sortant (le www ne compte pas comme un autre site)", () => {
+    const b = browser({ liens: true });
+    b.run();
+    b.click({ protocol: "tel:", hostname: "" });
+    b.click({ protocol: "mailto:", hostname: "" });
+    b.click({ protocol: "https:", hostname: "www.vimeo.com" });
+    b.click({ protocol: "https:", hostname: "lesateliersdustream.fr" });
+    b.click({ protocol: "https:", hostname: "www.lesateliersdustream.fr" });
+    b.click({ protocol: "javascript:", hostname: "" });
+    b.click(null);
+    const events = b.sent.filter((m) => m.t === "event");
+    expect(events.map((m) => m.n)).toEqual(["clic_telephone", "clic_email", "clic_sortant"]);
+    expect(events[2].pr).toEqual({ domaine: "vimeo.com" });
+  });
+
+  it("sans data-liens, aucun clic générique", () => {
+    const b = browser();
+    b.run();
+    b.click({ protocol: "tel:", hostname: "" });
+    b.click({ protocol: "https:", hostname: "vimeo.com" });
+    expect(b.sent.filter((m) => m.t === "event")).toHaveLength(0);
+  });
+
+  it("data-eva-event remplace le clic générique, propriétés comprises, même sans data-liens", () => {
+    for (const liens of [true, false]) {
+      const b = browser({ liens });
+      b.run();
+      b.click({ protocol: "https:", hostname: "evaremote.com", attrs: { "data-eva-event": "inscription_formation", "data-eva-props": '{"formation":"vMixV1"}' } });
+      b.click({ protocol: "https:", hostname: "evaremote.com", attrs: { "data-eva-event": "x", "data-eva-props": "{cassé" } });
+      expect(b.sent.filter((m) => m.t === "event").map((m) => [m.n, m.pr])).toEqual([
+        ["inscription_formation", { formation: "vMixV1" }],
+        ["x", undefined],
+      ]);
+    }
   });
 
   it("se replie sur fetch sans sendBeacon", () => {
