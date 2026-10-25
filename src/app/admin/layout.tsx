@@ -47,11 +47,9 @@ export default function AdminLayout({
 
   // Vérifie l'authentification au chargement + récupère le rôle (super-admin).
   useEffect(() => {
-    // Pages publiques (sans auth) : login + inscription
-    if (pathname === "/admin/login" || pathname === "/admin/inscription") {
-      setIsAuthenticated(false);
-      return;
-    }
+    // Pages publiques (sans auth) : login + inscription. Rien à vérifier : le rendu
+    // les sert plus bas sans lire isAuthenticated.
+    if (pathname === "/admin/login" || pathname === "/admin/inscription") return;
 
     // Vérifie si une session existe via un appel API (renvoie aussi le rôle)
     const ac = new AbortController();
