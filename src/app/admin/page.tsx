@@ -11,7 +11,6 @@ import { redirect } from "next/navigation";
 import { getSession, type EvaUniverse } from "@/lib/auth";
 
 const EVA_DARK = "var(--ink)";
-const EVA_ACCENT = "var(--accent)";
 const EVA_MUTED = "var(--muted)";
 
 type Tile = {
