@@ -103,10 +103,14 @@ export default async function HomePage() {
       <footer className="border-t border-white/10">
         <div className="max-w-6xl mx-auto px-4 py-6 text-center text-sm text-white/50">
           Une production des Ateliers du Stream — evaremote.com © {new Date().getFullYear()}
-          {" · "}
-          <Link href="/raccourci" className="underline-offset-2 hover:underline hover:text-white">
-            EVA sur votre téléphone
-          </Link>
+          {isLoggedIn && (
+            <>
+              {" · "}
+              <Link href="/raccourci" className="underline-offset-2 hover:underline hover:text-white">
+                EVA sur votre téléphone
+              </Link>
+            </>
+          )}
         </div>
       </footer>
     </main>
