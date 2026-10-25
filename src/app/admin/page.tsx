@@ -33,6 +33,7 @@ type Tile = {
 const TILES: Tile[] = [
   {
     universe: "lien",
+    enDeveloppement: true,
     href: "/admin/lien",
     title: "EVA Lien",
     description:
@@ -40,6 +41,7 @@ const TILES: Tile[] = [
   },
   {
     universe: "newsletter",
+    enDeveloppement: true,
     href: "/admin/newsletter",
     title: "EVA Newsletter",
     description:
@@ -47,6 +49,7 @@ const TILES: Tile[] = [
   },
   {
     universe: "flow",
+    enDeveloppement: true,
     href: "/admin/flow",
     title: "EVA Flow",
     description:
@@ -77,6 +80,7 @@ const TILES: Tile[] = [
   },
   {
     universe: "master",
+    enDeveloppement: true,
     href: "/admin/master",
     title: "EVA Master",
     description:
@@ -84,6 +88,7 @@ const TILES: Tile[] = [
   },
   {
     universe: "pilot",
+    enDeveloppement: true,
     href: "/admin/pilot",
     title: "EVA Pilot",
     description:
