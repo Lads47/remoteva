@@ -974,15 +974,24 @@ function UploadSignedForm({
       const form = new FormData();
       form.append("file", file);
       form.append("type", type);
-      const d = await apiFetch<{ success?: boolean; error?: string }>(
-        `/api/admin/trainees/${traineeId}/upload-signed`,
-        { method: "POST", body: form }
-      );
+      const d = await apiFetch<{
+        success?: boolean;
+        error?: string;
+        statusChange?: { to?: string; sellsySynced?: boolean; contractEmailSent?: boolean; error?: string } | null;
+      }>(`/api/admin/trainees/${traineeId}/upload-signed`, { method: "POST", body: form });
       if (!d.success) {
         setFeedback({ type: "error", msg: d.error || "Échec de l'upload" });
         return;
       }
-      setFeedback({ type: "success", msg: `Document archivé sur Drive ✓` });
+      let msg = "Document archivé sur Drive ✓";
+      const sc = d.statusChange;
+      if (sc && sc.to) {
+        const label = sc.to === "devis_signe" ? "Devis signé" : sc.to === "convention_signee" ? "Convention signée" : sc.to;
+        msg = `Archivé ✓ — statut → « ${label} »`;
+        if (sc.to === "devis_signe") msg += sc.contractEmailSent ? ", convention/contrat envoyé(e)" : " (convention : vérifier les logs)";
+        if (sc.sellsySynced) msg += ", Sellsy synchronisé";
+      }
+      setFeedback({ type: "success", msg });
       setFile(null);
       await onUploaded();
     } catch (err) {

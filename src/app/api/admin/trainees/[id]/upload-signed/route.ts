@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { archiveTraineeFile } from "@/lib/trainee-documents";
+import { getTraineeById } from "@/lib/trainee";
+import { transitionTraineeStatus } from "@/lib/trainee-status";
+import { type EvaStatus } from "@/lib/appConfig";
 
 async function requireAuth() {
   const session = await getSession();
@@ -28,6 +31,19 @@ const ALLOWED_MIME = new Set([
   "image/heic",
   "image/heif",
 ]);
+
+// Dépôt d'un document signé → avancée du statut correspondante. C'est ce dépôt
+// qui pilote la suite (étape Sellsy + génération convention), plutôt qu'une
+// action côté Sellsy. On n'avance jamais en arrière (cf. STATUS_PIPELINE).
+const DOC_TYPE_TO_STATUS: Record<string, EvaStatus> = {
+  devis_signed: "devis_signe",
+  convention_signed: "convention_signee",
+  contrat_signed: "convention_signee",
+};
+const STATUS_PIPELINE: EvaStatus[] = [
+  "inscrit", "devis_envoye", "devis_signe", "convention_envoyee",
+  "convention_signee", "convoque", "en_formation", "termine",
+];
 
 // POST /api/admin/trainees/[id]/upload-signed
 // Multipart : file + type (string)
@@ -79,11 +95,39 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ id: st
     if (!result.ok) {
       return NextResponse.json({ success: false, error: result.error }, { status: 502 });
     }
+
+    // Le dépôt fait avancer le statut (et donc Sellsy + génération convention),
+    // sans jamais faire régresser un stagiaire déjà plus avancé.
+    let statusChange:
+      | { to: EvaStatus; sellsySynced?: boolean; contractEmailSent?: boolean; error?: string }
+      | { skipped: string }
+      | null = null;
+    const target = DOC_TYPE_TO_STATUS[type];
+    if (target) {
+      const current = await getTraineeById(id);
+      const curIdx = current ? STATUS_PIPELINE.indexOf(current.status as EvaStatus) : -1;
+      const tgtIdx = STATUS_PIPELINE.indexOf(target);
+      if (current && curIdx >= 0 && tgtIdx > curIdx) {
+        const r = await transitionTraineeStatus(id, target);
+        if (r.kind === "changed") {
+          statusChange = {
+            to: target,
+            sellsySynced: r.sellsySynced,
+            contractEmailSent: r.contractTriggered?.emailSent,
+            error: r.contractTriggered?.error ?? r.sellsyError ?? undefined,
+          };
+        }
+      } else {
+        statusChange = { skipped: "statut déjà à ce stade ou plus avancé" };
+      }
+    }
+
     return NextResponse.json({
       success: true,
       documentId: result.documentId,
       driveFileId: result.driveFileId,
       driveFileUrl: result.driveFileUrl,
+      statusChange,
     });
   } catch (error) {
     console.error("[/api/admin/trainees/[id]/upload-signed] error:", error);
