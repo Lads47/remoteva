@@ -23,6 +23,7 @@ interface EmailAttachment {
 
 interface SendEmailParams {
   to: string;
+  cc?: string;
   subject: string;
   html: string;
   text?: string;
@@ -53,6 +54,7 @@ async function sendEmail(params: SendEmailParams): Promise<SendEmailResult> {
       body: JSON.stringify({
         from,
         to: params.to,
+        cc: params.cc || undefined,
         subject: params.subject,
         html: params.html,
         text: params.text,
@@ -1518,6 +1520,7 @@ Les Ateliers du Stream`;
  */
 export async function sendContractToStagiaire(params: {
   to: string;
+  cc?: string;              // copie (ex : stagiaire, quand la convention part à l'employeur)
   prenom: string;
   nom: string;
   formationNomLong: string;
@@ -1624,6 +1627,7 @@ Les Ateliers du Stream`;
 
   return sendEmail({
     to: params.to,
+    cc: params.cc,
     subject: `${docLabelCap} de formation — ${params.formationNomLong}`,
     html,
     text,

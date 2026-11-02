@@ -202,8 +202,8 @@ export default function TraineeEditPage({ params }: { params: Promise<{ id: stri
               <Field label="Contact administratif" hint="Nom, téléphone et email du référent si différent du stagiaire" full>
                 <input type="text" value={trainee.contactAdmin} onChange={(e) => update("contactAdmin", e.target.value)} className="input" />
               </Field>
-              <Field label="E-mail du référent / commanditaire" hint="Destinataire de l'enquête de satisfaction entreprise (Qualiopi ind. 2)" full>
-                <input type="email" value={trainee.referentEmail} onChange={(e) => update("referentEmail", e.target.value)} className="input" />
+              <Field label="E-mail du référent / commanditaire (employeur)" hint="Destinataire de la CONVENTION de formation (c'est l'employeur qui la signe) et de l'enquête de satisfaction entreprise. À compléter ici si non renseigné à l'inscription." full>
+                <input type="email" value={trainee.referentEmail} onChange={(e) => update("referentEmail", e.target.value)} className="input" placeholder="referent@entreprise.fr" />
               </Field>
             </Grid>
           </Section>

@@ -642,11 +642,24 @@ export async function generateAndMailContract(traineeId: string): Promise<Genera
     }
   }
 
-  // 4. Envoi du mail (le lien Drive n'est volontairement pas mis dans le mail :
-  // on n'offre pas de signature électronique, et certains clients mails
-  // l'auraient affiché comme une PJ fantôme à côté du PDF.)
+  // 4. Destinataire : la CONVENTION (entreprise) est signée par l'EMPLOYEUR, pas
+  // par le stagiaire → on l'envoie au référent/commanditaire (champ referentEmail),
+  // avec le stagiaire en copie. Le CONTRAT (particulier) va au stagiaire, qui le
+  // signe lui-même. Repli sur le stagiaire si l'email du référent n'est pas saisi.
+  const isEntreprise = trainee.inscriptionType === "entreprise";
+  const referentEmail = (trainee.referentEmail || "").trim();
+  const sentToEmployer = isEntreprise && referentEmail.length > 0;
+  const recipientTo = sentToEmployer ? referentEmail : trainee.email;
+  const recipientCc =
+    sentToEmployer && referentEmail.toLowerCase() !== trainee.email.toLowerCase()
+      ? trainee.email
+      : undefined;
+
+  // Le lien Drive n'est volontairement pas mis dans le mail (pas de signature
+  // électronique, et certains clients l'afficheraient comme une PJ fantôme).
   const mailRes = await sendContractToStagiaire({
-    to: trainee.email,
+    to: recipientTo,
+    cc: recipientCc,
     prenom: trainee.prenom,
     nom: trainee.nom,
     formationNomLong: trainee.session.formation.nomLong,
@@ -666,11 +679,15 @@ export async function generateAndMailContract(traineeId: string): Promise<Genera
     traineeId,
     mailRes.success ? "email_sent" : "email_failed",
     mailRes.success
-      ? `Mail ${docType} envoyé au stagiaire (${trainee.email}) avec ${[contractPdfFilename, cgvFilename, riFilename].filter(Boolean).length} PJ`
+      ? `Mail ${docType} envoyé à ${sentToEmployer ? "l'employeur" : "stagiaire"} (${recipientTo})` +
+        (recipientCc ? ` + copie stagiaire (${recipientCc})` : "") +
+        ` avec ${[contractPdfFilename, cgvFilename, riFilename].filter(Boolean).length} PJ`
       : `Échec mail ${docType} : ${mailRes.error}`,
     {
       type: docType,
-      to: trainee.email,
+      to: recipientTo,
+      cc: recipientCc ?? null,
+      sentToEmployer,
       messageId: mailRes.messageId,
       attachments: { contract: true, cgv: !!cgvBuffer, ri: !!riBuffer },
     }
