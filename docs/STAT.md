@@ -189,6 +189,29 @@ part aussi dans `/root/evaremote-backups/` à chaque déploiement. ⚠️ Pas de
 pour l'instant (la sauvegarde Drive de `backup-db` ne prend que `remoteva.db`) ; les
 archives mensuelles, minuscules, seraient le bon candidat.
 
+## Téléchargements EVAPILOT (evadif) — tuile « Téléchargé »
+
+Pour le site `evadif` seulement (`SITES_AVEC_TELECHARGEMENTS`), une 5ᵉ tuile affiche
+les installeurs EVAPILOT **reçus jusqu'au bout depuis un navigateur** : aujourd'hui et
+au total (depuis le 12/11/2026 — rien d'avant n'était récupérable).
+
+```
+evadif-canal (nginx)  → /docker/evadif/canal/logs/telechargements.log   (format « telechargement », SANS IP)
+crontab de l'hôte     → */10 * * * * CRON_SECRET=… bash /root/remoteva-deploy/scripts/stat-collect-downloads.sh
+                        envoie les nouvelles lignes (position dans /root/.stat-telechargements.position)
+evaremote             → POST /api/cron/stat-downloads → table `downloads` de stat.db (sans limite de durée)
+```
+
+Une ligne compte si : `GET`, statut **200**, `$request_completion = OK` (fichier
+parti en entier), fichier `EvaPilot-Setup-x.y.z.exe`, et un **navigateur** — le
+logiciel qui télécharge ses mises à jour n'envoie pas de User-Agent (« - »), les
+robots sont écartés (`isbot`). Une reprise partielle (206) ne compte pas. Rejouer une
+ligne ne compte rien deux fois (empreinte de la ligne). Lecteur et tests :
+`src/lib/stat/downloads.ts`.
+
+⚠️ La configuration nginx du canal vit **sur le serveur**, pas dans un dépôt
+(`/docker/evadif/canal/nginx.conf`) ; le montage `logs` est dans le compose d'evadif.
+
 ## Base géographique (DB-IP Lite, CC BY 4.0)
 
 ```bash
