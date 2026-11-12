@@ -217,20 +217,24 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
-  async function handleSendDevis() {
+  async function handleSendDevis(send = true) {
     if (!trainee) return;
-    if (!confirm(`Créer la fiche Sellsy + l'opportunité + le devis pour ${trainee.prenom} ${trainee.nom}, et lui envoyer le devis par email ?`)) {
-      return;
-    }
+    const confirmMsg = send
+      ? `Créer la fiche Sellsy + l'opportunité + le devis pour ${trainee.prenom} ${trainee.nom}, et lui envoyer le devis par email ?`
+      : `Générer le devis pour ${trainee.prenom} ${trainee.nom} (fiche Sellsy + opportunité + devis archivé sur Drive) SANS l'envoyer au stagiaire ?\n\nLe statut ne changera pas : tu pourras l'envoyer plus tard avec « Envoyer le devis ».`;
+    if (!confirm(confirmMsg)) return;
     setActionLoading(true);
     setActionFeedback(null);
     try {
-      const data = await apiFetch<{ emailSent?: boolean }>(`/api/admin/trainees/${id}/send-devis`, {
+      const data = await apiFetch<{ emailSent?: boolean; sent?: boolean }>(`/api/admin/trainees/${id}/send-devis`, {
         method: "POST",
+        body: { send },
       });
       setActionFeedback({
         type: "success",
-        msg: data.emailSent
+        msg: !send
+          ? "Devis généré dans Sellsy + archivé sur Drive (non envoyé au stagiaire) ✓"
+          : data.emailSent
           ? "Devis créé dans Sellsy et envoyé par email au stagiaire ✓"
           : "Devis créé dans Sellsy, mais l'envoi du mail a échoué — vérifie les logs.",
       });
@@ -451,16 +455,27 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
             <div className="text-xs mt-0.5 font-jetbrains" style={{ color: "#b45309" }}>
               Crée la fiche {trainee.inscriptionType === "entreprise" ? "entreprise" : "particulier"} dans Sellsy,
               ajoute l&apos;opportunité, génère le devis et l&apos;envoie au stagiaire par mail (avec PDF en pièce jointe).
+              « Générer sans envoyer » crée tout mais n&apos;envoie rien au stagiaire (à envoyer plus tard).
             </div>
           </div>
-          <button
-            onClick={handleSendDevis}
-            disabled={actionLoading}
-            className="px-4 py-2 rounded-full text-sm font-medium text-white cursor-pointer disabled:opacity-50"
-            style={{ backgroundColor: "#1f2244" }}
-          >
-            {actionLoading ? "Création en cours..." : "Envoyer le devis"}
-          </button>
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={() => handleSendDevis(false)}
+              disabled={actionLoading}
+              className="px-4 py-2 rounded-full text-sm font-medium cursor-pointer disabled:opacity-50 border"
+              style={{ borderColor: "#1f2244", color: "#1f2244", backgroundColor: "white" }}
+            >
+              {actionLoading ? "…" : "Générer sans envoyer"}
+            </button>
+            <button
+              onClick={() => handleSendDevis(true)}
+              disabled={actionLoading}
+              className="px-4 py-2 rounded-full text-sm font-medium text-white cursor-pointer disabled:opacity-50"
+              style={{ backgroundColor: "#1f2244" }}
+            >
+              {actionLoading ? "Création en cours..." : "Envoyer le devis"}
+            </button>
+          </div>
         </div>
       )}
       {trainee.status !== "inscrit" && trainee.sellsyEstimateId && (

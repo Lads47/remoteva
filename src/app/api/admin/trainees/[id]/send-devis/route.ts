@@ -43,12 +43,17 @@ const FINANCEMENT_GUIDE_DRIVE_ID = "15_uG_S1Dis6Z4Svs9MFlbL3TouJr7VU8";
 //
 // Idempotent : si une étape a déjà été faite (IDs Sellsy stockés sur le trainee), on la saute.
 // En cas d'échec partiel, l'état est sauvegardé étape par étape pour pouvoir reprendre.
-export async function POST(_request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function POST(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const authError = await requireAuth();
   if (authError) return authError;
 
   try {
     const { id } = await ctx.params;
+    // send=false → on génère le devis (fiche Sellsy + opportunité + devis +
+    // PDF archivé sur Drive) SANS l'envoyer au stagiaire et SANS avancer le
+    // statut. L'envoi effectif pourra se faire plus tard (bouton "Envoyer").
+    const body = await request.json().catch(() => ({}));
+    const send = (body as { send?: boolean })?.send !== false;
     const trainee = await getTraineeWithDetails(id);
     if (!trainee) {
       return NextResponse.json({ error: "Stagiaire introuvable" }, { status: 404 });
@@ -251,93 +256,101 @@ export async function POST(_request: NextRequest, ctx: { params: Promise<{ id: s
       );
     }
 
-    // Récupération best-effort du PDF programme de la formation, joint au mail
-    // si configuré (Formation.driveTemplateProgrammeId). Le mail part même si
-    // le PDF n'est pas récupérable (typo ID, permission, etc.).
-    let programmeBuffer: Buffer | undefined;
-    let programmeFilename: string | undefined;
-    if (formation.driveTemplateProgrammeId && isDriveConfigured()) {
-      try {
-        const programmeFile = await getFileAsPdf(formation.driveTemplateProgrammeId);
-        programmeBuffer = programmeFile.buffer;
-        programmeFilename = `Programme — ${formation.nomLong}.pdf`;
-      } catch (err) {
-        console.warn("[send-devis] récupération programme PDF échouée:", err);
+    let emailSent = false;
+    if (send) {
+      // Récupération best-effort du PDF programme de la formation, joint au mail
+      // si configuré. Le mail part même si le PDF n'est pas récupérable.
+      let programmeBuffer: Buffer | undefined;
+      let programmeFilename: string | undefined;
+      if (formation.driveTemplateProgrammeId && isDriveConfigured()) {
+        try {
+          const programmeFile = await getFileAsPdf(formation.driveTemplateProgrammeId);
+          programmeBuffer = programmeFile.buffer;
+          programmeFilename = `Programme — ${formation.nomLong}.pdf`;
+        } catch (err) {
+          console.warn("[send-devis] récupération programme PDF échouée:", err);
+        }
       }
-    }
 
-    // Guide de financement commun (best-effort, même logique que le programme).
-    let financementGuideBuffer: Buffer | undefined;
-    let financementGuideFilename: string | undefined;
-    if (isDriveConfigured()) {
-      try {
-        const guideFile = await getFileAsPdf(FINANCEMENT_GUIDE_DRIVE_ID);
-        financementGuideBuffer = guideFile.buffer;
-        financementGuideFilename = "Guide de financement.pdf";
-      } catch (err) {
-        console.warn("[send-devis] récupération guide de financement échouée:", err);
+      // Guide de financement commun (best-effort, même logique que le programme).
+      let financementGuideBuffer: Buffer | undefined;
+      let financementGuideFilename: string | undefined;
+      if (isDriveConfigured()) {
+        try {
+          const guideFile = await getFileAsPdf(FINANCEMENT_GUIDE_DRIVE_ID);
+          financementGuideBuffer = guideFile.buffer;
+          financementGuideFilename = "Guide de financement.pdf";
+        } catch (err) {
+          console.warn("[send-devis] récupération guide de financement échouée:", err);
+        }
       }
-    }
 
-    const mailRes = await sendDevisToStagiaire({
-      to: trainee.email,
-      prenom: trainee.prenom,
-      nom: trainee.nom,
-      formationNomLong: formation.nomLong,
-      sessionDateDebut: trainee.session.dateDebut,
-      sessionDateFin: trainee.session.dateFin,
-      sessionLieu: trainee.session.lieu,
-      modeFinancement: trainee.modeFinancement,
-      kairosId: trainee.kairosId,
-      pdfBuffer: pdf.buffer,
-      pdfFilename: pdf.filename,
-      programmeBuffer,
-      programmeFilename,
-      financementGuideBuffer,
-      financementGuideFilename,
-    });
-    await recordTraineeEvent(
-      trainee.id,
-      mailRes.success ? "email_sent" : "email_failed",
-      mailRes.success
-        ? `Mail devis envoyé au stagiaire (${trainee.email})`
-        : `Échec mail devis: ${mailRes.error}`,
-      { type: "devis_stagiaire", to: trainee.email, messageId: mailRes.messageId }
-    );
+      const mailRes = await sendDevisToStagiaire({
+        to: trainee.email,
+        prenom: trainee.prenom,
+        nom: trainee.nom,
+        formationNomLong: formation.nomLong,
+        sessionDateDebut: trainee.session.dateDebut,
+        sessionDateFin: trainee.session.dateFin,
+        sessionLieu: trainee.session.lieu,
+        modeFinancement: trainee.modeFinancement,
+        kairosId: trainee.kairosId,
+        pdfBuffer: pdf.buffer,
+        pdfFilename: pdf.filename,
+        programmeBuffer,
+        programmeFilename,
+        financementGuideBuffer,
+        financementGuideFilename,
+      });
+      emailSent = mailRes.success;
+      await recordTraineeEvent(
+        trainee.id,
+        mailRes.success ? "email_sent" : "email_failed",
+        mailRes.success
+          ? `Mail devis envoyé au stagiaire (${trainee.email})`
+          : `Échec mail devis: ${mailRes.error}`,
+        { type: "devis_stagiaire", to: trainee.email, messageId: mailRes.messageId }
+      );
 
-    // === 5. Bascule du step Sellsy + statut EVA ===
-    if (stepDevisEnvoye) {
-      try {
-        await updateOpportunityStep(opportunityId, stepDevisEnvoye);
-        await recordTraineeEvent(trainee.id, "sellsy_synced", `Opportunité passée à l'étape "Devis envoyé" (${stepDevisEnvoye})`, {
-          type: "opportunity_step_updated",
-          stepId: stepDevisEnvoye,
-        });
-      } catch (err) {
-        console.warn("[send-devis] Échec update step Sellsy:", err);
-        await recordTraineeEvent(trainee.id, "sellsy_synced", `Échec update step Sellsy: ${err instanceof Error ? err.message : "?"}`, {
-          type: "opportunity_step_failed",
-        });
+      // === Bascule du step Sellsy + statut EVA (uniquement si on envoie) ===
+      if (stepDevisEnvoye) {
+        try {
+          await updateOpportunityStep(opportunityId, stepDevisEnvoye);
+          await recordTraineeEvent(trainee.id, "sellsy_synced", `Opportunité passée à l'étape "Devis envoyé" (${stepDevisEnvoye})`, {
+            type: "opportunity_step_updated",
+            stepId: stepDevisEnvoye,
+          });
+        } catch (err) {
+          console.warn("[send-devis] Échec update step Sellsy:", err);
+          await recordTraineeEvent(trainee.id, "sellsy_synced", `Échec update step Sellsy: ${err instanceof Error ? err.message : "?"}`, {
+            type: "opportunity_step_failed",
+          });
+        }
       }
-    }
 
-    await updateTrainee(trainee.id, {
-      status: "devis_envoye",
-      dateEnvoiDevis: new Date(),
-    });
-    await recordTraineeEvent(trainee.id, "status_change", "Statut → Devis envoyé", {
-      status: "devis_envoye",
-    });
+      await updateTrainee(trainee.id, {
+        status: "devis_envoye",
+        dateEnvoiDevis: new Date(),
+      });
+      await recordTraineeEvent(trainee.id, "status_change", "Statut → Devis envoyé", {
+        status: "devis_envoye",
+      });
+    } else {
+      // Génération sans envoi : le devis existe dans Sellsy + est archivé sur
+      // Drive, mais le stagiaire n'a rien reçu et le statut ne bouge pas.
+      await recordTraineeEvent(
+        trainee.id,
+        "doc_generated",
+        "Devis généré SANS envoi au stagiaire (à envoyer plus tard)",
+        { type: "devis_generated_not_sent", estimateId }
+      );
+    }
 
     return NextResponse.json({
       success: true,
-      sellsy: {
-        companyId,
-        individualId,
-        opportunityId,
-        estimateId,
-      },
-      emailSent: mailRes.success,
+      sellsy: { companyId, individualId, opportunityId, estimateId },
+      emailSent,
+      sent: send,
     });
   } catch (error) {
     console.error("[/api/admin/trainees/[id]/send-devis] error:", error);
