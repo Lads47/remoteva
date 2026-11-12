@@ -9,6 +9,7 @@ import { Empty, Panel, RankList, Segmented, td, th } from "@/components/admin/st
 import { countryName, fmtDec, fmtDuration, fmtInt, fmtPct } from "@/lib/stat/format";
 import { getOverview, parsePeriod, PERIOD_LABELS, PERIODS, type CardFigure, type Period } from "@/lib/stat/queries";
 import { listSites } from "@/lib/stat/sites";
+import { compterTelechargements, SITES_AVEC_TELECHARGEMENTS } from "@/lib/stat/downloads";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,7 @@ export default async function StatPage({ searchParams }: { searchParams: Promise
   const period = parsePeriod(sp.period);
   const bots = sp.bots === "1";
   const data = await getOverview(site.id, period, bots);
+  const telechargements = SITES_AVEC_TELECHARGEMENTS.includes(site.slug) ? await compterTelechargements(site.id) : null;
 
   const href = (p: { site?: string; period?: Period; bots?: boolean }) => {
     const q = new URLSearchParams({ site: p.site ?? site.slug, period: p.period ?? period });
@@ -45,11 +47,12 @@ export default async function StatPage({ searchParams }: { searchParams: Promise
         </div>
       </header>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className={`grid grid-cols-2 gap-4 ${telechargements ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
         <Card label="Aujourd'hui" f={data.cards.today} />
         <Card label="Hier" f={data.cards.yesterday} />
         <Card label="Ce mois-ci" f={data.cards.thisMonth} />
         <Card label="Mois dernier" f={data.cards.lastMonth} />
+        {telechargements && <CarteTelecharge {...telechargements} />}
       </div>
 
       <Panel
@@ -140,6 +143,30 @@ export default async function StatPage({ searchParams }: { searchParams: Promise
         Robots {bots ? "inclus" : "exclus"} · heures de Paris · conservation 13 mois ·{" "}
         <a href="https://db-ip.com" target="_blank" rel="noopener noreferrer" className="underline">IP Geolocation by DB-IP</a>
       </footer>
+    </div>
+  );
+}
+
+// Installeurs EVAPILOT reçus jusqu'au bout depuis le site (navigateurs ; ni mises à jour
+// automatiques ni robots). Total = depuis la mise en service du comptage.
+function CarteTelecharge({ today, total }: { today: number; total: number }) {
+  return (
+    <div
+      className="rounded-lg border p-5"
+      style={{ backgroundColor: "var(--surface)", borderColor: "var(--line)" }}
+      title="Installeurs EVAPILOT téléchargés jusqu'au bout depuis evadif.com (hors mises à jour automatiques et robots)"
+    >
+      <div className="text-xs uppercase tracking-wide" style={{ color: "var(--muted)" }}>Téléchargé</div>
+      <div className="mt-2 flex items-baseline gap-5">
+        <div>
+          <div className="text-3xl font-bold tabular-nums" style={{ color: "var(--ink)" }}>{fmtInt(today)}</div>
+          <div className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>aujourd&apos;hui</div>
+        </div>
+        <div>
+          <div className="text-3xl font-bold tabular-nums" style={{ color: "var(--ink)" }}>{fmtInt(total)}</div>
+          <div className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>au total</div>
+        </div>
+      </div>
     </div>
   );
 }

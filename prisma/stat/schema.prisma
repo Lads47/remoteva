@@ -30,6 +30,7 @@ model StatSite {
   pageviews StatPageview[]
   events    StatEvent[]
   daily     StatDaily[]
+  downloads StatDownload[]
 
   @@map("sites")
 }
@@ -143,4 +144,21 @@ model StatDaily {
 
   @@unique([siteId, date])
   @@map("daily")
+}
+
+// Téléchargements complets d'un installeur depuis le site (evadif : EVAPILOT).
+// Alimenté par le journal dédié du canal nginx (/api/cron/stat-downloads), sans IP.
+// Pas une donnée personnelle : conservé sans limite (c'est le « total » de la tuile).
+model StatDownload {
+  id      String   @id                                          // empreinte de la ligne du journal
+  siteId  String   @map("site_id")
+  day     String                                                // YYYY-MM-DD Europe/Paris
+  at      DateTime
+  file    String
+  version String?
+
+  site StatSite @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@index([siteId, day])
+  @@map("downloads")
 }
