@@ -231,9 +231,9 @@ function Installation() {
       <p className="mt-2 text-sm" style={{ color: MUTED }}>
         Action <Fort>Système → Raccourci clavier</Fort> sur une touche, une par bouton :{" "}
         <Fort>MARK</Fort> = <Fort>Ctrl + Alt + F12</Fort> (un repère, début ou fin décidé au
-        montage), <Fort>M IN</Fort> = <Fort>Ctrl + Alt + F11</Fort> (un début, certain),{" "}
-        <Fort>M OUT</Fort> = <Fort>Ctrl + Alt + F10</Fort> (une fin, certaine). Seul MARK est
-        indispensable ; M IN et M OUT servent s&apos;il y a la place sur le Stream Deck, ou à la
+        montage), <Fort>MARK IN</Fort> = <Fort>Ctrl + Alt + F11</Fort> (un début, certain),{" "}
+        <Fort>MARK OUT</Fort> = <Fort>Ctrl + Alt + F10</Fort> (une fin, certaine). Seul MARK est
+        indispensable ; MARK IN et MARK OUT servent s&apos;il y a la place sur le Stream Deck, ou à la
         souris quand vMix a deux écrans. Ils marchent même quand vMix est au premier plan ; chaque
         appui compte, sans filtre.
       </p>
@@ -254,10 +254,21 @@ function Installation() {
       <p className="mt-2 text-sm" style={{ color: MUTED }}>
         La fenêtre a deux panneaux, comme EVAPILOT : <Fort>INFOS</Fort> (compteur avec ses IN et
         OUT, dernier événement, vMix, dossier, fichier) et <Fort>RÉGIE</Fort> : <Fort>MARK</Fort>{" "}
-        en orange, <Fort>M IN</Fort> en vert et <Fort>M OUT</Fort> en rouge. Un clic pose le
+        en orange, <Fort>MARK IN</Fort> en vert et <Fort>MARK OUT</Fort> en rouge. Un clic pose le
         repère, comme le Stream Deck. Sans projet choisi, ou si
         le dernier dossier est absent (clé USB), les repères vont dans{" "}
         <Fort>Documents\EVA Mark</Fort>, et la fenêtre le dit.
+      </p>
+      <p className="mt-2 text-sm" style={{ color: MUTED }}>
+        Après des essais, avant la vraie prestation :{" "}
+        <Fort>Fichier → Reset du fichier de repères</Fort> (en dernier dans le menu) efface tout le
+        contenu du fichier en cours, après une confirmation. Le fichier repart à zéro, au même
+        endroit, avec ce qui est en cours dans vMix.
+      </p>
+      <p className="mt-2 text-sm" style={{ color: MUTED }}>
+        Avec vMix 30, le fichier de repères note aussi <Fort>quelle vidéo vMix enregistre</Fort> :
+        son chemin exact suit le début d&apos;enregistrement, ce qui rattache chaque repère à sa
+        vidéo au montage.
       </p>
 
       <Titre>Ensuite, les mises à jour</Titre>
