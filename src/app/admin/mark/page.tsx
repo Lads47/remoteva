@@ -236,10 +236,18 @@ function Installation() {
 
       <Titre>Pendant la prestation</Titre>
       <p className="mt-2 text-sm" style={{ color: MUTED }}>
-        Au lancement, EVA Mark demande le dossier du fichier de repères (le dernier utilisé est
-        proposé). Pour passer à un autre projet d&apos;enregistrement sans quitter :{" "}
-        <Fort>Fichier → Nouveau fichier de repères</Fort> (Ctrl+N). Le fichier en cours se ferme,
-        un nouveau commence dans le dossier choisi, et le compteur repart à zéro.
+        Un double-clic ouvre EVA Mark tout de suite, sans rien demander : il reprend le dernier
+        dossier de projet. Pour un nouveau projet d&apos;enregistrement :{" "}
+        <Fort>Fichier → Nouveau projet</Fort> (Ctrl+N) — c&apos;est là, et seulement là, que
+        l&apos;on choisit le dossier, et c&apos;est lui qui est gardé pour les lancements suivants.
+        Le fichier en cours se ferme, un nouveau commence, et le compteur repart à zéro.
+      </p>
+      <p className="mt-2 text-sm" style={{ color: MUTED }}>
+        La fenêtre a deux panneaux, comme EVAPILOT : <Fort>INFOS</Fort> (compteur, dernier
+        événement, vMix, dossier, fichier) et <Fort>RÉGIE</Fort>, avec le bouton rouge{" "}
+        <Fort>MARK</Fort> : un clic pose un repère, comme le Stream Deck. Sans projet choisi, ou si
+        le dernier dossier est absent (clé USB), les repères vont dans{" "}
+        <Fort>Documents\EVA Mark</Fort>, et la fenêtre le dit.
       </p>
 
       <Titre>Ensuite, les mises à jour</Titre>
