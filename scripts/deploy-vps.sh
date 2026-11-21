@@ -223,6 +223,7 @@ test_route "/admin/flow"      "307"   # désormais protégé par proxy (Phase 1 
 test_route "/admin"           "307"   # nouveau hub EVA, protégé par proxy
 test_route "/presta"          "200"
 test_route "/admin/stat"      "307"   # EVA Stat, protégé par proxy
+test_route "/admin/mark"      "307"   # EVA Mark (page de téléchargement), protégée par proxy
 test_route "/e.js"            "200"   # script de suivi EVA Stat (public)
 test_route "/api/flow/projects?date=2026-04-20" "401"  # missing X-Api-Key
 EOF

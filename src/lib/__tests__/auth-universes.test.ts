@@ -7,7 +7,7 @@ import { EVA_UNIVERSES, isEvaUniverse, universeForPath } from "@/lib/auth";
 
 describe("EVA_UNIVERSES", () => {
   it("contient les univers attendus", () => {
-    for (const u of ["lien", "newsletter", "flow", "stream", "formations", "scoring", "master", "stat", "planning"]) {
+    for (const u of ["lien", "newsletter", "flow", "stream", "formations", "scoring", "master", "stat", "mark", "planning"]) {
       expect(EVA_UNIVERSES).toContain(u);
     }
   });
@@ -38,6 +38,7 @@ describe("universeForPath", () => {
     expect(universeForPath("/admin/reclamations")).toBe("formations");
     expect(universeForPath("/admin/master")).toBe("master");
     expect(universeForPath("/admin/stat")).toBe("stat");
+    expect(universeForPath("/admin/mark")).toBe("mark");
   });
 
   it("gère les sous-routes imbriquées", () => {
@@ -63,7 +64,7 @@ describe("universeForPath", () => {
     const paths = [
       "/admin/lien", "/admin/newsletter", "/admin/flow",
       "/admin/formations", "/admin/reclamations", "/admin/master",
-      "/admin/stat",
+      "/admin/stat", "/admin/mark",
     ];
     for (const p of paths) {
       const u = universeForPath(p);

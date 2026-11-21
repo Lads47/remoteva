@@ -17,6 +17,7 @@ import { ApiError, apiFetch, isAbortError } from "@/lib/api-client";
 // (fond, cartes, texte) sans toucher aux autres. Réversible d'un mot.
 const UNIVERSE_THEME: Record<string, "light" | "dark"> = {
   master: "dark", // pilote — passer à "light" pour revenir au thème clair
+  mark: "dark", // EVA Mark : l'habillage sombre d'EVAPILOT, comme le logiciel (pas de clair)
 };
 // Exceptions par page (priment sur le thème d'univers).
 // Ex : l'espace correction de Master reste en clair même si Master est en sombre.

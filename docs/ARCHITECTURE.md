@@ -1,7 +1,7 @@
 # Architecture evaremote — modèle & garde-fous
 
 > Site interne (evaremote.com) hébergeant plusieurs **univers** (outils) : Lien, Newsletter,
-> Flow, Formations, Master, Stat + les univers externes (Stream, Scoring, Planning). Ce doc fixe le
+> Flow, Formations, Master, Stat, Mark + les univers externes (Stream, Scoring, Planning). Ce doc fixe le
 > modèle pour continuer à développer **sans casser la prod**.
 >
 > **Stat a sa propre base** (`data/stat/stat.db`, schéma `prisma/stat/`) : c'est le premier
@@ -12,6 +12,14 @@
 > qui sert son téléchargement et son canal de mise à jour (`evadif.com/eva-pilot/`, container
 > `evadif-canal`). L'univers `pilot`, sa page `/admin/pilot` et l'ancien canal
 > `evaremote.com/eva-pilot/` (container `eva-pilot-dl`) ont été supprimés.
+>
+> **Mark est de la troisième espèce qu'était Pilot** : EVA Mark est un **logiciel Windows** de
+> régie (dépôt `eva-mark`) ; sa page `/admin/mark` n'est qu'une vitrine de téléchargement, qui lit
+> le manifeste du canal de mise à jour (`EVA_MARK_CHANNEL_URL`, posée sur le compose du VPS — le
+> chemin du canal contient un jeton, ce dépôt est public). Le canal est servi par un container
+> nginx à lui (`eva-mark-dl`, `/docker/eva-mark/`), routé par Traefik sur
+> `evaremote.com/eva-mark/` — **hors de cette application**. Les versions y sont mises en ligne
+> par `tools/publier.ps1` du dépôt eva-mark ; rien à déployer ici pour une nouvelle version.
 
 ## Le modèle : monolithe modulaire
 evaremote est un **monolithe modulaire** (Next.js + Prisma/SQLite), et c'est un choix **assumé** :

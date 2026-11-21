@@ -27,6 +27,9 @@ export const EVA_UNIVERSES = [
   "scoring",
   "master",
   "stat",
+  // EVA Mark : logiciel Windows de régie ; ici seulement sa page de
+  // téléchargement (/admin/mark), qui lit le canal de mise à jour.
+  "mark",
   // Planning : application separee servie sous evaremote.com/planning.
   // Comme "stream", l'univers est declare ici pour figurer dans le JWT et
   // dans /admin/users, mais n'apparait PAS dans universeForPath() ni dans
@@ -163,5 +166,6 @@ export function universeForPath(pathname: string): EvaUniverse | null {
   if (pathname.startsWith("/admin/reclamations")) return "formations";
   if (pathname.startsWith("/admin/master")) return "master";
   if (pathname.startsWith("/admin/stat")) return "stat";
+  if (pathname.startsWith("/admin/mark")) return "mark";
   return null;
 }

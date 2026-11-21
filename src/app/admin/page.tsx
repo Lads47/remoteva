@@ -100,6 +100,13 @@ const TILES: Tile[] = [
     description:
       "Audience de nos sites : LADS, wisio, evadif. Visites, pages, pays, référents, visiteurs en direct.",
   },
+  {
+    universe: "mark",
+    href: "/admin/mark",
+    title: "EVA Mark",
+    description:
+      "Repères de régie vMix : le bouton MARK du Stream Deck et l'écoute de vMix. Téléchargement du logiciel et notes de version.",
+  },
 ];
 
 export default async function AdminHubPage() {
