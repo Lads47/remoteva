@@ -249,7 +249,14 @@ function Installation() {
         dossier de projet. Pour un nouveau projet d&apos;enregistrement :{" "}
         <Fort>Fichier → Nouveau projet</Fort> (Ctrl+N) — c&apos;est là, et seulement là, que
         l&apos;on choisit le dossier, et c&apos;est lui qui est gardé pour les lancements suivants.
-        Le fichier en cours se ferme, un nouveau commence, et le compteur repart à zéro.
+        Le compteur repart à zéro.
+      </p>
+      <p className="mt-2 text-sm" style={{ color: MUTED }}>
+        <Fort>Un fichier de repères par projet</Fort> : <Fort>marks_&lt;nom du PC&gt;.txt</Fort>{" "}
+        dans le dossier du projet. Chaque lancement le continue (la séance s&apos;ajoute à la
+        suite) : un redémarrage en pleine journée ne coupe pas le projet en deux. Choisir le
+        dossier d&apos;un projet existant dans Nouveau projet le reprend. Plusieurs régies peuvent
+        écrire dans le même dossier partagé : chacune a son fichier.
       </p>
       <p className="mt-2 text-sm" style={{ color: MUTED }}>
         La fenêtre a deux panneaux, comme EVAPILOT : <Fort>INFOS</Fort> (compteur avec ses IN et
@@ -262,13 +269,15 @@ function Installation() {
       <p className="mt-2 text-sm" style={{ color: MUTED }}>
         Après des essais, avant la vraie prestation :{" "}
         <Fort>Fichier → Reset du fichier de repères</Fort> (en dernier dans le menu) efface tout le
-        contenu du fichier en cours, après une confirmation. Le fichier repart à zéro, au même
-        endroit, avec ce qui est en cours dans vMix.
+        fichier du projet, toutes séances comprises, après une confirmation. Le fichier repart à
+        zéro, au même endroit, avec ce qui est en cours dans vMix.
       </p>
       <p className="mt-2 text-sm" style={{ color: MUTED }}>
-        Avec vMix 30, le fichier de repères note aussi <Fort>quelle vidéo vMix enregistre</Fort> :
-        son chemin exact suit le début d&apos;enregistrement, ce qui rattache chaque repère à sa
-        vidéo au montage.
+        Ce que le fichier note de vMix, pour le montage : l&apos;enregistrement et{" "}
+        <Fort>le chemin exact de la vidéo enregistrée</Fort> (vMix 30), les synthés à
+        l&apos;antenne, le MultiCorder, et <Fort>le découpage du direct</Fort> : pendant
+        l&apos;enregistrement, chaque changement de plan (caméra, PowerPoint, vidéo…), à la
+        seconde près.
       </p>
 
       <Titre>Ensuite, les mises à jour</Titre>
