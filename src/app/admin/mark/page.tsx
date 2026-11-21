@@ -227,11 +227,20 @@ function Installation() {
         </li>
       </ol>
 
-      <Titre>Le bouton du Stream Deck</Titre>
+      <Titre>Les boutons du Stream Deck</Titre>
       <p className="mt-2 text-sm" style={{ color: MUTED }}>
-        Action <Fort>Système → Raccourci clavier</Fort> sur une touche, raccourci{" "}
-        <Fort>Ctrl + Alt + F12</Fort>, titre <Fort>MARK</Fort>. Il marche même quand vMix est au
-        premier plan ; chaque appui compte, sans filtre.
+        Action <Fort>Système → Raccourci clavier</Fort> sur une touche, une par bouton :{" "}
+        <Fort>MARK</Fort> = <Fort>Ctrl + Alt + F12</Fort> (un repère, début ou fin décidé au
+        montage), <Fort>M IN</Fort> = <Fort>Ctrl + Alt + F11</Fort> (un début, certain),{" "}
+        <Fort>M OUT</Fort> = <Fort>Ctrl + Alt + F10</Fort> (une fin, certaine). Seul MARK est
+        indispensable ; M IN et M OUT servent s&apos;il y a la place sur le Stream Deck, ou à la
+        souris quand vMix a deux écrans. Ils marchent même quand vMix est au premier plan ; chaque
+        appui compte, sans filtre.
+      </p>
+      <p className="mt-2 text-sm" style={{ color: MUTED }}>
+        Pour changer une combinaison : menu <Fort>Raccourci</Fort> d&apos;EVA Mark, clic sur le
+        bouton, puis la nouvelle combinaison — elle est essayée et gardée tout de suite. Réglez
+        ensuite la même sur le Stream Deck.
       </p>
 
       <Titre>Pendant la prestation</Titre>
@@ -243,9 +252,10 @@ function Installation() {
         Le fichier en cours se ferme, un nouveau commence, et le compteur repart à zéro.
       </p>
       <p className="mt-2 text-sm" style={{ color: MUTED }}>
-        La fenêtre a deux panneaux, comme EVAPILOT : <Fort>INFOS</Fort> (compteur, dernier
-        événement, vMix, dossier, fichier) et <Fort>RÉGIE</Fort>, avec le bouton rouge{" "}
-        <Fort>MARK</Fort> : un clic pose un repère, comme le Stream Deck. Sans projet choisi, ou si
+        La fenêtre a deux panneaux, comme EVAPILOT : <Fort>INFOS</Fort> (compteur avec ses IN et
+        OUT, dernier événement, vMix, dossier, fichier) et <Fort>RÉGIE</Fort> : <Fort>MARK</Fort>{" "}
+        en orange, <Fort>M IN</Fort> en vert et <Fort>M OUT</Fort> en rouge. Un clic pose le
+        repère, comme le Stream Deck. Sans projet choisi, ou si
         le dernier dossier est absent (clé USB), les repères vont dans{" "}
         <Fort>Documents\EVA Mark</Fort>, et la fenêtre le dit.
       </p>
