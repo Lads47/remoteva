@@ -232,8 +232,10 @@ function Installation() {
         Action <Fort>Système → Raccourci clavier</Fort> sur une touche, une par bouton :{" "}
         <Fort>MARK</Fort> = <Fort>Ctrl + Alt + F12</Fort> (un repère, début ou fin décidé au
         montage), <Fort>MARK IN</Fort> = <Fort>Ctrl + Alt + F11</Fort> (un début, certain),{" "}
-        <Fort>MARK OUT</Fort> = <Fort>Ctrl + Alt + F10</Fort> (une fin, certaine). Seul MARK est
-        indispensable ; MARK IN et MARK OUT servent s&apos;il y a la place sur le Stream Deck, ou à la
+        <Fort>MARK OUT</Fort> = <Fort>Ctrl + Alt + F10</Fort> (une fin, certaine),{" "}
+        <Fort>SHORT</Fort> = <Fort>Ctrl + Alt + F9</Fort> (un extrait vertical : au montage, une
+        séquence « Short » de 2 minutes en 9:16 autour du repère). Seul MARK est
+        indispensable ; les autres servent s&apos;il y a la place sur le Stream Deck, ou à la
         souris quand vMix a deux écrans. Ils marchent même quand vMix est au premier plan ; chaque
         appui compte, sans filtre.
       </p>
@@ -259,9 +261,10 @@ function Installation() {
         écrire dans le même dossier partagé : chacune a son fichier.
       </p>
       <p className="mt-2 text-sm" style={{ color: MUTED }}>
-        La fenêtre a deux panneaux, comme EVAPILOT : <Fort>INFOS</Fort> (compteur avec ses IN et
-        OUT, dernier événement, vMix, dossier, fichier) et <Fort>RÉGIE</Fort> : <Fort>MARK</Fort>{" "}
-        en orange, <Fort>MARK IN</Fort> en vert et <Fort>MARK OUT</Fort> en rouge. Un clic pose le
+        La fenêtre a deux panneaux, comme EVAPILOT : <Fort>INFOS</Fort> (compteur avec ses IN,
+        OUT et SHORT, dernier événement, vMix, dossier, fichier) et <Fort>RÉGIE</Fort> :{" "}
+        <Fort>MARK</Fort> en orange, <Fort>MARK IN</Fort> en vert, <Fort>MARK OUT</Fort> en rouge
+        et <Fort>SHORT</Fort> en violet. Un clic pose le
         repère, comme le Stream Deck. Sans projet choisi, ou si
         le dernier dossier est absent (clé USB), les repères vont dans{" "}
         <Fort>Documents\EVA Mark</Fort>, et la fenêtre le dit.
