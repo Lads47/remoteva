@@ -198,13 +198,18 @@ function PrintInner({ id }: { id: string }) {
           box-shadow: 0 2px 20px rgba(31, 34, 68, 0.15);
           position: relative;
           box-sizing: border-box;
+          display: flex;
+          flex-direction: column;
         }
 
         @media print {
           body { background: white !important; }
           .page {
             width: auto;
-            min-height: 0;
+            /* On garde la hauteur A4 (et non min-height:0) pour que le footer,
+               poussé par margin-top:auto, reste épinglé en bas de la feuille.
+               box-sizing:border-box => 297mm = exactement 1 page (vérifié). */
+            min-height: 297mm;
             margin: 0;
             padding: 15mm 15mm 20mm 15mm;
             box-shadow: none;
@@ -310,15 +315,17 @@ function PrintInner({ id }: { id: string }) {
         }
 
         .footer {
-          position: absolute;
-          bottom: 10mm; left: 15mm; right: 15mm;
+          /* Dans le flux normal, poussé en bas de page par margin-top:auto
+             (flex column). Ne peut donc jamais chevaucher l'encadré de
+             signature : il vient toujours APRÈS lui. */
+          margin-top: auto;
+          padding-top: 10px;
           text-align: center;
           font-size: 9px;
           color: var(--eva-blue);
           line-height: 1.5;
           font-family: var(--font-jetbrains-mono), 'JetBrains Mono', monospace;
           border-top: 1px solid #e5e7eb;
-          padding-top: 4px;
         }
 
         /* Barre d'outils (uniquement écran) */
