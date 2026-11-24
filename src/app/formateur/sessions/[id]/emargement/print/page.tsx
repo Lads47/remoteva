@@ -417,8 +417,6 @@ function DayPage({ day, data }: { day: string; data: Payload }) {
     return h;
   }
 
-  const totalHeures = grid.rows.reduce((sum, row) => sum + hoursOf(row), 0);
-
   function renderSignCell(status: Status) {
     if (status === "absent") return <span className="absent">ABSENT</span>;
     return "";
@@ -485,7 +483,9 @@ function DayPage({ day, data }: { day: string; data: Payload }) {
               <td></td>
               <td></td>
               <td>TOTAL HEURES -<br />STAGIAIRES</td>
-              <td>{fmtHours(totalHeures)}</td>
+              {/* Total volontairement laissé vierge : le formateur l'inscrit à
+                  la main (il certifie le total réel en fin de session). */}
+              <td></td>
             </tr>
           )}
         </tbody>
