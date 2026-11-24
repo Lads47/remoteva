@@ -403,10 +403,17 @@ function DayPage({ day, data }: { day: string; data: Payload }) {
     return c?.status ?? null;
   }
 
+  // « Présent par défaut » : une demi-journée est comptée comme faite SAUF si
+  // elle est explicitement marquée « absent ». La signature du stagiaire dans
+  // la case fait foi de la présence ; le formateur ne pointe que les absences.
+  // => la feuille imprimée dès le matin affiche déjà les heures prévues
+  //    complètes (ex. 7 h/jour), sans avoir à cocher quoi que ce soit au
+  //    préalable. Marquer « absent » retire les heures de la demi-journée
+  //    concernée et affiche ABSENT dans la case (cf. renderSignCell).
   function hoursOf(row: TraineeRow): number {
     let h = 0;
-    if (statusOf(row, "morning") === "present") h += HOURS_PER_SLOT;
-    if (statusOf(row, "afternoon") === "present") h += HOURS_PER_SLOT;
+    if (statusOf(row, "morning") !== "absent") h += HOURS_PER_SLOT;
+    if (statusOf(row, "afternoon") !== "absent") h += HOURS_PER_SLOT;
     return h;
   }
 
