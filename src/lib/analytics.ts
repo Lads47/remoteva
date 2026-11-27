@@ -422,6 +422,13 @@ export async function getQualiopiOverview(year: number): Promise<QualiopiOvervie
 //
 // Pivot temporel : sessions dont dateFin tombe dans l'année ET déjà passées
 // (même filtre que les autres analytics — via yearRange()).
+//
+// Ne comptent que les stagiaires RÉELLEMENT FORMÉS (27/11, Jérôme : un inscrit
+// IA apparaissait alors qu'aucune session IA n'a eu lieu — la session n'était
+// pas encore passée en « annulée ») : statut « terminé », ou au moins une
+// demi-journée « présent » à l'émargement (un abandon en cours de formation a
+// des heures réalisées). Une session, une formation sans stagiaire formé ne
+// comptent pas.
 
 export interface BpfBreakdown {
   key: string;
@@ -457,6 +464,11 @@ export interface BpfStats {
   byFormation: BpfFormationRow[];
 }
 
+/** Ce stagiaire a-t-il réellement été formé (au sens du BPF) ? */
+export function stagiaireFormePourBpf(t: { status: string; presences: number }): boolean {
+  return t.status === "termine" || t.presences > 0;
+}
+
 function bumpBreakdown(map: Map<string, BpfBreakdown>, rawKey: string, count: number, heures: number, ca: number) {
   const key = rawKey.trim() || "Non renseigné";
   const cur = map.get(key) ?? { key, count: 0, heures: 0, ca: 0 };
@@ -477,6 +489,7 @@ export async function getBpfStats(year: number): Promise<BpfStats> {
       trainees: {
         where: { isTest: false },
         select: {
+          status: true,
           psh: true,
           statutActuel: true,
           inscriptionType: true,
@@ -514,7 +527,13 @@ export async function getBpfStats(year: number): Promise<BpfStats> {
   };
   const byFormationMap = new Map<string, FormationAcc>();
 
+  let totalSessions = 0;
   for (const s of sessions) {
+    const formes = s.trainees.filter((t) =>
+      stagiaireFormePourBpf({ status: t.status, presences: t.attendances.length })
+    );
+    if (formes.length === 0) continue; // session sans stagiaire formé : hors BPF
+    totalSessions++;
     formationsDistinctes.add(s.formationId);
     const heuresNominalesParStagiaire = s.formation.dureeJours * 7;
 
@@ -528,7 +547,7 @@ export async function getBpfStats(year: number): Promise<BpfStats> {
     };
     accF.sessions.add(s.id);
 
-    for (const t of s.trainees) {
+    for (const t of formes) {
       totalTrainees++;
       if (t.psh) traineesPSH++;
 
@@ -581,7 +600,7 @@ export async function getBpfStats(year: number): Promise<BpfStats> {
   return {
     year,
     totalTrainees,
-    totalSessions: sessions.length,
+    totalSessions,
     totalFormations: formationsDistinctes.size,
     totalHeuresStagiaires: Math.round(totalHeuresStagiaires * 10) / 10,
     totalHeuresStagiairesNominales,

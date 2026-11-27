@@ -253,3 +253,33 @@ describe("getPedagogyStats", () => {
     expect(stats.tauxAtteinte).toBe(0);
   });
 });
+
+// 27/11 — le BPF ne compte que les stagiaires réellement formés.
+import { getBpfStats, stagiaireFormePourBpf } from "../analytics";
+
+describe("BPF : stagiaires réellement formés", () => {
+  it("terminé, ou au moins une présence ; jamais un simple inscrit", () => {
+    expect(stagiaireFormePourBpf({ status: "termine", presences: 0 })).toBe(true);
+    expect(stagiaireFormePourBpf({ status: "abandonne", presences: 2 })).toBe(true);
+    expect(stagiaireFormePourBpf({ status: "devis_envoye", presences: 0 })).toBe(false);
+    expect(stagiaireFormePourBpf({ status: "abandonne", presences: 0 })).toBe(false);
+  });
+
+  it("une session passée sans stagiaire formé ne compte ni stagiaire, ni session, ni formation", async () => {
+    const stagiaire = (status: string, presences: number) => ({
+      status, psh: false, statutActuel: "Salarié", inscriptionType: "entreprise",
+      modeFinancement: "OPCO", opcoDetecte: "", montantHT: 1000,
+      attendances: Array.from({ length: presences }, (_, i) => ({ id: `a${i}` })),
+    });
+    prismaMock.session.findMany.mockResolvedValue([
+      { id: "ia", formationId: "fIA", formation: { code: "IAN1", nomLong: "IA", dureeJours: 1 }, trainees: [stagiaire("devis_envoye", 0)] },
+      { id: "vmix", formationId: "fV", formation: { code: "vMixV1", nomLong: "vMix", dureeJours: 5 }, trainees: [stagiaire("termine", 10)] },
+    ]);
+    const bpf = await getBpfStats(2026);
+    expect(bpf.totalTrainees).toBe(1);
+    expect(bpf.totalSessions).toBe(1);
+    expect(bpf.totalFormations).toBe(1);
+    expect(bpf.byFormation.map((f) => f.code)).toEqual(["vMixV1"]);
+    expect(bpf.totalHeuresStagiaires).toBe(35);
+  });
+});
