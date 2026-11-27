@@ -17,6 +17,7 @@ import { getDriveAttachments, getDriveDefaultTemplates, getSellsyStepMapping } f
 import prisma from "./db";
 import { provisionSessionDriveFolder } from "./drive-provisioning";
 import { syncGlobalEvaluationPdfToDrive } from "./evaluation-drive";
+import { completerNotesGlobales } from "./evaluation-entries";
 import { replaceTextInDoc } from "./google-docs";
 import {
   copyDriveFile,
@@ -32,6 +33,10 @@ import { updateOpportunityStep } from "./sellsy";
 import { recordTraineeEvent } from "./trainee";
 
 const INSCRIPTIONS_FOLDER_NAME = "01_INSCRIPTIONS_CONVENTIONS";
+// Certificat de réalisation et attestation de fin de formation : le dossier de
+// la session prévu pour eux (drive-provisioning.ts). Jusqu'au 27/11 ils étaient
+// rangés avec les conventions, dans 01_INSCRIPTIONS_CONVENTIONS/<Stagiaire>/.
+const ATTESTATIONS_FOLDER_NAME = "04_ATTESTATIONS_BILAN";
 
 export type DocumentType = "convention" | "contrat" | "convocation" | "certificat" | "attestation";
 
@@ -202,10 +207,15 @@ export async function generateTraineeDocument(
   const sessionFolderId = provision.driveFolderId;
 
   try {
-    // Sous-dossier 01_INSCRIPTIONS_CONVENTIONS / <Prénom Nom>
-    const inscFolder = await findOrCreateFolder(sessionFolderId, INSCRIPTIONS_FOLDER_NAME);
     const fullName = `${trainee.prenom} ${trainee.nom}`.trim();
-    const traineeFolder = await findOrCreateFolder(inscFolder.id, fullName);
+    // Certificat / attestation -> 04_ATTESTATIONS_BILAN (le nom du stagiaire est
+    // dans le nom du fichier). Les autres -> 01_INSCRIPTIONS_CONVENTIONS/<Prénom Nom>.
+    const traineeFolder = type === "certificat" || type === "attestation"
+      ? await findOrCreateFolder(sessionFolderId, ATTESTATIONS_FOLDER_NAME)
+      : await findOrCreateFolder(
+          (await findOrCreateFolder(sessionFolderId, INSCRIPTIONS_FOLDER_NAME)).id,
+          fullName
+        );
 
     // Construit le nom de fichier final
     const typeLabel = DOCUMENT_TYPE_LABELS[type];
@@ -1013,7 +1023,10 @@ export async function promoteTraineeToTermine(traineeId: string): Promise<Promot
 }
 
 export async function generateAndMailEndOfTrainingDocs(
-  traineeId: string
+  traineeId: string,
+  // 27/11 : re-générer SANS écrire au stagiaire (correction après coup, quand
+  // il a déjà reçu ses documents). Les docs sont refaits sur Drive, rien n'est envoyé.
+  { envoyerMail = true }: { envoyerMail?: boolean } = {}
 ): Promise<GenerateAndMailEndOfTrainingResult | GenerateAndMailEndOfTrainingError> {
   const trainee = await prisma.trainee.findUnique({
     where: { id: traineeId },
@@ -1022,6 +1035,14 @@ export async function generateAndMailEndOfTrainingDocs(
   if (!trainee) return { ok: false, error: "Stagiaire introuvable" };
   if (!trainee.email) return { ok: false, error: "Email stagiaire manquant" };
 
+  // 0. Fiches aux critères tous notés mais sans note globale : la compléter
+  //    avant de calculer les objectifs et la synthèse (evaluation-entries.ts).
+  try {
+    await completerNotesGlobales(traineeId);
+  } catch (err) {
+    console.warn("[generateAndMailEndOfTrainingDocs] complétion des notes globales échouée:", err);
+  }
+
   // 1. Génère le certificat
   const certGen = await generateTraineeDocument(traineeId, "certificat");
   if (!certGen.ok) return { ok: false, error: `Certificat : ${certGen.error}` };
@@ -1029,6 +1050,29 @@ export async function generateAndMailEndOfTrainingDocs(
   // 2. Génère l'attestation
   const attGen = await generateTraineeDocument(traineeId, "attestation");
   if (!attGen.ok) return { ok: false, error: `Attestation : ${attGen.error}` };
+
+  // Sans mail : on archive la synthèse et on s'arrête là.
+  if (!envoyerMail) {
+    await recordTraineeEvent(
+      traineeId,
+      "doc_generated",
+      "Documents fin de formation re-générés sur Drive (sans envoi au stagiaire) — certificat + attestation",
+      { type: "end_of_training", sansEnvoi: true }
+    );
+    try {
+      const syncRes = await syncGlobalEvaluationPdfToDrive(traineeId);
+      if (!syncRes.ok) console.warn("[generateAndMailEndOfTrainingDocs] sync synthèse eval Drive échoué:", syncRes.error);
+    } catch (err) {
+      console.warn("[generateAndMailEndOfTrainingDocs] sync synthèse eval Drive a throw:", err);
+    }
+    return {
+      ok: true,
+      certificatDriveFileId: certGen.driveFileId,
+      attestationDriveFileId: attGen.driveFileId,
+      emailSent: false,
+      emailError: null,
+    };
+  }
 
   // 3. Exporte les 2 docs en PDF (PJ mail)
   let certificatPdfBuffer: Buffer;

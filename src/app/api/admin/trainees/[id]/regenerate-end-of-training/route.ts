@@ -8,6 +8,9 @@
 //   - Correction de données stagiaire (nom mal saisi, dates, etc.)
 //   - Changement de l'override "objectifs atteints" après coup
 //
+// Corps optionnel `{ "envoyerMail": false }` (27/11) : re-génère sur Drive sans
+// écrire au stagiaire.
+//
 // Contrairement au trigger automatique au passage à "termine" (qui skip
 // si docs déjà envoyés pour éviter le spam), cet endpoint force la
 // regénération sans condition.
@@ -16,13 +19,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { generateAndMailEndOfTrainingDocs } from "@/lib/trainee-documents";
 
-export async function POST(_request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function POST(request: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
 
   try {
     const { id } = await ctx.params;
-    const res = await generateAndMailEndOfTrainingDocs(id);
+    const body = await request.json().catch(() => null);
+    const envoyerMail = body?.envoyerMail !== false;
+    const res = await generateAndMailEndOfTrainingDocs(id, { envoyerMail });
     if (!res.ok) {
       return NextResponse.json({ error: res.error }, { status: 500 });
     }
@@ -31,6 +36,7 @@ export async function POST(_request: NextRequest, ctx: { params: Promise<{ id: s
       certificatDriveFileId: res.certificatDriveFileId,
       attestationDriveFileId: res.attestationDriveFileId,
       emailSent: res.emailSent,
+      envoyerMail,
       emailError: res.emailError,
     });
   } catch (error) {

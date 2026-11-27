@@ -308,15 +308,17 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
-  async function handleRegenerateEndOfTraining() {
+  async function handleRegenerateEndOfTraining(envoyerMail = true) {
     if (!trainee) return;
-    if (!confirm(
-      `Re-générer le certificat de réalisation + l'attestation de fin de formation pour ${trainee.prenom} ${trainee.nom} et lui re-envoyer par mail ?\n\n` +
-      "Utile après :\n" +
-      "  • Mise à jour du template (formulation, charte…)\n" +
-      "  • Correction de données (nom, dates, atteinte des objectifs…)\n\n" +
-      "Le stagiaire recevra un nouveau mail avec les 2 PDF mis à jour."
-    )) {
+    const question = envoyerMail
+      ? `Re-générer le certificat de réalisation + l'attestation de fin de formation pour ${trainee.prenom} ${trainee.nom} et lui re-envoyer par mail ?\n\n` +
+        "Utile après :\n" +
+        "  • Mise à jour du template (formulation, charte…)\n" +
+        "  • Correction de données (nom, dates, atteinte des objectifs…)\n\n" +
+        "Le stagiaire recevra un nouveau mail avec les 2 PDF mis à jour."
+      : `Re-générer le certificat de réalisation + l'attestation de fin de formation pour ${trainee.prenom} ${trainee.nom}, SANS lui envoyer de mail ?\n\n` +
+        "Les nouveaux documents seront rangés dans le dossier Drive de la session (04_ATTESTATIONS_BILAN).";
+    if (!confirm(question)) {
       return;
     }
     setActionLoading(true);
@@ -324,13 +326,15 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
     try {
       const data = await apiFetch<{ emailSent?: boolean }>(
         `/api/admin/trainees/${id}/regenerate-end-of-training`,
-        { method: "POST" }
+        { method: "POST", body: { envoyerMail } }
       );
       setActionFeedback({
         type: "success",
-        msg: data.emailSent
-          ? "Certificat + attestation re-générés et re-envoyés au stagiaire ✓"
-          : "Documents re-générés mais l'envoi du mail a échoué — vérifie les logs.",
+        msg: !envoyerMail
+          ? "Certificat + attestation re-générés sur Drive, sans mail au stagiaire ✓"
+          : data.emailSent
+            ? "Certificat + attestation re-générés et re-envoyés au stagiaire ✓"
+            : "Documents re-générés mais l'envoi du mail a échoué — vérifie les logs.",
       });
       await refresh();
     } catch (err) {
@@ -593,18 +597,28 @@ export default function TraineeDetailPage({ params }: { params: Promise<{ id: st
               Documents de fin envoyés — re-génération possible
             </div>
             <div className="text-xs mt-0.5 font-jetbrains" style={{ color: "#15803d" }}>
-              Re-génère le certificat + l&apos;attestation et les renvoie au stagiaire.
+              Re-génère le certificat + l&apos;attestation et les renvoie au stagiaire — ou seulement sur Drive, sans mail.
               Utile après mise à jour de template ou correction de données (override objectifs, dates, etc.).
             </div>
           </div>
-          <button
-            onClick={handleRegenerateEndOfTraining}
-            disabled={actionLoading}
-            className="px-4 py-2 rounded-full text-sm font-medium text-white cursor-pointer disabled:opacity-50 whitespace-nowrap"
-            style={{ backgroundColor: "#166534" }}
-          >
-            {actionLoading ? "Re-génération..." : "🔄 Re-générer les docs de fin"}
-          </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => handleRegenerateEndOfTraining(false)}
+              disabled={actionLoading}
+              className="px-4 py-2 rounded-full text-sm font-medium cursor-pointer disabled:opacity-50 whitespace-nowrap border"
+              style={{ color: "#166534", borderColor: "#166534", backgroundColor: "white" }}
+            >
+              Re-générer sans envoyer
+            </button>
+            <button
+              onClick={() => handleRegenerateEndOfTraining(true)}
+              disabled={actionLoading}
+              className="px-4 py-2 rounded-full text-sm font-medium text-white cursor-pointer disabled:opacity-50 whitespace-nowrap"
+              style={{ backgroundColor: "#166534" }}
+            >
+              {actionLoading ? "Re-génération..." : "🔄 Re-générer les docs de fin"}
+            </button>
+          </div>
         </div>
       )}
 

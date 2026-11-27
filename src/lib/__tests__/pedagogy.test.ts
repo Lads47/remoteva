@@ -84,3 +84,36 @@ describe("computeObjectifs", () => {
     });
   });
 });
+
+// 27/11 — note globale d'un exercice : la suggestion, et son application
+// quand le formateur a noté tous les critères sans choisir de note globale.
+import { noteGlobaleEffective, suggererNoteGlobale } from "../pedagogy";
+
+describe("suggererNoteGlobale", () => {
+  it("rien à suggérer sans critère, ou tant qu'un critère n'est pas noté", () => {
+    expect(suggererNoteGlobale([])).toBeNull();
+    expect(suggererNoteGlobale(["acquis", ""])).toBeNull();
+  });
+  it("tous acquis → acquis", () => {
+    expect(suggererNoteGlobale(["acquis", "acquis", "acquis"])).toBe("acquis");
+  });
+  it("un non acquis empêche « acquis » même au-dessus de 80 %", () => {
+    expect(suggererNoteGlobale(["acquis", "acquis", "acquis", "acquis", "acquis", "non_acquis"])).toBe("en_cours");
+  });
+  it("sous 50 % → non acquis", () => {
+    expect(suggererNoteGlobale(["non_acquis", "non_acquis", "acquis"])).toBe("non_acquis");
+  });
+});
+
+describe("noteGlobaleEffective", () => {
+  it("la note du formateur prime toujours", () => {
+    expect(noteGlobaleEffective("en_cours", ["acquis", "acquis"])).toBe("en_cours");
+  });
+  it("vide + tous les critères notés → la suggestion (le cas de la session vMix de novembre)", () => {
+    expect(noteGlobaleEffective("", ["acquis", "acquis"])).toBe("acquis");
+    expect(noteGlobaleEffective("", ["non_acquis", "non_acquis"])).toBe("non_acquis");
+  });
+  it("vide + grille incomplète → reste vide (non noté)", () => {
+    expect(noteGlobaleEffective("", ["acquis", ""])).toBe("");
+  });
+});

@@ -9,6 +9,7 @@
 
 import prisma from "./db";
 import { isValidScore, type ScoreValue } from "./evaluation-grids";
+import { noteGlobaleEffective } from "./pedagogy";
 
 // === Auth helper ===
 
@@ -258,6 +259,16 @@ export async function upsertEvaluation(input: UpsertEvaluationInput): Promise<st
     throw new Error(`Note globale invalide: "${input.globalNote}"`);
   }
 
+  // Tous les critères notés mais note globale laissée vide : on enregistre la
+  // suggestion (pedagogy.ts, noteGlobaleEffective) — sinon la synthèse et
+  // l'attestation comptent l'exercice « non noté ».
+  const criteres = await prisma.evaluationCriterion.findMany({
+    where: { exerciseId: input.exerciseId },
+    select: { id: true },
+  });
+  const scoreDe = new Map(input.scores.map((s) => [s.criterionId, s.score]));
+  const globalNote = noteGlobaleEffective(input.globalNote, criteres.map((c) => scoreDe.get(c.id) ?? ""));
+
   const result = await prisma.$transaction(async (tx) => {
     // Upsert fiche
     const evaluation = await tx.traineeExerciseEvaluation.upsert({
@@ -269,7 +280,7 @@ export async function upsertEvaluation(input: UpsertEvaluationInput): Promise<st
       },
       update: {
         evaluatorId: input.evaluatorId,
-        globalNote: input.globalNote as ScoreValue | "",
+        globalNote: globalNote as ScoreValue | "",
         observations: input.observations,
         // Reset l'état Drive : à chaque modif, la sync précédente est obsolète
         driveSyncedAt: null,
@@ -279,7 +290,7 @@ export async function upsertEvaluation(input: UpsertEvaluationInput): Promise<st
         traineeId: input.traineeId,
         exerciseId: input.exerciseId,
         evaluatorId: input.evaluatorId,
-        globalNote: input.globalNote as ScoreValue | "",
+        globalNote: globalNote as ScoreValue | "",
         observations: input.observations,
       },
     });
@@ -302,4 +313,33 @@ export async function upsertEvaluation(input: UpsertEvaluationInput): Promise<st
     return evaluation.id;
   });
   return result;
+}
+
+/**
+ * Rattrapage : les fiches d'un stagiaire dont tous les critères sont notés mais
+ * la note globale vide reçoivent la note suggérée (même règle qu'à
+ * l'enregistrement). Appelé avant de générer les documents de fin de formation,
+ * pour les fiches saisies avant le 27/11. Renvoie le nombre de fiches complétées.
+ */
+export async function completerNotesGlobales(traineeId: string): Promise<number> {
+  const fiches = await prisma.traineeExerciseEvaluation.findMany({
+    where: { traineeId, globalNote: "" },
+    select: {
+      id: true,
+      scores: { select: { criterionId: true, score: true } },
+      exercise: { select: { criteria: { select: { id: true } } } },
+    },
+  });
+  let n = 0;
+  for (const f of fiches) {
+    const scoreDe = new Map(f.scores.map((s) => [s.criterionId, s.score]));
+    const note = noteGlobaleEffective("", f.exercise.criteria.map((c) => scoreDe.get(c.id) ?? ""));
+    if (!note) continue;
+    await prisma.traineeExerciseEvaluation.update({
+      where: { id: f.id },
+      data: { globalNote: note, driveSyncedAt: null },
+    });
+    n++;
+  }
+  return n;
 }

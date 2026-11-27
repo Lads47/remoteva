@@ -51,3 +51,42 @@ export function computeObjectifs({ override, expectedCount, notes }: ComputeObje
   if (ratio >= 0.5) return "partiellement_atteints";
   return "non_atteints";
 }
+
+// Note globale d'un exercice suggérée d'après les notes de ses critères.
+// Système pondéré :
+//   - Points : acquis=2, en_cours=1, non_acquis=0
+//   - ratio >= 80 % ET aucun non_acquis -> "acquis"
+//   - ratio >= 50 %                      -> "en_cours"
+//   - sinon                              -> "non_acquis"
+// Le « filet de sécurité » sur le non_acquis empêche de promouvoir à "acquis"
+// si un critère bloquant reste non maîtrisé.
+//
+// Renvoie null tant qu'un critère n'est pas noté (ou s'il n'y en a aucun).
+//
+// Partagée par la fiche formateur (la suggestion affichée) et le serveur, qui
+// l'APPLIQUE quand le formateur a noté tous les critères mais laissé la note
+// globale vide (27/11 : session vMix de novembre, synthèse « non noté » alors
+// que les critères étaient remplis — la synthèse, l'attestation et le
+// dashboard ne lisent que la note globale).
+export type NoteExercice = "acquis" | "en_cours" | "non_acquis";
+
+export function suggererNoteGlobale(scores: string[]): NoteExercice | null {
+  if (scores.length === 0) return null;
+  if (scores.some((s) => s !== "acquis" && s !== "en_cours" && s !== "non_acquis")) return null;
+  const points = scores.reduce((sum, s) => sum + (s === "acquis" ? 2 : s === "en_cours" ? 1 : 0), 0);
+  const ratio = points / (scores.length * 2);
+  const hasNonAcquis = scores.includes("non_acquis");
+  if (ratio >= 0.8 && !hasNonAcquis) return "acquis";
+  if (ratio >= 0.5) return "en_cours";
+  return "non_acquis";
+}
+
+/**
+ * La note globale à enregistrer : celle du formateur si elle est saisie, sinon
+ * la suggestion quand TOUS les critères de l'exercice sont notés, sinon "".
+ * `scoresParCritere` : le score de chaque critère de l'exercice ("" si non noté).
+ */
+export function noteGlobaleEffective(saisie: string, scoresParCritere: string[]): string {
+  if (saisie) return saisie;
+  return suggererNoteGlobale(scoresParCritere) ?? "";
+}
