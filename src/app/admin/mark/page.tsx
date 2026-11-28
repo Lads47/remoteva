@@ -245,6 +245,25 @@ function Installation() {
         ensuite la même sur le Stream Deck.
       </p>
 
+      <Titre>Companion et plugins du Stream Deck : les commandes API</Titre>
+      <p className="mt-2 text-sm" style={{ color: MUTED }}>
+        Depuis la 1.6.0, les mêmes boutons par des adresses web, comme l&apos;API de vMix :{" "}
+        <Fort>http://127.0.0.1:8090/api/mark</Fort>, <Fort>/api/in</Fort>,{" "}
+        <Fort>/api/out</Fort>, <Fort>/api/short</Fort> (et <Fort>/api/etat</Fort>, qui répond
+        sans rien écrire). Chaque adresse fait exactement ce que fait le bouton, quelle que soit la
+        fenêtre au premier plan — même vMix lancé en administrateur, qui bloque les touches du
+        Stream Deck.
+      </p>
+      <p className="mt-2 text-sm" style={{ color: MUTED }}>
+        <Fort>Companion</Fort> : module <Fort>Generic: HTTP Requests</Fort>, action{" "}
+        <Fort>GET</Fort> avec l&apos;adresse. <Fort>Stream Deck</Fort> : un plugin qui envoie une
+        requête web, avec la même adresse. Pour vérifier : collez l&apos;adresse dans un
+        navigateur, EVA Mark répond « MARK OK » et l&apos;heure. Le menu{" "}
+        <Fort>Raccourci → Commandes API</Fort> donne les adresses à copier, le port, et la case
+        pour un Companion installé sur un autre PC du réseau (Windows demande alors une fois
+        d&apos;ouvrir son pare-feu).
+      </p>
+
       <Titre>Pendant la prestation</Titre>
       <p className="mt-2 text-sm" style={{ color: MUTED }}>
         Un double-clic ouvre EVA Mark tout de suite, sans rien demander : il reprend le dernier
